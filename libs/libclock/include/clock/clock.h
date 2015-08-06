@@ -21,13 +21,6 @@
 #define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
 #define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
 
-typedef struct {
-    /* vaddr gpt is mapped to */
-    void *vaddr;
-    /* prescaler to scale time by. 0 = divide by 1. 1 = divide by 2. ...*/
-    uint32_t prescaler;
-} gpt_config_t;
-
 typedef struct gpt {
     volatile struct gpt_map *gpt_map;
     int mode;

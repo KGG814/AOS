@@ -1,6 +1,7 @@
 #include <clock/clock.h>
 
 #include <platsupport/timer.h>
+#include <platsupport/plat/timer.h>
 
 #define PRESCALE 		0
 #define GPT_STATUS_REGISTER_CLEAR 0x3F
@@ -33,16 +34,22 @@ int start_timer(seL4_CPtr interrupt_ep) {
     gpt->prescaler = PRESCALE;
 
     /* Disable GPT. */
+    /* Sets EN, OM#, IM# to 0 */
     gpt->gpt_map->gptcr = 0;
+    /* Set interrupt register to 0 */
+    gpt->gpt_map->gptir = 0;
     gpt->gpt_map->gptsr = GPT_STATUS_REGISTER_CLEAR;
 
     /* Configure GPT. */
-    gpt->gpt_map->gptcr |= BIT(ENMOD); /* Reset to 0 on disable */
-    gpt->gpt_map->gptcr = 0 | BIT(SWR); /* Reset the GPT */
+    /* Reset to 0 on disable */
+    gpt->gpt_map->gptcr |= BIT(ENMOD); 
+    /* Reset the GPT */
+    gpt->gpt_map->gptcr = 0 | BIT(SWR); 
     gpt->gpt_map->gptcr = BIT(FRR) | BIT(CLKSRC) | BIT(ENMOD); /* GPT can do more but for this just
             set it as free running  so we can tell the time */
-    gpt->gpt_map->gptir = BIT(ROV); /* Interrupt when the timer overflows */
+    //gpt->gpt_map->gptir = BIT(ROV); /* Interrupt when the timer overflows */
     gpt->gpt_map->gptpr = PRESCALE; /* Set the prescaler */
+    gpt->gpt_map->gptcr = BIT(EN);
 	return 0;
 }
 
@@ -57,8 +64,8 @@ timestamp_t time_stamp(void) {
     uint64_t value;
 
     value = gpt->gpt_map->gptcnt;
-    uint64_t ns = (value / (uint64_t)IPG_FREQ) * NS_IN_US * (gpt->prescaler + 1);
-    return ns;
+    //uint64_t ns = (value / (uint64_t)IPG_FREQ) * NS_IN_US * (gpt->prescaler + 1);
+    return value;
 }
 
 /*\
