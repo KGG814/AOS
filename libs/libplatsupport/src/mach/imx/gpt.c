@@ -113,7 +113,7 @@ enum gpt_interrupt_register_bits {
 };
 
 /* Memory map for GPT. */
-struct gpt_map {
+typedef struct gpt_map {
     /* gpt control register */
     uint32_t gptcr;
     /* gpt prescaler register */
@@ -134,7 +134,7 @@ struct gpt_map {
     uint32_t gpticr2;
     /* gpt counter register */
     uint32_t gptcnt;
-};
+} gpt_map;
 
 typedef enum {
     PERIODIC,

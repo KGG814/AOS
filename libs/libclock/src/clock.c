@@ -1,5 +1,5 @@
 #include <clock/clock.h>
-
+#include <platsupport/mach/gpt.h>
 /* 
  * GPT Registers
  */
@@ -41,25 +41,28 @@
  * Returns CLOCK_R_OK iff successful.
  */
 int start_timer(seL4_CPtr interrupt_ep) {
+	gpt_map map;
+	gpt_config_t config = {&map, 0};
+	pstimer_t *timer = gpt_get_timer(&config);
 	/* Disable the GPT */
-	*GPT_CR &= ~EN;
+	//*GPT_CR &= ~EN;
 	/* Set all writable GPT_IR fields to zero*/
-	*GPT_IR &= ~IR_ALL;
+	//*GPT_IR &= ~IR_ALL;
 	/* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 */
-	*GPT_CR &= ~OM_ALL;
+	//*GPT_CR &= ~OM_ALL;
 	/* Disable Input Capture Modes*/ 
-	*GPT_CR &= ~IM_ALL;
+	//*GPT_CR &= ~IM_ALL;
 	/* Change clock source to PG_CLK */
-	*GPT_CR &= ~PG_CLK;
+	//*GPT_CR &= ~PG_CLK;
 	/* Assert SWR bit */
-	assert(*GPT_CR & SWR == SWR);
+	//assert(*GPT_CR & SWR == SWR);
 	/* Clear GPT status register (set to clear) */
-	*GPT_SR = 0xFFFFFFFF;
+	//*GPT_SR = 0xFFFFFFFF;
 	/* Make sure the GPT starts from 0 when we start it */
-	*GPT_CR &= ENMOD;
+	//*GPT_CR &= ENMOD;
 	/* Enable the GPT */
-	*GPT_CR &= EN;
-	(void*) interrupt_ep;
+	//*GPT_CR &= EN;
+	//(void*) interrupt_ep;
 	return 0;
 }
 
