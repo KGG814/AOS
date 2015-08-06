@@ -48,6 +48,7 @@ volatile char* gpt;
 
 int start_timer(seL4_CPtr interrupt_ep) {
 		gpt = map_device((void*)GPT_PADDR, PAGE_SIZE);
+		//
         /* Disable the GPT */
         *((volatile uint32_t*)(gpt + GPT_CR)) &= ~EN;
         /* Set all writable GPT_IR fields to zero*/
