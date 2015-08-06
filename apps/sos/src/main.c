@@ -48,11 +48,11 @@
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (101)
-
+#define seL4_MsgMaxLength    120
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
-
+static struct serial *serialHandler;
 const seL4_BootInfo* _boot_info;
 
 
@@ -76,7 +76,10 @@ struct {
  * A dummy starting syscall
  */
 #define SOS_SYSCALL0 0
-
+/*
+ * A syscall for writing to libserial
+ */
+#define SOS_WRITE    1
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
 
@@ -101,13 +104,29 @@ void handle_syscall(seL4_Word badge, int num_args) {
     switch (syscall_number) {
     case SOS_SYSCALL0:
         dprintf(0, "syscall: thread made syscall 0!\n");
-
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_SetMR(0, 0);
         seL4_Send(reply_cap, reply);
-
         break;
-
+    case SOS_WRITE:
+        dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
+        dprintf(0, "num_args: %d\n", num_args);
+        // Send an acknowledgement
+        // Initialise serial comms
+        // Array for storing the data
+        char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
+        // Go through each message and transfer the word
+        int i;
+        seL4_Word* currentWord = (seL4_Word*)data;
+        for (i = 1; i <= num_args; i++) {
+            *currentWord = seL4_GetMR(i);
+            currentWord++;
+        }
+        serial_send(serialHandler, data, num_args*sizeof(seL4_Word));
+		  seL4_SetMR(0, 0);
+        seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
+        seL4_Send(reply_cap, reply2);
+        break;
     default:
         printf("Unknown syscall %d\n", syscall_number);
         /* we don't want to reply to an unknown syscall */
@@ -406,7 +425,7 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-
+	 serialHandler = serial_init();
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
 
