@@ -19,6 +19,7 @@
 #include <nfs/nfs.h>
 #include <elf/elf.h>
 #include <serial/serial.h>
+#include <clock/clock.h>
 
 #include "network.h"
 #include "elf.h"
@@ -414,6 +415,12 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
     return badged_cap;
 }
 
+void clock_test(void) {
+    seL4_CPtr interrupt_ep;
+    start_timer(interrupt_ep);
+    dprintf(0, "\ntimestamp: %d\n", time_stamp());
+}
+
 /*
  * Main entry point - called by crt.
  */
@@ -428,7 +435,7 @@ int main(void) {
 	 serialHandler = serial_init();
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
-
+    clock_test();
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     syscall_loop(_sos_ipc_ep_cap);
