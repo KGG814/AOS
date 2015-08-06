@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
 #include <cspace/cspace.h>
 
 #include <cpio/cpio.h>

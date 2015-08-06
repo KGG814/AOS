@@ -1,5 +1,5 @@
 #include <clock/clock.h>
-#include <mapping.h>
+
 
 /* 
  * GPT Registers
@@ -42,8 +42,26 @@
  * Returns CLOCK_R_OK iff successful.
  */
 int start_timer(seL4_CPtr interrupt_ep) {
-        char* gpt = map_device(GPT_ADDR, GPT_SIZE);
-
+		char* gpt = map_device(GPT_ADDR, GPT_SIZE);
+        /* Disable the GPT */
+        *(gpt + GPT_CR) &= ~EN;
+        /* Set all writable GPT_IR fields to zero*/
+        *(gpt + GPT_IR) &= ~IR_ALL;
+        /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 *
+        *GPT_CR &= ~OM_ALL;
+        /* Disable Input Capture Modes*/ 
+        *(gpt + GPT_CR) &= ~IM_ALL;
+        /* Change clock source to PG_CLK */
+        *(gpt + GPT_CR) &= ~PG_CLK;
+        /* Assert SWR bit */
+        assert(*GPT_CR & SWR == SWR);
+        /* Clear GPT status register (set to clear) */
+        *(gpt + GPT_SR) = 0xFFFFFFFF;
+        /* Make sure the GPT starts from 0 when we start it */
+        *(gpt + GPT_CR) &= ENMOD;
+        /* Enable the GPT */
+        *(gpt + GPT_CR) &= EN;
+        (void*) interrupt_ep;
         return 0;
 }
 
@@ -53,7 +71,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
  * Returns a negative value if failure.
  */
 timestamp_t time_stamp(void) {
-        return *GPT_CNT;
+        return *(gpt + GPT_CNT);
 }
 /*\
  * Register a callback to be called after a given delay
@@ -64,6 +82,3 @@ timestamp_t time_stamp(void) {
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
 //uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
-
-/*
-:
