@@ -25,7 +25,6 @@
 
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-#include "mapping.h"
 
 #include <autoconf.h>
 
@@ -417,7 +416,7 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 
 void clock_test(void) {
     seL4_CPtr interrupt_ep;
-    start_timer(interrupt_ep);
+    char *addr = (char*)start_timer(interrupt_ep);
     dprintf(0, "\ntimestamp: %ld\n", time_stamp());
 
 }

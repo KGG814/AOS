@@ -1,5 +1,6 @@
 #include <clock/clock.h>
-
+#include <bits/limits.h>
+#include "../../../apps/sos/src/mapping.h"
 
 /* 
  * GPT Registers
@@ -15,6 +16,7 @@
 #define GPT_OCR3    	(0x18)
 #define GPT_CNT     	(0x24)
 
+#define GPT_SIZE		0x28
 /*
  * GPT_CR Bitmasks
  */
@@ -27,7 +29,7 @@
 #define IM_ALL          0x000F0000
 #define SWR             0x00008000
 
-#define PG_CLK          0x00000080
+#define PG_CLK          0x00000040
 
 /*
  * GPT_CR Bitmasks
@@ -41,28 +43,35 @@
  *
  * Returns CLOCK_R_OK iff successful.
  */
+
+volatile char* gpt;
+
 int start_timer(seL4_CPtr interrupt_ep) {
-		volatile char* gpt = map_device(GPT_ADDR, GPT_SIZE);
+		gpt = map_device((void*)GPT_PADDR, PAGE_SIZE);
         /* Disable the GPT */
-        *(gpt + GPT_CR) &= ~EN;
+        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~EN;
         /* Set all writable GPT_IR fields to zero*/
-        *(gpt + GPT_IR) &= ~IR_ALL;
-        /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 *
-        /*GPT_CR &= ~OM_ALL;*/
+        *((volatile uint32_t*)(gpt + GPT_IR)) &= ~IR_ALL;
+        /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 */
+        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~OM_ALL;
         /* Disable Input Capture Modes*/ 
-        *(gpt + GPT_CR) &= ~IM_ALL;
+        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~IM_ALL;
         /* Change clock source to PG_CLK */
-        *(gpt + GPT_CR) &= ~PG_CLK;
+        *((volatile uint32_t*)(gpt + GPT_CR)) |= PG_CLK;
         /* Assert SWR bit */
-        assert(*GPT_CR & SWR == SWR);
+        *((volatile uint32_t*)(gpt + GPT_CR)) |= SWR;
+        /* Set to free run mode */
+        *((volatile uint32_t*)(gpt + GPT_CR)) |= FRR;
+        /* Set prescale rate */
+        *((volatile uint32_t*)(gpt + GPT_PR)) = 0;
         /* Clear GPT status register (set to clear) */
-        *(gpt + GPT_SR) = 0xFFFFFFFF;
+        *((volatile uint32_t*)(gpt + GPT_SR)) |= 0x0000002F;
         /* Make sure the GPT starts from 0 when we start it */
-        *(gpt + GPT_CR) &= ENMOD;
+        *((volatile uint32_t*)(gpt + GPT_CR)) |= ENMOD;
         /* Enable the GPT */
-        *(gpt + GPT_CR) &= EN;
-        (void*) interrupt_ep;
-        return 0;
+        *((volatile uint32_t*)(gpt + GPT_CR)) |= EN;
+        //(void*) interrupt_ep;
+        return (int) gpt;
 }
 
 /*
@@ -71,7 +80,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
  * Returns a negative value if failure.
  */
 timestamp_t time_stamp(void) {
-        return *(gpt + GPT_CNT);
+        return *((volatile char*)(gpt + GPT_CNT));
 }
 /*\
  * Register a callback to be called after a given delay
