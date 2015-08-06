@@ -24,5 +24,4 @@ typedef struct {
 } gpt_config_t;
 
 pstimer_t *gpt_get_timer(gpt_config_t *config);
-
 #endif /* __PLAT_SUPPORT_GPT_H */
