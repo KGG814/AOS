@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
 #include <cspace/cspace.h>
 
 #include <cpio/cpio.h>
@@ -33,6 +32,7 @@
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
+
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -418,7 +418,8 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 void clock_test(void) {
     seL4_CPtr interrupt_ep;
     start_timer(interrupt_ep);
-    dprintf(0, "\ntimestamp: %d\n", time_stamp());
+    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
+
 }
 
 /*
@@ -432,12 +433,14 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-	 serialHandler = serial_init();
+	serialHandler = serial_init();
+    clock_test();
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
-    clock_test();
+    
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
+    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
