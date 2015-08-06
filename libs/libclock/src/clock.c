@@ -6,14 +6,14 @@
  */
 #define GPT_PADDR       0x02098000
 
-#define GPT_CR          (char*)(GPT_PADDR + 0x00)
-#define GPT_PR          (char*)(GPT_PADDR + 0x04)
-#define GPT_SR          (char*)(GPT_PADDR + 0x08)
-#define GPT_IR          (char*)(GPT_PADDR + 0x0C)
-#define GPT_OCR1    	(char*)(GPT_PADDR + 0x10)
-#define GPT_OCR2        (char*)(GPT_PADDR + 0x14)
-#define GPT_OCR3    	(char*)(GPT_PADDR + 0x18)
-#define GPT_CNT     	(char*)(GPT_PADDR + 0x24)
+#define GPT_CR          (0x00)
+#define GPT_PR          (0x04)
+#define GPT_SR          (0x08)
+#define GPT_IR          (0x0C)
+#define GPT_OCR1    	(0x10)
+#define GPT_OCR2        (0x14)
+#define GPT_OCR3    	(0x18)
+#define GPT_CNT     	(0x24)
 
 /*
  * GPT_CR Bitmasks
@@ -42,13 +42,13 @@
  * Returns CLOCK_R_OK iff successful.
  */
 int start_timer(seL4_CPtr interrupt_ep) {
-		char* gpt = map_device(GPT_ADDR, GPT_SIZE);
+		volatile char* gpt = map_device(GPT_ADDR, GPT_SIZE);
         /* Disable the GPT */
         *(gpt + GPT_CR) &= ~EN;
         /* Set all writable GPT_IR fields to zero*/
         *(gpt + GPT_IR) &= ~IR_ALL;
         /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 *
-        *GPT_CR &= ~OM_ALL;
+        /*GPT_CR &= ~OM_ALL;*/
         /* Disable Input Capture Modes*/ 
         *(gpt + GPT_CR) &= ~IM_ALL;
         /* Change clock source to PG_CLK */
