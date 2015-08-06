@@ -69,6 +69,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
  * Returns a negative value if failure.
  */
 timestamp_t time_stamp(void) {
+	// Directly access the counter
 	return *GPT_CNT;
 }
 
