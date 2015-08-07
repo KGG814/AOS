@@ -12,7 +12,10 @@
 #define _CLOCK_H_
 
 #include <sel4/sel4.h>
-
+#include <cspace/cspace.h>
+#include <mapping.h>
+#include <stdio.h>
+//#include "../../../apps/sos/src/mapping.h"
 /*
  * Return codes for driver functions
  */
@@ -21,6 +24,9 @@
 #define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
 #define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
 
+#define IRQ_BADGE_TIMER   (1 << 1)
+#define IRQ_BADGE_NETWORK (1 << 0)
+#define IRQ_EP_BADGE      (1 << (seL4_BadgeBits - 1))
 #define MAX_TIMERS 64
 #define MAX_IDS 64
 
@@ -77,5 +83,7 @@ timestamp_t time_stamp(void);
  * Returns CLOCK_R_OK iff successful.
  */
 int stop_timer(void);
+
+int timer_status(void);
 
 #endif /* _CLOCK_H_ */
