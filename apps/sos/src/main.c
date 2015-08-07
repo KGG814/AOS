@@ -420,8 +420,6 @@ void clock_test(void) {
     while(1) {
         dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
     }
-    
-
 }
 
 /*

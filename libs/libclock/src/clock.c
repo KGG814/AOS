@@ -119,9 +119,10 @@ int stop_timer(void);
  * Returns a negative value if failure.
  */
 timestamp_t time_stamp(void) {
-//int time_stamp(void) {
-    timestamp_t time = (((timestamp_t) time_stamp_rollovers) << 32);
-    return (*((volatile uint32_t*)(gpt + GPT_CNT))) + time;
+    //this assumes that the rollover handling won't happen in the middle of this 
+    //function
+    timestamp_t time = *((volatile uint32_t*)(gpt + GPT_CNT));
+    return time + (time_stamp_rollovers << 32);
 }
 /*\
  * Register a callback to be called after a given delay
