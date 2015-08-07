@@ -39,16 +39,19 @@
  * badge to the async endpoint. The badge that we receive will
  * be the bitwise 'OR' of the async endpoint badge and the badges
  * of all pending notifications. */
-//#define IRQ_EP_BADGE         (1 << (seL4_BadgeBits - 1))
+#define IRQ_EP_BADGE         (1 << (seL4_BadgeBits - 1))
 /* All badged IRQs set high bet, then we use uniq bits to
  * distinguish interrupt sources */
-//#define IRQ_BADGE_NETWORK (1 << 0)
-
+#define IRQ_BADGE_NETWORK (1 << 0)
+#define IRQ_BADGE_TIMER   (1 << 1)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (101)
 #define seL4_MsgMaxLength    120
+
+
+
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
@@ -109,21 +112,21 @@ void handle_syscall(seL4_Word badge, int num_args) {
         seL4_Send(reply_cap, reply);
         break;
     case SOS_WRITE:
-        dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
-        dprintf(0, "num_args: %d\n", num_args);
+        //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
+        //dprintf(0, "num_args: %d\n", num_args);
         // Send an acknowledgement
         // Initialise serial comms
         // Array for storing the data
+        dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
+        seL4_SetMR(0, 0);
         char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
         // Go through each message and transfer the word
-        int i;
         seL4_Word* currentWord = (seL4_Word*)data;
-        for (i = 1; i <= num_args; i++) {
+        for (int i = 1; i <= num_args; i++) {
             *currentWord = seL4_GetMR(i);
             currentWord++;
         }
         serial_send(serialHandler, data, num_args*sizeof(seL4_Word));
-        seL4_SetMR(0, 0);
         seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_Send(reply_cap, reply2);
         break;
@@ -140,27 +143,23 @@ void handle_syscall(seL4_Word badge, int num_args) {
 void syscall_loop(seL4_CPtr ep) {
 
     while (1) {
-        dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
+        //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
         seL4_Word badge;
         seL4_Word label;
         seL4_MessageInfo_t message;
 
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);  
-        dprintf(0, "Status: %x, badge: %x\n", timer_status(), badge); 
 
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
-            dprintf(0, "\n\n\n\nInterrupt!!!!! \n\n\n"); 
             if (badge & IRQ_BADGE_NETWORK) {  
                 network_irq();
             }
 
             if(badge & IRQ_BADGE_TIMER) {
-                while(1) {
-                  dprintf(0, "Something happened\n");   
-                }
-                
+                dprintf(0, "Interrupt\n");
+                timer_interrupt();
             }
 
         }else if(label == seL4_VMFault){
@@ -426,7 +425,8 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 }
 
 void clock_test(seL4_CPtr interrupt_ep) {
-    dprintf(0,"IR:%d\n", start_timer(interrupt_ep));
+    start_timer(interrupt_ep);
+    register_timer(0x200000000, NULL, NULL);
 }
 
 /*

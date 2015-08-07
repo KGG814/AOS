@@ -4,57 +4,13 @@
 #include <bits/limits.h>
 #include "../../../apps/sos/src/sys/panic.h"
 
-/* 
- * GPT Registers
- */
-#define GPT_PADDR       0x02098000
 
-#define GPT_CR          (0x00)
-#define GPT_PR          (0x04)
-#define GPT_SR          (0x08)
-#define GPT_IR          (0x0C)
-#define GPT_OCR1    	(0x10)
-#define GPT_OCR2        (0x14)
-#define GPT_OCR3    	(0x18)
-#define GPT_CNT     	(0x24)
-
-#define GPT_SIZE		0x28
-/*
- * GPT_CR Bitmasks
- */
-
-#define EN              0x00000001
-#define ENMOD           0x00000002
-#define CLKSRC          0x000001C0
-#define FRR             0x00000200
-#define OM_ALL          0x1FF00000
-#define IM_ALL          0x000F0000
-#define SWR             0x00008000
-
-#define PG_CLK          0x00000040
-
-#define OM_ON           0x0DB00000
-
-/*
- * GPT_IR Bitmasks
- */
-
-#define IR_ALL         0x0000003F
-#define ROVIE          0x00000020
-#define OF1IE          0x00000001
-
-#define PRESCALE       66
-#define GPT            87
-/*
- * Initialise driver. Performs implicit stop_timer() if already initialised.
- *    interrupt_ep:       A (possibly badged) async endpoint that the driver
-                          should use for deliverying interrupts to
- *
- * Returns CLOCK_R_OK iff successful.
- */
+/* The timer is prescaled by this value + 1 */
+#define PRESCALE       131
 
 static uint64_t time_stamp_rollovers = 0; 
 static volatile char* gpt;
+seL4_CPtr timerCap;
 
 struct timer {
     uint32_t id;
@@ -63,7 +19,8 @@ struct timer {
     timer_callback_t callback;
     void *data;
 };
-
+volatile struct gpt_map *gpt_registers;
+struct timer gTimer;
 //queue of timers  
 static struct timer* queue[MAX_TIMERS] = {NULL}; 
     
@@ -86,49 +43,54 @@ static struct timer* heap_down(uint32_t pos) {
     return NULL;
 }
 
+/*
+ * Initialise driver. Performs implicit stop_timer() if already initialised.
+ *    interrupt_ep:       A (possibly badged) async endpoint that the driver
+                          should use for deliverying interrupts to
+ *
+ * Returns CLOCK_R_OK iff successful.
+ */
+
 int start_timer(seL4_CPtr interrupt_ep) {
 
-		gpt = map_device((void*)GPT_PADDR, PAGE_SIZE);
-		//
-        /* Disable the GPT */
-        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~EN;
-        /* Set all writable GPT_IR fields to zero*/
-        *((volatile uint32_t*)(gpt + GPT_IR)) &= ~IR_ALL;
-        /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 */
-        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~OM_ALL;
-        /* Disable Input Capture Modes*/ 
-        *((volatile uint32_t*)(gpt + GPT_CR)) &= ~IM_ALL;
-        /* Assert SWR bit */
-        *((volatile uint32_t*)(gpt + GPT_CR)) |= SWR;
-        /* Change clock source to PG_CLK */
-        *((volatile uint32_t*)(gpt + GPT_CR)) |= PG_CLK;
-        /* Set to free run mode */
-        *((volatile uint32_t*)(gpt + GPT_CR)) |= FRR;
-        /* Set prescale rate */
-        *((volatile uint32_t*)(gpt + GPT_PR)) = 0;
-        /* Clear GPT status register (set to clear) */
-        *((volatile uint32_t*)(gpt + GPT_SR)) |= 0x0000002F;
-        /* Make sure the GPT starts from 0 when we start it */
-        *((volatile uint32_t*)(gpt + GPT_CR)) |= ENMOD;
-        /* Enable the GPT */
-        *((volatile uint32_t*)(gpt + GPT_CR)) |= EN;
-        /* Set interrupt on rollover */
-        *((volatile uint32_t*)(gpt + GPT_IR)) |= ROVIE;
+    gpt = map_device((void*)GPT1_DEVICE_PADDR, PAGE_SIZE);
+    gpt_registers = (struct gpt_map *)gpt;
+    /* Disable the GPT */
+    gpt_registers->gptcr = 0;
+    gpt_registers->gptsr = GPT_STATUS_REGISTER_CLEAR;
+    /* Set all writable GPT_IR fields to zero*/
+    gpt_registers->gptcr = 0;
+    /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 */
+    /* Disable Input Capture Modes*/ 
+    /* Assert SWR bit */
+    gpt_registers->gptcr |= BIT(SWR); /* Reset the GPT */
+    /* Change clock source to PG_CLK */
+    /* Set to free run mode */
+    /* Set prescale rate */
+    
+    /* Clear GPT status register (set to clear) */
+    /* Make sure the GPT starts from 0 when we start it */
+    gpt_registers->gptcr = BIT(FRR) | BIT(CLKSRC) | BIT(ENMOD);
+    gpt_registers->gptpr = 0;
+    /* Enable the GPT */
+    gpt_registers->gptcr |= BIT(EN);
+    /* Set interrupt on rollover */
+    gpt_registers->gptir |= BIT(ROVIE);
 
-        //(void*) interrupt_ep;
+    //(void*) interrupt_ep;
 
-        /* Interrupt setup */
-        seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, GPT);
-        /* Assign to an end point */
-        int err;
-        /* Badge the cap so the interrupt handler in syscall loop knows this is a timer interrupt*/
-        /* Assign to an end point */
-        err = seL4_IRQHandler_SetEndpoint(cap, interrupt_ep);
-        conditional_panic(err, "Failed to set interrupt endpoint");
-        /* Ack the handler before continuing */
-        err = seL4_IRQHandler_Ack(cap);
-        conditional_panic(err, "Failure to acknowledge pending interrupts");
-        return *((volatile uint32_t*)(gpt + GPT_IR));
+    /* Interrupt setup */
+    timerCap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, GPT1_INTERRUPT);
+    /* Assign to an end point */
+    int err;
+    /* Badge the cap so the interrupt handler in syscall loop knows this is a timer interrupt*/
+    /* Assign to an end point */
+    err = seL4_IRQHandler_SetEndpoint(timerCap, interrupt_ep);
+    conditional_panic(err, "Failed to set interrupt endpoint");
+    /* Ack the handler before continuing */
+    err = seL4_IRQHandler_Ack(timerCap);
+    conditional_panic(err, "Failure to acknowledge pending interrupts");
+    return 0;
 }
 
 /*
@@ -139,8 +101,17 @@ int start_timer(seL4_CPtr interrupt_ep) {
  *
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
+
+
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
-    if (num_timers == MAX_TIMERS) {
+    gTimer.end = time_stamp() + delay;
+    gTimer.callback = callback;
+    gTimer.data = data;
+    // Set delay value
+    gpt_registers->gptcr1 = LOWER_32(gTimer.end);
+    // Turn on channel 1 interrupts
+    gpt_registers->gptir |= BIT(OF1IE);
+    /*if (num_timers == MAX_TIMERS) {
         return 0;
     }
 
@@ -177,7 +148,9 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
 
     //TODO need to update current timer if new timer has soonest end 
 
-    return t->id;
+    return t->id;*/
+
+    return 1;
 }
 
 /*
@@ -192,7 +165,28 @@ int remove_timer(uint32_t id);
  *
  * Returns CLOCK_R_OK iff successful
  */
-int timer_interrupt(void);
+int timer_interrupt(void) {
+    uint32_t* status = &gpt_registers->gptsr;
+    // Interrupt has happened
+    if (*status & BIT(OF1)) {
+        if (UPPER_32(time_stamp()) >= UPPER_32(gTimer.end)) {
+            //gTimer.callback(data);
+            assert(!"Callback goes here");
+        }
+        *status |= BIT(OF1);
+    }   
+    // Rollover has occured
+    if (*status & BIT(ROV)) {
+        time_stamp_rollovers++;
+        // Write 1 to clear
+        
+        *status |= BIT(ROV);
+    // Interupt on channel 1
+    }
+
+    seL4_IRQHandler_Ack(timerCap);
+    return CLOCK_R_OK;
+}
 
 /*
  * Stop clock driver operation.
@@ -209,21 +203,11 @@ int stop_timer(void);
 timestamp_t time_stamp(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    timestamp_t time = *((volatile uint32_t*)(gpt + GPT_CNT));
-    return time + (time_stamp_rollovers << 32);
+    return gpt_registers->gptcnt + (time_stamp_rollovers << 32);
 }
-/*\
- * Register a callback to be called after a given delay
- *    delay:  Delay time in microseconds before callback is invoked
- *    callback: Function to be called
- *    data: Custom data to be passed to callback function
- *
- * Returns 0 on failure, otherwise an unique ID for this timeout
- */
-//uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
 
 int timer_status(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    return *((volatile uint32_t*)(gpt + GPT_SR));
+    return gpt_registers->gptsr;
 }
