@@ -33,7 +33,7 @@
 
 #define PG_CLK          0x00000040
 
-#define OM_ON           0x00300000
+#define OM_ON           0x0DB00000
 
 /*
  * GPT_IR Bitmasks
@@ -44,7 +44,7 @@
 #define OF1IE          0x00000001
 
 #define PRESCALE       66
-#define GPT            34
+#define GPT            87
 /*
  * Initialise driver. Performs implicit stop_timer() if already initialised.
  *    interrupt_ep:       A (possibly badged) async endpoint that the driver
@@ -106,14 +106,15 @@ int start_timer(seL4_CPtr interrupt_ep) {
         *((volatile uint32_t*)(gpt + GPT_CR)) |= FRR;
         /* Set prescale rate */
         *((volatile uint32_t*)(gpt + GPT_PR)) = 0;
-        /* Set interrupt on rollover */
-        *((volatile uint32_t*)(gpt + GPT_IR)) |= ROVIE;
         /* Clear GPT status register (set to clear) */
         *((volatile uint32_t*)(gpt + GPT_SR)) |= 0x0000002F;
         /* Make sure the GPT starts from 0 when we start it */
         *((volatile uint32_t*)(gpt + GPT_CR)) |= ENMOD;
         /* Enable the GPT */
         *((volatile uint32_t*)(gpt + GPT_CR)) |= EN;
+        /* Set interrupt on rollover */
+        *((volatile uint32_t*)(gpt + GPT_IR)) |= ROVIE;
+
         //(void*) interrupt_ep;
 
         /* Interrupt setup */
@@ -121,10 +122,8 @@ int start_timer(seL4_CPtr interrupt_ep) {
         /* Assign to an end point */
         int err;
         /* Badge the cap so the interrupt handler in syscall loop knows this is a timer interrupt*/
-        seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, interrupt_ep, seL4_AllRights, seL4_CapData_Badge_new(IRQ_BADGE_TIMER | IRQ_EP_BADGE));
-        conditional_panic(!cap, "Failed to acquire and IRQ control cap");
         /* Assign to an end point */
-        err = seL4_IRQHandler_SetEndpoint(cap, badged_cap);
+        err = seL4_IRQHandler_SetEndpoint(cap, interrupt_ep);
         conditional_panic(err, "Failed to set interrupt endpoint");
         /* Ack the handler before continuing */
         err = seL4_IRQHandler_Ack(cap);

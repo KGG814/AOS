@@ -441,7 +441,7 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serialHandler = serial_init();
-    clock_test(_sos_interrupt_ep_cap);
+    clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
