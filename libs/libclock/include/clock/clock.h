@@ -183,7 +183,7 @@ int timer_interrupt(void);
  *
  * Returns a negative value if failure.
  */
-timestamp_t time_stamp(void);
+int time_stamp(void);
 
 /*
  * Stop clock driver operation.

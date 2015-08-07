@@ -417,7 +417,10 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 void clock_test(void) {
     seL4_CPtr interrupt_ep;
     char *addr = (char*)start_timer(interrupt_ep);
-    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
+    while(1) {
+        dprintf(0, "\ntimestamp: 0x%08x\n", time_stamp()); 
+    }
+    
 
 }
 
@@ -439,7 +442,7 @@ int main(void) {
     
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
-    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
+
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
