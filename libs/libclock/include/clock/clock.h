@@ -21,6 +21,12 @@
 #define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
 #define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
 
+#define MAX_TIMERS 64
+#define MAX_IDS 64
+
+#define ID_FREE 0
+#define ID_NOT_FREE 1
+
 typedef uint64_t timestamp_t;
 typedef void (*timer_callback_t)(uint32_t id, void *data);
 

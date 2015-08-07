@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include <clock/clock.h>
 #include <bits/limits.h>
 #include "../../../apps/sos/src/mapping.h"
@@ -47,10 +49,29 @@
  * Returns CLOCK_R_OK iff successful.
  */
 
-static uint32_t time_stamp_rollovers = 0; 
+static uint64_t time_stamp_rollovers = 0; 
 static volatile char* gpt;
 
+struct timer {
+    uint32_t id;
+    uint32_t pos; //position in queue 
+    timestamp_t end;
+    timer_callback_t callback;
+    void *data;
+};
+
+//queue of timers  
+static struct timer* queue[MAX_TIMERS] = {NULL}; 
+    
+//an array of timers, indexed by their id 
+//currently gets used to find a free ID 
+static struct timer* timers[MAX_IDS] = {NULL}; 
+
+static unsigned int num_timers = 0;
+
+
 int start_timer(seL4_CPtr interrupt_ep) {
+
 		gpt = map_device((void*)GPT_PADDR, PAGE_SIZE);
 		//
         /* Disable the GPT */
@@ -84,7 +105,6 @@ int start_timer(seL4_CPtr interrupt_ep) {
         return 0;
 }
 
-
 /*
  * Register a callback to be called after a given delay
  *    delay:  Delay time in microseconds before callback is invoked
@@ -93,7 +113,35 @@ int start_timer(seL4_CPtr interrupt_ep) {
  *
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
-uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
+    if (num_timers == MAX_TIMERS) {
+        return 0;
+    }
+
+    struct timer* t = malloc(sizeof(struct timer));
+    if (t == NULL) {
+        return 0;
+    }
+
+    t->end = time_stamp + (timestamp_t) delay;
+    t->callback = callback;
+    t->data = data;
+
+    t->pos = num_timers;
+    int i = 0;
+    while (i < MAX_IDS && timers[i] != NULL) {
+        i++;
+    }
+    if (i == MAX_IDS) {//no IDs left
+        free(t);
+        return 0;
+    }
+    t->id = i;
+
+    //perform heap insertion
+
+    return t->id;
+}
 
 /*
  * Remove a previously registered callback by its ID
