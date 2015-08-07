@@ -47,7 +47,8 @@
  * Returns CLOCK_R_OK iff successful.
  */
 
-volatile char* gpt;
+static uint32_t time_stamp_rollovers = 0; 
+static volatile char* gpt;
 
 int start_timer(seL4_CPtr interrupt_ep) {
 		gpt = map_device((void*)GPT_PADDR, PAGE_SIZE);
@@ -117,8 +118,10 @@ int stop_timer(void);
  *
  * Returns a negative value if failure.
  */
-int time_stamp(void) {
-        return *((volatile uint32_t*)(gpt + GPT_CNT));
+timestamp_t time_stamp(void) {
+//int time_stamp(void) {
+    timestamp_t time = (((timestamp_t) time_stamp_rollovers) << 32);
+    return (*((volatile uint32_t*)(gpt + GPT_CNT))) + time;
 }
 /*\
  * Register a callback to be called after a given delay

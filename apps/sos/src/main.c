@@ -418,7 +418,7 @@ void clock_test(void) {
     seL4_CPtr interrupt_ep;
     char *addr = (char*)start_timer(interrupt_ep);
     while(1) {
-        dprintf(0, "\ntimestamp: 0x%08x\n", time_stamp()); 
+        dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
     }
     
 
