@@ -33,7 +33,7 @@
 
 #define PG_CLK          0x00000040
 
-#define OM_1            0x00300000
+#define OM_ON           0x00300000
 
 /*
  * GPT_IR Bitmasks
@@ -44,7 +44,7 @@
 #define OF1IE          0x00000001
 
 #define PRESCALE       66
-#define GPT            13
+#define GPT            34
 /*
  * Initialise driver. Performs implicit stop_timer() if already initialised.
  *    interrupt_ep:       A (possibly badged) async endpoint that the driver
