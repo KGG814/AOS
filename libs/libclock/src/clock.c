@@ -54,7 +54,7 @@ static volatile char* gpt;
 
 struct timer {
     uint32_t id;
-    uint32_t pos; //position in queue 
+    uint32_t pos; //position in heap 
     timestamp_t end;
     timer_callback_t callback;
     void *data;
@@ -69,6 +69,18 @@ static struct timer* timers[MAX_IDS] = {NULL};
 
 static unsigned int num_timers = 0;
 
+static void delete_timer(struct timer* t) {
+    free(t);
+}
+
+static struct timer* heap_down(uint32_t pos) {
+    if (pos > MAX_TIMERS) {
+        return NULL;
+    }
+     
+    
+    return NULL;
+}
 
 int start_timer(seL4_CPtr interrupt_ep) {
 
@@ -101,7 +113,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
         //(void*) interrupt_ep;
 
         /* Interrupt setup */
-        seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, 0);
+        //seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, 0);
         return 0;
 }
 
@@ -127,7 +139,6 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     t->callback = callback;
     t->data = data;
 
-    t->pos = num_timers;
     int i = 0;
     while (i < MAX_IDS && timers[i] != NULL) {
         i++;
@@ -137,8 +148,20 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
         return 0;
     }
     t->id = i;
+    t->pos = num_timers;
 
     //perform heap insertion
+    queue[num_timers] = t;
+    while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
+        queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
+        queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
+        queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
+        t->pos = (t->pos - 1)/2; //change pos of t to parent's
+    }
+
+    num_timers++;
+
+    //TODO need to update current timer if new timer has soonest end 
 
     return t->id;
 }
