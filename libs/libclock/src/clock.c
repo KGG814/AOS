@@ -1,6 +1,6 @@
 #include <clock/clock.h>
 #include <bits/limits.h>
-#include "../../../apps/sos/src/mapping.h"
+#include "../../../apps/sos/src/sys/panic.h"
 
 /* 
  * GPT Registers
@@ -31,14 +31,18 @@
 
 #define PG_CLK          0x00000040
 
+#define OM_1            0x00300000
+
 /*
  * GPT_IR Bitmasks
  */
 
 #define IR_ALL         0x0000003F
 #define ROVIE          0x00000020
+#define OF1IE          0x00000001
 
 #define PRESCALE       66
+#define GPT            13
 /*
  * Initialise driver. Performs implicit stop_timer() if already initialised.
  *    interrupt_ep:       A (possibly badged) async endpoint that the driver
@@ -70,7 +74,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
         /* Set prescale rate */
         *((volatile uint32_t*)(gpt + GPT_PR)) = 0;
         /* Set interrupt on rollover */
-        *((volatile uint32_t*)(gpt + GPT_IR)) = ROVIE;
+        *((volatile uint32_t*)(gpt + GPT_IR)) |= ROVIE;
         /* Clear GPT status register (set to clear) */
         *((volatile uint32_t*)(gpt + GPT_SR)) |= 0x0000002F;
         /* Make sure the GPT starts from 0 when we start it */
@@ -80,8 +84,19 @@ int start_timer(seL4_CPtr interrupt_ep) {
         //(void*) interrupt_ep;
 
         /* Interrupt setup */
-        seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, 0);
-        return 0;
+        seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, GPT);
+        /* Assign to an end point */
+        int err;
+        /* Badge the cap so the interrupt handler in syscall loop knows this is a timer interrupt*/
+        seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, interrupt_ep, seL4_AllRights, seL4_CapData_Badge_new(IRQ_BADGE_TIMER | IRQ_EP_BADGE));
+        conditional_panic(!cap, "Failed to acquire and IRQ control cap");
+        /* Assign to an end point */
+        err = seL4_IRQHandler_SetEndpoint(cap, badged_cap);
+        conditional_panic(err, "Failed to set interrupt endpoint");
+        /* Ack the handler before continuing */
+        err = seL4_IRQHandler_Ack(cap);
+        conditional_panic(err, "Failure to acknowledge pending interrupts");
+        return *((volatile uint32_t*)(gpt + GPT_IR));
 }
 
 
@@ -136,3 +151,9 @@ timestamp_t time_stamp(void) {
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
 //uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
+
+int timer_status(void) {
+    //this assumes that the rollover handling won't happen in the middle of this 
+    //function
+    return *((volatile uint32_t*)(gpt + GPT_SR));
+}
