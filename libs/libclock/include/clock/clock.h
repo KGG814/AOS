@@ -27,6 +27,11 @@
 #define IRQ_BADGE_TIMER   (1 << 1)
 #define IRQ_BADGE_NETWORK (1 << 0)
 #define IRQ_EP_BADGE      (1 << (seL4_BadgeBits - 1))
+#define MAX_TIMERS 64
+#define MAX_IDS 64
+
+#define ID_FREE 0
+#define ID_NOT_FREE 1
 
 typedef uint64_t timestamp_t;
 typedef void (*timer_callback_t)(uint32_t id, void *data);
