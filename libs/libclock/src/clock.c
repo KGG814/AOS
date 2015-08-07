@@ -78,6 +78,9 @@ int start_timer(seL4_CPtr interrupt_ep) {
         /* Enable the GPT */
         *((volatile uint32_t*)(gpt + GPT_CR)) |= EN;
         //(void*) interrupt_ep;
+
+        /* Interrupt setup */
+        seL4_CPtr cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, 0);
         return 0;
 }
 
