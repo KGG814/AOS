@@ -186,7 +186,7 @@ struct gpt_map {
 #define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
 #define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
 
-#define MAX_TIMERS 64
+#define MAX_TIMERS 64 
 #define MAX_IDS 64
 
 #define ID_FREE 0
@@ -216,6 +216,8 @@ int start_timer(seL4_CPtr interrupt_ep);
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+
+uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data);
 
 /*
  * Remove a previously registered callback by its ID

@@ -104,20 +104,21 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     /* Process system call */
+    dprintf(0, "Syscall at time %llu\n", time_stamp()); 
     switch (syscall_number) {
-    case SOS_SYSCALL0:
-        dprintf(0, "syscall: thread made syscall 0!\n");
+    case SOS_SYSCALL0: {
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_SetMR(0, 0);
         seL4_Send(reply_cap, reply);
         break;
-    case SOS_WRITE:
+    }
+    case SOS_WRITE: {
         //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
         //dprintf(0, "num_args: %d\n", num_args);
         // Send an acknowledgement
         // Initialise serial comms
         // Array for storing the data
-        dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
+        //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
         seL4_SetMR(0, 0);
         char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
         // Go through each message and transfer the word
@@ -130,10 +131,11 @@ void handle_syscall(seL4_Word badge, int num_args) {
         seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_Send(reply_cap, reply2);
         break;
-    default:
+    }
+    default: {
         printf("Unknown syscall %d\n", syscall_number);
         /* we don't want to reply to an unknown syscall */
-
+    }
     }
 
     /* Free the saved reply cap */
@@ -143,7 +145,6 @@ void handle_syscall(seL4_Word badge, int num_args) {
 void syscall_loop(seL4_CPtr ep) {
 
     while (1) {
-        //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
         seL4_Word badge;
         seL4_Word label;
         seL4_MessageInfo_t message;
@@ -424,9 +425,38 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
     return badged_cap;
 }
 
+void check(uint32_t id, void* data) {
+    (void *) data;
+    dprintf(0, "hello %d\n", id);
+}
+
+void tick_check(uint32_t id, void *data) {
+    (void *) data;
+    dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp()/2000);
+}
+
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
-    register_timer(0x200000000, NULL, NULL);
+    //dprintf(0, "registered a timer with id %d\n", register_timer(4000000, &check, NULL));
+    //dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
+    dprintf(0, "registered a ticker with id %d\n", register_tic(2*1000000, &tick_check, NULL));
+
+    dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
+    /* 
+    uint64_t timestamps[4] = {};
+    for (int i = 0; i < 128; i++) {
+        for (int j = 0; j < 4; j++) {
+            timestamps[j] = time_stamp();
+        }
+        dprintf(0
+               ,"%016llx %016llx %016llx %016llx\n"
+               ,timestamps[0]
+               ,timestamps[1]
+               ,timestamps[2]
+               ,timestamps[3]
+               );
+    }
+    */
 }
 
 /*

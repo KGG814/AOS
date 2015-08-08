@@ -18,9 +18,12 @@ struct timer {
     timestamp_t end;
     timer_callback_t callback;
     void *data;
+
+    //this is 0 if the timer is not a tic, >0 if it is.
+    uint64_t duration; 
 };
 volatile struct gpt_map *gpt_registers;
-struct timer gTimer;
+//struct timer *gTimer;
 //queue of timers  
 static struct timer* queue[MAX_TIMERS] = {NULL}; 
     
@@ -34,13 +37,53 @@ static void delete_timer(struct timer* t) {
     free(t);
 }
 
-static struct timer* heap_down(uint32_t pos) {
+//removes a timer from the queue at position pos. does not free the timer or its id
+static struct timer* unqueue(uint32_t pos) {
     if (pos > MAX_TIMERS) {
         return NULL;
     }
      
+    struct timer* t = queue[pos];
+    if (t == NULL) {
+        return NULL;
+    } 
+
+    //copy last timer into current pos 
+    queue[pos] = queue[--num_timers];
+
+    //move swapped timer into correct position 
+    uint32_t left = 2*pos + 1;
+    uint32_t right = 2*pos + 2;
+    while (pos < num_timers) {
+        //check if we have any children
+        if (queue[left] != NULL) {
+            if (queue[right] != NULL 
+                && queue[right]->end < queue[left]->end 
+                && queue[right]->end < queue[pos]->end
+                ) {
+                queue[pos] = queue[right];
+                queue[right] = queue[num_timers];
+                queue[pos]->pos = pos; 
+                queue[right]->pos = right;
+                pos = right;
+            } else if (queue[left]->end < queue[pos]->end) {
+                queue[pos] = queue[left];
+                queue[left] = queue[num_timers];
+                queue[pos]->pos = pos; 
+                queue[left]->pos = left;
+                pos = left; 
+            } else {
+                pos = num_timers;
+            }
+        } else {
+            pos = num_timers;        
+        }
+    }
+
+    //set old position of moved timer to NULL
+    queue[num_timers] = NULL;
     
-    return NULL;
+    return t;
 }
 
 /*
@@ -71,7 +114,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
     /* Clear GPT status register (set to clear) */
     /* Make sure the GPT starts from 0 when we start it */
     gpt_registers->gptcr = BIT(FRR) | BIT(CLKSRC) | BIT(ENMOD);
-    gpt_registers->gptpr = 0;
+    gpt_registers->gptpr = 32;
     /* Enable the GPT */
     gpt_registers->gptcr |= BIT(EN);
     /* Set interrupt on rollover */
@@ -104,6 +147,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
 
 
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
+    /*
     gTimer.end = time_stamp() + delay;
     gTimer.callback = callback;
     gTimer.data = data;
@@ -111,7 +155,8 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     gpt_registers->gptcr1 = LOWER_32(gTimer.end);
     // Turn on channel 1 interrupts
     gpt_registers->gptir |= BIT(OF1IE);
-    /*if (num_timers == MAX_TIMERS) {
+    */
+    if (num_timers == MAX_TIMERS) {
         return 0;
     }
 
@@ -120,9 +165,10 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
         return 0;
     }
 
-    t->end = time_stamp + (timestamp_t) delay;
+    t->end = time_stamp() + (timestamp_t) delay;
     t->callback = callback;
     t->data = data;
+    t->duration = 0;
 
     int i = 0;
     while (i < MAX_IDS && timers[i] != NULL) {
@@ -133,6 +179,7 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
         return 0;
     }
     t->id = i;
+    timers[i] = t;
     t->pos = num_timers;
 
     //perform heap insertion
@@ -147,10 +194,63 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     num_timers++;
 
     //TODO need to update current timer if new timer has soonest end 
+    if (t->pos == 0) {
+        //set delay value 
+        gpt_registers->gptcr1 = LOWER_32(t->end);
+        //Turn on channel 1 interrupts 
+        gpt_registers->gptir |= BIT(OF1IE);
+    }
 
-    return t->id;*/
+    return t->id;
+}
 
-    return 1;
+uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) {
+    if (num_timers == MAX_TIMERS) {
+        return 0;
+    }
+
+    struct timer* t = malloc(sizeof(struct timer));
+    if (t == NULL) {
+        return 0;
+    }
+
+    t->end = time_stamp() + (timestamp_t) duration;
+    t->callback = callback;
+    t->data = data;
+    t->duration = duration;
+
+    int i = 0;
+    while (i < MAX_IDS && timers[i] != NULL) {
+        i++;
+    }
+    if (i == MAX_IDS) {//no IDs left
+        free(t);
+        return 0;
+    }
+    t->id = i;
+    timers[i] = t;
+    t->pos = num_timers;
+
+    //perform heap insertion
+    queue[num_timers] = t;
+    while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
+        queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
+        queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
+        queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
+        t->pos = (t->pos - 1)/2; //change pos of t to parent's
+    }
+
+    num_timers++;
+
+    //TODO need to update current timer if new timer has soonest end 
+    if (t->pos == 0) {
+        //set delay value 
+        gpt_registers->gptcr1 = LOWER_32(t->end);
+        //Turn on channel 1 interrupts 
+        gpt_registers->gptir |= BIT(OF1IE);
+    }
+
+    return t->id;
 }
 
 /*
@@ -166,14 +266,50 @@ int remove_timer(uint32_t id);
  * Returns CLOCK_R_OK iff successful
  */
 int timer_interrupt(void) {
-    uint32_t* status = &gpt_registers->gptsr;
+    volatile uint32_t* status = &gpt_registers->gptsr;
     // Interrupt has happened
     if (*status & BIT(OF1)) {
-        if (UPPER_32(time_stamp()) >= UPPER_32(gTimer.end)) {
-            //gTimer.callback(data);
-            assert(!"Callback goes here");
+        if (queue[0] != NULL &&UPPER_32(time_stamp()) >= UPPER_32(queue[0]->end)) {
+            //remove current timer from heap. does not free id 
+            struct timer *t = unqueue(0);
+           
+            //perform the callback 
+            if (t->callback != NULL) {
+                (*(t->callback))(t->id, t->data);
+            }
+
+            //ack the Interupt
+            *status |= BIT(OF1);
+            seL4_IRQHandler_Ack(timerCap);
+
+            //delete the timer if it isn't a tick, otherwise put it back on the 
+            //heap 
+            if (t->duration == 0) {
+                timers[t->id] = NULL;
+                free(t);
+            } else {
+                t->end = time_stamp() + (timestamp_t) t->duration;
+                t->pos = num_timers;
+
+                //perform heap insertion
+                //should actually just perform a decrease key; TODO change this
+                queue[num_timers] = t;
+                while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
+                    queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
+                    queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
+                    queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
+                    t->pos = (t->pos - 1)/2; //change pos of t to parent's
+                }
+
+                num_timers++;
+            }
+
+            //start the next timer 
+            if (queue[0] != NULL) {
+                gpt_registers->gptcr1 = LOWER_32(queue[0]->end);
+                gpt_registers->gptir |= BIT(OF1IE);
+            } 
         }
-        *status |= BIT(OF1);
     }   
     // Rollover has occured
     if (*status & BIT(ROV)) {
@@ -182,9 +318,9 @@ int timer_interrupt(void) {
         
         *status |= BIT(ROV);
     // Interupt on channel 1
+    seL4_IRQHandler_Ack(timerCap);
     }
 
-    seL4_IRQHandler_Ack(timerCap);
     return CLOCK_R_OK;
 }
 
@@ -193,7 +329,10 @@ int timer_interrupt(void) {
  *
  * Returns CLOCK_R_OK iff successful.
  */
-int stop_timer(void);
+int stop_timer(void);// {
+    //remove all existing timers, stop the counter, etc.
+    //return 1;
+//}
 
 /*
  * Returns present time in microseconds since booting.
