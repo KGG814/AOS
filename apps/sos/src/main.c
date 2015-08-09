@@ -50,14 +50,12 @@
 #define TTY_EP_BADGE         (101)
 #define seL4_MsgMaxLength    120
 
-
-
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
-static struct serial *serialHandler;
 const seL4_BootInfo* _boot_info;
 
+static struct serial *serialHandler;
 
 struct {
 
@@ -453,18 +451,29 @@ void tick_check(uint32_t id, void *data) {
     //dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp());
 }
 
+void stop_cb(uint32_t id, void *data) {
+    dprintf(0, "\n%d: stopping timer at time %llu\n", id, time_stamp());
+    int err = stop_timer();
+    dprintf(0, "\ntimer stopped with err:%d\n", err);
+}
+
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
     dprintf(0, "registered a timer with id %d\n", register_timer(2*10000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*10000100, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*10000200, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(2*9000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(2*8000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(2*7000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(2*6000000, &check, NULL));
 
-    dprintf(0, "tried to remove timer %d. err: %d\n", 2, remove_timer(2));
+    dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a timer with id %d\n", register_timer(2*5000000, &check, NULL));
-    dprintf(0, "tried to remove timer %d. err: %d\n", 2, remove_timer(2));
+    dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(2*100000, &tick_check, NULL));
+
+    dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(2*15500000, &stop_cb, NULL));
+    dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(2*16000000, &check, NULL));
 
     dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
     /* 

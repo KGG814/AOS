@@ -34,10 +34,6 @@ static struct timer* timers[MAX_IDS + 1] = {NULL};
 
 static unsigned int num_timers = 0;
 
-static void delete_timer(struct timer* t) {
-    free(t);
-}
-
 static inline void queue_swap(uint32_t pos1, uint32_t pos2) {
     struct timer* t = queue[pos1];
     queue[pos1] = queue[pos2];
@@ -95,7 +91,6 @@ static struct timer* unqueue(uint32_t pos) {
  *
  * Returns CLOCK_R_OK iff successful.
  */
-
 int start_timer(seL4_CPtr interrupt_ep) {
 
     gpt = (struct gpt_map *) map_device((void*)GPT1_DEVICE_PADDR, PAGE_SIZE);
@@ -126,10 +121,7 @@ int start_timer(seL4_CPtr interrupt_ep) {
     /* Interrupt setup */
     timerCap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, GPT1_INTERRUPT);
     /* Assign to an end point */
-    int err;
-    /* Badge the cap so the interrupt handler in syscall loop knows this is a timer interrupt*/
-    /* Assign to an end point */
-    err = seL4_IRQHandler_SetEndpoint(timerCap, interrupt_ep);
+    int err = seL4_IRQHandler_SetEndpoint(timerCap, interrupt_ep);
     conditional_panic(err, "Failed to set interrupt endpoint");
     /* Ack the handler before continuing */
     err = seL4_IRQHandler_Ack(timerCap);
@@ -149,8 +141,6 @@ int start_timer(seL4_CPtr interrupt_ep) {
  *
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
-
-
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     /*
     gTimer.end = time_stamp() + delay;
@@ -202,7 +192,6 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
 
     num_timers++;
 
-    //TODO need to update current timer if new timer has soonest end 
     if (t->pos == 0) {
         //set delay value 
         gpt->gptcr1 = LOWER_32(t->end);
@@ -229,11 +218,11 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
     t->data = data;
     t->duration = duration;
 
-    int i = 0;
-    while (i < MAX_IDS && timers[i] != NULL) {
+    int i = 1;
+    while (i <= MAX_IDS && timers[i] != NULL) {
         i++;
     }
-    if (i == MAX_IDS) {//no IDs LEFT(pos)
+    if (i > MAX_IDS) {//no IDs LEFT(pos)
         free(t);
         return 0;
     }
@@ -252,7 +241,6 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
 
     num_timers++;
 
-    //TODO need to update current timer if new timer has soonest end 
     if (t->pos == 0) {
         //set delay value 
         gpt->gptcr1 = LOWER_32(t->end);
@@ -303,6 +291,11 @@ int timer_interrupt(void) {
     if (initialised == NOT_INITIALISED) {
         return CLOCK_R_UINT;
     } 
+    //unhandled interrupt
+    if (!(*status & BIT(ROV)) && !(*status & BIT(OF1))) {
+        return CLOCK_R_FAIL;
+    }
+    
     // Interrupt has happened
     if (*status & BIT(OF1)) {
         timestamp_t cur_time = time_stamp();
@@ -315,6 +308,11 @@ int timer_interrupt(void) {
             if (t->callback != NULL) {
                 (*(t->callback))(t->id, t->data);
             }
+            //this call may have stopped the timer. In this case, we just return 
+            if (initialised == NOT_INITIALISED) {
+                seL4_IRQHandler_Ack(timerCap);
+                return CLOCK_R_OK;
+            }
 
             //delete the timer if it isn't a tick, otherwise put it back on the 
             //heap 
@@ -323,7 +321,7 @@ int timer_interrupt(void) {
                 timers[t->id] = NULL;
                 free(t);
             } else {
-                t->end = cur_time + (timestamp_t) t->duration;
+                t->end += (timestamp_t) t->duration;
     
                 //perform increase key
                 int done = 0; 
@@ -360,11 +358,6 @@ int timer_interrupt(void) {
         // Write 1 to clear
         
         *status |= BIT(ROV);
-    // Interupt on channel 1
-    }
-
-    if (!(*status & BIT(ROV)) && !(*status & BIT(OF1))) {
-        return CLOCK_R_FAIL;
     }
 
     seL4_IRQHandler_Ack(timerCap);
@@ -384,13 +377,12 @@ int stop_timer(void) {
         }
         timers[i] = NULL;
         queue[i] = NULL;
+        //dprintf(0, "stop_timer: removing timer %d\n", i);
     }
     num_timers = 0;
+    initialised = NOT_INITIALISED;
     return CLOCK_R_OK;
-}// {
-    //remove all existing timers.
-    //return 1;
-//}
+}
 
 /*
  * Returns present time in microseconds since booting.
@@ -401,7 +393,6 @@ timestamp_t time_stamp(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
     return TO_64(time_stamp_rollovers, gpt->gptcnt);
-    //return gpt->gptcnt + (time_stamp_rollovers << 32);
 }
 
 int timer_status(void) {
