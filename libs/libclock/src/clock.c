@@ -30,7 +30,7 @@ static struct timer* queue[MAX_TIMERS] = {NULL};
     
 //an array of timers, indexed by their id 
 //currently gets used to find a free ID 
-static struct timer* timers[MAX_IDS] = {NULL}; 
+static struct timer* timers[MAX_IDS + 1] = {NULL}; 
 
 static unsigned int num_timers = 0;
 
@@ -177,8 +177,8 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     t->data = data;
     t->duration = 0;
 
-    int i = 0;
-    while (i < MAX_IDS && timers[i] != NULL) {
+    int i = 1;
+    while (i <= MAX_IDS && timers[i] != NULL) {
         i++;
     }
     if (i == MAX_IDS) {//no IDs LEFT(pos)
