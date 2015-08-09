@@ -189,10 +189,11 @@ struct gpt_map {
 #define MAX_TIMERS 64 
 #define MAX_IDS 64
 
-#define ID_FREE 0
-#define ID_NOT_FREE 1
+/* The timer is prescaled by this value + 1 */
+#define PRESCALE 32
 
-
+#define NOT_INITIALISED 0
+#define INITIALISED 1
 
 typedef uint64_t timestamp_t;
 typedef void (*timer_callback_t)(uint32_t id, void *data);

@@ -104,7 +104,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     /* Process system call */
-    dprintf(0, "Syscall at time %llu\n", time_stamp()); 
+    //dprintf(0, "Syscall at time %llu\n", time_stamp()); 
     switch (syscall_number) {
     case SOS_SYSCALL0: {
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
@@ -159,7 +159,6 @@ void syscall_loop(seL4_CPtr ep) {
             }
 
             if(badge & IRQ_BADGE_TIMER) {
-                dprintf(0, "Interrupt\n");
                 timer_interrupt();
             }
 
@@ -430,16 +429,42 @@ void check(uint32_t id, void* data) {
     dprintf(0, "hello %d\n", id);
 }
 
+
+uint64_t tick_check_tss[10] = {};
+int num_ts = 0;
+int count = 0;
+
 void tick_check(uint32_t id, void *data) {
     (void *) data;
-    dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp()/2000);
+    tick_check_tss[num_ts++] = time_stamp()/2000;
+    if (num_ts == 10) {
+        num_ts = 0;
+        count++;
+        dprintf(0
+               ,"timestamps %d:\
+\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
+\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
+               ,count
+               ,tick_check_tss[0], tick_check_tss[1], tick_check_tss[2], tick_check_tss[3]
+               ,tick_check_tss[4], tick_check_tss[5], tick_check_tss[6], tick_check_tss[7]
+               ,tick_check_tss[8], tick_check_tss[9]
+               );
+    }
+    //dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp());
 }
 
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
-    //dprintf(0, "registered a timer with id %d\n", register_timer(4000000, &check, NULL));
-    //dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
-    dprintf(0, "registered a ticker with id %d\n", register_tic(2*1000000, &tick_check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*10000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*9000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*8000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*7000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*6000000, &check, NULL));
+
+    dprintf(0, "tried to remove timer %d. err: %d\n", 2, remove_timer(2));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2*5000000, &check, NULL));
+    dprintf(0, "tried to remove timer %d. err: %d\n", 2, remove_timer(2));
+    dprintf(0, "registered a ticker with id %d\n", register_tic(2*100000, &tick_check, NULL));
 
     dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
     /* 

@@ -4,12 +4,12 @@
 #include <bits/limits.h>
 #include "../../../apps/sos/src/sys/panic.h"
 
+#define PARENT(x) ((x - 1)/2)
 
-/* The timer is prescaled by this value + 1 */
-#define PRESCALE       131
+#define LEFT(x) (2*x + 1)
+#define RIGHT(x) (2*x + 2)
 
 static uint64_t time_stamp_rollovers = 0; 
-static volatile char* gpt;
 seL4_CPtr timerCap;
 
 struct timer {
@@ -22,7 +22,8 @@ struct timer {
     //this is 0 if the timer is not a tic, >0 if it is.
     uint64_t duration; 
 };
-volatile struct gpt_map *gpt_registers;
+volatile struct gpt_map *gpt;
+static int initialised = NOT_INITIALISED;
 //struct timer *gTimer;
 //queue of timers  
 static struct timer* queue[MAX_TIMERS] = {NULL}; 
@@ -37,7 +38,16 @@ static void delete_timer(struct timer* t) {
     free(t);
 }
 
+static inline void queue_swap(uint32_t pos1, uint32_t pos2) {
+    struct timer* t = queue[pos1];
+    queue[pos1] = queue[pos2];
+    queue[pos2] = t;
+    queue[pos1]->pos = pos1;
+    queue[pos2]->pos = pos2;
+}
+
 //removes a timer from the queue at position pos. does not free the timer or its id
+//its pos will be unreliable
 static struct timer* unqueue(uint32_t pos) {
     if (pos > MAX_TIMERS) {
         return NULL;
@@ -52,26 +62,18 @@ static struct timer* unqueue(uint32_t pos) {
     queue[pos] = queue[--num_timers];
 
     //move swapped timer into correct position 
-    uint32_t left = 2*pos + 1;
-    uint32_t right = 2*pos + 2;
     while (pos < num_timers) {
         //check if we have any children
-        if (queue[left] != NULL) {
-            if (queue[right] != NULL 
-                && queue[right]->end < queue[left]->end 
-                && queue[right]->end < queue[pos]->end
+        if (queue[LEFT(pos)] != NULL) {
+            if (queue[RIGHT(pos)] != NULL 
+                && queue[RIGHT(pos)]->end < queue[LEFT(pos)]->end 
+                && queue[RIGHT(pos)]->end < queue[pos]->end
                 ) {
-                queue[pos] = queue[right];
-                queue[right] = queue[num_timers];
-                queue[pos]->pos = pos; 
-                queue[right]->pos = right;
-                pos = right;
-            } else if (queue[left]->end < queue[pos]->end) {
-                queue[pos] = queue[left];
-                queue[left] = queue[num_timers];
-                queue[pos]->pos = pos; 
-                queue[left]->pos = left;
-                pos = left; 
+                queue_swap(RIGHT(pos), pos);
+                pos = RIGHT(pos);
+            } else if (queue[LEFT(pos)]->end < queue[pos]->end) {
+                queue_swap(LEFT(pos), pos);
+                pos = LEFT(pos); 
             } else {
                 pos = num_timers;
             }
@@ -96,29 +98,28 @@ static struct timer* unqueue(uint32_t pos) {
 
 int start_timer(seL4_CPtr interrupt_ep) {
 
-    gpt = map_device((void*)GPT1_DEVICE_PADDR, PAGE_SIZE);
-    gpt_registers = (struct gpt_map *)gpt;
+    gpt = (struct gpt_map *) map_device((void*)GPT1_DEVICE_PADDR, PAGE_SIZE);
     /* Disable the GPT */
-    gpt_registers->gptcr = 0;
-    gpt_registers->gptsr = GPT_STATUS_REGISTER_CLEAR;
+    gpt->gptcr = 0;
+    gpt->gptsr = GPT_STATUS_REGISTER_CLEAR;
     /* Set all writable GPT_IR fields to zero*/
-    gpt_registers->gptcr = 0;
+    gpt->gptcr = 0;
     /* Configure Output mode to disconnected, write zeros in OM3, OM2, OM1 */
     /* Disable Input Capture Modes*/ 
     /* Assert SWR bit */
-    gpt_registers->gptcr |= BIT(SWR); /* Reset the GPT */
+    gpt->gptcr |= BIT(SWR); /* Reset the GPT */
     /* Change clock source to PG_CLK */
     /* Set to free run mode */
     /* Set prescale rate */
     
     /* Clear GPT status register (set to clear) */
     /* Make sure the GPT starts from 0 when we start it */
-    gpt_registers->gptcr = BIT(FRR) | BIT(CLKSRC) | BIT(ENMOD);
-    gpt_registers->gptpr = 32;
+    gpt->gptcr = BIT(FRR) | BIT(CLKSRC) | BIT(ENMOD);
+    gpt->gptpr = PRESCALE;
     /* Enable the GPT */
-    gpt_registers->gptcr |= BIT(EN);
+    gpt->gptcr |= BIT(EN);
     /* Set interrupt on rollover */
-    gpt_registers->gptir |= BIT(ROVIE);
+    gpt->gptir |= BIT(ROVIE);
 
     //(void*) interrupt_ep;
 
@@ -133,7 +134,9 @@ int start_timer(seL4_CPtr interrupt_ep) {
     /* Ack the handler before continuing */
     err = seL4_IRQHandler_Ack(timerCap);
     conditional_panic(err, "Failure to acknowledge pending interrupts");
-    return 0;
+
+    initialised = INITIALISED;
+    return CLOCK_R_OK;
 }
 
 /*
@@ -152,10 +155,14 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     gTimer.callback = callback;
     gTimer.data = data;
     // Set delay value
-    gpt_registers->gptcr1 = LOWER_32(gTimer.end);
+    gpt->gptcr1 = LOWER_32(gTimer.end);
     // Turn on channel 1 interrupts
-    gpt_registers->gptir |= BIT(OF1IE);
+    gpt->gptir |= BIT(OF1IE);
     */
+    if (initialised == NOT_INITIALISED) {
+        return 0;
+    }
+
     if (num_timers == MAX_TIMERS) {
         return 0;
     }
@@ -174,7 +181,7 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     while (i < MAX_IDS && timers[i] != NULL) {
         i++;
     }
-    if (i == MAX_IDS) {//no IDs left
+    if (i == MAX_IDS) {//no IDs LEFT(pos)
         free(t);
         return 0;
     }
@@ -184,11 +191,11 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
 
     //perform heap insertion
     queue[num_timers] = t;
-    while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
-        queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
-        queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
-        queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
-        t->pos = (t->pos - 1)/2; //change pos of t to parent's
+    while (t->pos > 0 && queue[PARENT(t->pos)]->end > queue[t->pos]->end) {
+        queue[t->pos] = queue[PARENT(t->pos)]; //move parent to t's position in queue  
+        queue[PARENT(t->pos)]->pos = t->pos; //change pos of parent to t's
+        queue[PARENT(t->pos)] = t; //move t to parent's position in queue 
+        t->pos = PARENT(t->pos); //change pos of t to parent's
     }
 
     num_timers++;
@@ -196,15 +203,16 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     //TODO need to update current timer if new timer has soonest end 
     if (t->pos == 0) {
         //set delay value 
-        gpt_registers->gptcr1 = LOWER_32(t->end);
+        gpt->gptcr1 = LOWER_32(t->end);
         //Turn on channel 1 interrupts 
-        gpt_registers->gptir |= BIT(OF1IE);
+        gpt->gptir |= BIT(OF1IE);
     }
 
     return t->id;
 }
 
 uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) {
+    timestamp_t cur_time = time_stamp();
     if (num_timers == MAX_TIMERS) {
         return 0;
     }
@@ -214,7 +222,7 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
         return 0;
     }
 
-    t->end = time_stamp() + (timestamp_t) duration;
+    t->end = cur_time + (timestamp_t) duration;
     t->callback = callback;
     t->data = data;
     t->duration = duration;
@@ -223,7 +231,7 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
     while (i < MAX_IDS && timers[i] != NULL) {
         i++;
     }
-    if (i == MAX_IDS) {//no IDs left
+    if (i == MAX_IDS) {//no IDs LEFT(pos)
         free(t);
         return 0;
     }
@@ -233,11 +241,11 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
 
     //perform heap insertion
     queue[num_timers] = t;
-    while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
-        queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
-        queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
-        queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
-        t->pos = (t->pos - 1)/2; //change pos of t to parent's
+    while (t->pos > 0 && queue[PARENT(t->pos)]->end > queue[t->pos]->end) {
+        queue[t->pos] = queue[PARENT(t->pos)]; //move parent to t's position in queue  
+        queue[PARENT(t->pos)]->pos = t->pos; //change pos of parent to t's
+        queue[PARENT(t->pos)] = t; //move t to parent's position in queue 
+        t->pos = PARENT(t->pos); //change pos of t to parent's
     }
 
     num_timers++;
@@ -245,9 +253,9 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
     //TODO need to update current timer if new timer has soonest end 
     if (t->pos == 0) {
         //set delay value 
-        gpt_registers->gptcr1 = LOWER_32(t->end);
+        gpt->gptcr1 = LOWER_32(t->end);
         //Turn on channel 1 interrupts 
-        gpt_registers->gptir |= BIT(OF1IE);
+        gpt->gptir |= BIT(OF1IE);
     }
 
     return t->id;
@@ -258,7 +266,26 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
  *    id: Unique ID returned by register_time
  * Returns CLOCK_R_OK iff successful.
  */
-int remove_timer(uint32_t id);
+int remove_timer(uint32_t id) {
+    struct timer *t = timers[id];
+    timers[id] = NULL;
+
+    if (t == NULL) {
+        return CLOCK_R_FAIL;
+    }
+
+    uint32_t pos = t->pos; 
+
+    unqueue(pos); 
+
+    free(t);
+
+    if (pos == 0) {
+        gpt->gptcr1 = LOWER_32(queue[0]->end);
+        gpt->gptir |= BIT(OF1IE);       
+    }
+    return CLOCK_R_OK;
+}
 
 /*
  * Handle an interrupt message sent to 'interrupt_ep' from start_timer
@@ -266,13 +293,14 @@ int remove_timer(uint32_t id);
  * Returns CLOCK_R_OK iff successful
  */
 int timer_interrupt(void) {
-    volatile uint32_t* status = &gpt_registers->gptsr;
+    volatile uint32_t* status = &gpt->gptsr;
     // Interrupt has happened
     if (*status & BIT(OF1)) {
+        timestamp_t cur_time = time_stamp();
         *status |= BIT(OF1);
-        while (queue[0] != NULL &&UPPER_32(time_stamp()) >= UPPER_32(queue[0]->end)) {
+        while (queue[0] != NULL && cur_time >= queue[0]->end) {
             //remove current timer from heap. does not free id 
-            struct timer *t = unqueue(0);
+            struct timer *t = queue[0];//unqueue(0);
            
             //perform the callback 
             if (t->callback != NULL) {
@@ -282,29 +310,39 @@ int timer_interrupt(void) {
             //delete the timer if it isn't a tick, otherwise put it back on the 
             //heap 
             if (t->duration == 0) {
+                unqueue(0);
                 timers[t->id] = NULL;
                 free(t);
             } else {
-                t->end = time_stamp() + (timestamp_t) t->duration;
-                t->pos = num_timers;
-
-                //perform heap insertion
-                //should actually just perform a decrease key; TODO change this
-                queue[num_timers] = t;
-                while (t->pos > 0 && queue[(t->pos - 1)/2]->end > queue[t->pos]->end) {
-                    queue[t->pos] = queue[(t->pos - 1)/2]; //move parent to t's position in queue  
-                    queue[(t->pos - 1)/2]->pos = t->pos; //change pos of parent to t's
-                    queue[(t->pos - 1)/2] = t; //move t to parent's position in queue 
-                    t->pos = (t->pos - 1)/2; //change pos of t to parent's
+                t->end = cur_time + (timestamp_t) t->duration;
+    
+                //perform increase key
+                int done = 0; 
+                uint32_t pos = 0;
+                while (pos < num_timers && !done) {
+                    //check if we have any children
+                    done = 1;
+                    if (queue[LEFT(pos)] != NULL) {
+                        if (queue[RIGHT(pos)] != NULL 
+                        && queue[RIGHT(pos)]->end < queue[LEFT(pos)]->end 
+                        && queue[RIGHT(pos)]->end < queue[pos]->end
+                        ) {
+                            queue_swap(pos, RIGHT(pos));
+                            pos = RIGHT(pos);
+                            done = 0;
+                        } else if (queue[LEFT(pos)]->end < queue[pos]->end) {
+                            queue_swap(pos, LEFT(pos));
+                            pos = LEFT(pos);
+                            done = 0; 
+                        }
+                    }
                 }
-
-                num_timers++;
             }
         }
         //start the next timer 
         if (queue[0] != NULL) {
-            gpt_registers->gptcr1 = LOWER_32(queue[0]->end);
-            gpt_registers->gptir |= BIT(OF1IE);
+            gpt->gptcr1 = LOWER_32(queue[0]->end);
+            gpt->gptir |= BIT(OF1IE);
         } 
     }   
     // Rollover has occured
@@ -325,7 +363,15 @@ int timer_interrupt(void) {
  * Returns CLOCK_R_OK iff successful.
  */
 int stop_timer(void) {
-    gpt_registers->gptcr |= BIT(EN);
+    gpt->gptcr &= ~BIT(EN);
+    for (int i = 0; i < MAX_IDS; i++) {
+        if (queue[i] != NULL) {
+            free(queue[i]);
+        }
+        timers[i] = NULL;
+        queue[i] = NULL;
+    }
+    num_timers = 0;
     return CLOCK_R_OK;
 }// {
     //remove all existing timers.
@@ -340,12 +386,12 @@ int stop_timer(void) {
 timestamp_t time_stamp(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    return TO_64(time_stamp_rollovers, gpt_registers->gptcnt);
-    //return gpt_registers->gptcnt + (time_stamp_rollovers << 32);
+    return TO_64(time_stamp_rollovers, gpt->gptcnt);
+    //return gpt->gptcnt + (time_stamp_rollovers << 32);
 }
 
 int timer_status(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    return gpt_registers->gptsr;
+    return gpt->gptsr;
 }
