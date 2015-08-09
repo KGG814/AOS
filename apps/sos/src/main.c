@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-#include <cspace/cspace.h>
 
 #include <cpio/cpio.h>
 #include <nfs/nfs.h>
@@ -44,17 +43,19 @@
 /* All badged IRQs set high bet, then we use uniq bits to
  * distinguish interrupt sources */
 #define IRQ_BADGE_NETWORK (1 << 0)
+#define IRQ_BADGE_TIMER   (1 << 1)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (101)
 #define seL4_MsgMaxLength    120
+
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
 extern char _cpio_archive[];
-static struct serial *serialHandler;
 const seL4_BootInfo* _boot_info;
 
+static struct serial *serialHandler;
 
 struct {
 
@@ -101,36 +102,38 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     /* Process system call */
+    //dprintf(0, "Syscall at time %llu\n", time_stamp()); 
     switch (syscall_number) {
-    case SOS_SYSCALL0:
-        dprintf(0, "syscall: thread made syscall 0!\n");
+    case SOS_SYSCALL0: {
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_SetMR(0, 0);
         seL4_Send(reply_cap, reply);
         break;
-    case SOS_WRITE:
-        dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
-        dprintf(0, "num_args: %d\n", num_args);
+    }
+    case SOS_WRITE: {
+        //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
+        //dprintf(0, "num_args: %d\n", num_args);
         // Send an acknowledgement
         // Initialise serial comms
         // Array for storing the data
+        //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
+        seL4_SetMR(0, 0);
         char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
         // Go through each message and transfer the word
-        int i;
         seL4_Word* currentWord = (seL4_Word*)data;
-        for (i = 1; i <= num_args; i++) {
+        for (int i = 1; i <= num_args; i++) {
             *currentWord = seL4_GetMR(i);
             currentWord++;
         }
         serial_send(serialHandler, data, num_args*sizeof(seL4_Word));
-		  seL4_SetMR(0, 0);
         seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_Send(reply_cap, reply2);
         break;
-    default:
+    }
+    default: {
         printf("Unknown syscall %d\n", syscall_number);
         /* we don't want to reply to an unknown syscall */
-
+    }
     }
 
     /* Free the saved reply cap */
@@ -145,11 +148,16 @@ void syscall_loop(seL4_CPtr ep) {
         seL4_MessageInfo_t message;
 
         message = seL4_Wait(ep, &badge);
-        label = seL4_MessageInfo_get_label(message);
+        label = seL4_MessageInfo_get_label(message);  
+
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
-            if (badge & IRQ_BADGE_NETWORK) {
+            if (badge & IRQ_BADGE_NETWORK) {  
                 network_irq();
+            }
+
+            if(badge & IRQ_BADGE_TIMER) {
+                timer_interrupt();
             }
 
         }else if(label == seL4_VMFault){
@@ -414,11 +422,75 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
     return badged_cap;
 }
 
-void clock_test(void) {
-    seL4_CPtr interrupt_ep;
-    char *addr = (char*)start_timer(interrupt_ep);
-    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
+void check(uint32_t id, void* data) {
+    (void *) data;
+    dprintf(0, "hello %d\n", id);
+}
 
+
+uint64_t tick_check_tss[10] = {};
+int num_ts = 0;
+int count = 0;
+
+void tick_check(uint32_t id, void *data) {
+    (void *) data;
+    tick_check_tss[num_ts++] = time_stamp()/1000;
+    if (num_ts == 10) {
+        num_ts = 0;
+        count++;
+        dprintf(0
+               ,"timestamps %d:\
+\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
+\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
+               ,count
+               ,tick_check_tss[0], tick_check_tss[1], tick_check_tss[2], tick_check_tss[3]
+               ,tick_check_tss[4], tick_check_tss[5], tick_check_tss[6], tick_check_tss[7]
+               ,tick_check_tss[8], tick_check_tss[9]
+               );
+    }
+    //dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp());
+}
+
+void stop_cb(uint32_t id, void *data) {
+    dprintf(0, "\n%d: stopping timer at time %llu\n", id, time_stamp());
+    int err = stop_timer();
+    dprintf(0, "\ntimer stopped with err:%d\n", err);
+}
+
+void clock_test(seL4_CPtr interrupt_ep) {
+    start_timer(interrupt_ep);
+    dprintf(0, "registered a timer with id %d\n", register_timer(10000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(10000100, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(10000200, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(9000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(8000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(7000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(6000000, &check, NULL));
+
+    dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
+    dprintf(0, "registered a timer with id %d\n", register_timer(5000000, &check, NULL));
+    dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
+    dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
+
+    dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
+    dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
+
+    dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
+    /* 
+    uint64_t timestamps[4] = {};
+    for (int i = 0; i < 128; i++) {
+        for (int j = 0; j < 4; j++) {
+            timestamps[j] = time_stamp();
+        }
+        dprintf(0
+               ,"%016llx %016llx %016llx %016llx\n"
+               ,timestamps[0]
+               ,timestamps[1]
+               ,timestamps[2]
+               ,timestamps[3]
+               );
+    }
+    */
 }
 
 /*
@@ -433,13 +505,13 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serialHandler = serial_init();
-    clock_test();
+    clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
-    dprintf(0, "\ntimestamp: %ld\n", time_stamp());
+
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

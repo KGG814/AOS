@@ -12,45 +12,24 @@
 #define _CLOCK_H_
 
 #include <sel4/sel4.h>
+#include <cspace/cspace.h>
+#include <mapping.h>
+#include <stdio.h>
+#include <platsupport/plat/gpt_constants.h>
 
-/*
- * Return codes for driver functions
- */
-#define CLOCK_R_OK     0        /* success */
-#define CLOCK_R_UINT (-1)       /* driver not initialised */
-#define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
-#define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
+/* GPT REGISTER BITS */
+/* The GPT status register is w1c (write 1 to clear), and there are 6 status bits in the iMX
+   status register, so writing the value 0b111111 = 0x3F will clear it. */
+#define GPT_STATUS_REGISTER_CLEAR 0x3F
 
-typedef struct gpt {
-    volatile struct gpt_map *gpt_map;
-    int mode;
-    uint32_t irq;
-    uint32_t prescaler;
-} gpt_t;
+/* Get the upper bits 32 bits of a 64 bit value */
+#define UPPER_32(x) ((x) >> 32)
 
-/* Memory map for GPT. */
-struct gpt_map {
-    /* gpt control register */
-    uint32_t gptcr;
-    /* gpt prescaler register */
-    uint32_t gptpr;
-    /* gpt status register */
-    uint32_t gptsr;
-    /* gpt interrupt register */
-    uint32_t gptir;
-    /* gpt output compare register 1 */
-    uint32_t gptcr1;
-    /* gpt output compare register 2 */
-    uint32_t gptcr2;
-    /* gpt output compare register 3 */
-    uint32_t gptcr3;
-    /* gpt input capture register 1 */
-    uint32_t gpticr1;
-    /* gpt input capture register 2 */
-    uint32_t gpticr2;
-    /* gpt counter register */
-    uint32_t gptcnt;
-};
+/* Get the lower bits 32 bits of a 64 bit value */
+#define LOWER_32(x) ((x) & 0x00000000FFFFFFFF)
+
+/* Create a 64 bit value form 2 32 bit numbers */
+#define TO_64(x,y) (((x) << 32) + (y))
 
 /* GPT CONTROL REGISTER BITS */
 typedef enum {
@@ -127,19 +106,94 @@ typedef enum {
 
 } gpt_control_reg;
 
+/* GPT STATUS REGISTER BITS */
+typedef enum {
+	/*
+	 * Output Compare flags
+	 * 
+	 * These are set when an event happens on the Output Compare channels
+	 */
+	OF1 = 0, OF2 = 1, OF3 = 2,
 
-/* bits in the interrupt/status regiser */
-enum gpt_interrupt_register_bits {
+	/*
+	 * Input Capture flags
+	 *
+	 * These are sent when an event happens on the Input Capture channels
+	 */
+	IF1 = 3, IF2 = 4,
 
-    /* Output compare interrupt enable bits */
-    OF1IE = 0, OF2IE = 1, OF3IE = 2,
+	/*
+	 * Rollover flag
+	 *
+	 * Set when a rollover event occurs
+	 */
+	ROV = 5
 
-    /* Input capture interrupt enable bits */
-    IF1IE = 3, IF2IE = 4,
+} gpt_status_register;
 
-    /* Rollover interrupt enabled */
-    ROV = 5,
+/* GPT INTERRUPT REGISTER BITS */
+typedef enum {
+	/*
+	 * Output Compare Interrupt Enable 
+	 *
+	 * Controls interrupts on the respective Output Compare channels
+	 */
+	OF1IE = 0, OF2IE = 1, OF3IE = 2,
+
+	/* Input Capture Interrupt Enable
+	 *
+	 * Controls interrupts on the respective Input Compare channels
+	 */
+	IF1IE = 3, IF12E = 4,
+
+	/* 
+	 * Rollover Interrupt Enable
+	 * 
+	 * Controls the rollover interrupt
+	 */
+	ROVIE = 5
+} gpt_interrupt_register;
+
+/* Memory map for GPT. */
+struct gpt_map {
+    /* gpt control register */
+    uint32_t gptcr;
+    /* gpt prescaler register */
+    uint32_t gptpr;
+    /* gpt status register */
+    uint32_t gptsr;
+    /* gpt interrupt register */
+    uint32_t gptir;
+    /* gpt output compare register 1 */
+    uint32_t gptcr1;
+    /* gpt output compare register 2 */
+    uint32_t gptcr2;
+    /* gpt output compare register 3 */
+    uint32_t gptcr3;
+    /* gpt input capture register 1 */
+    uint32_t gpticr1;
+    /* gpt input capture register 2 */
+    uint32_t gpticr2;
+    /* gpt counter register */
+    uint32_t gptcnt;
 };
+
+/*
+ * Return codes for driver functions
+ */
+#define CLOCK_R_OK     0        /* success */
+#define CLOCK_R_UINT (-1)       /* driver not initialised */
+#define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
+#define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
+
+#define MAX_TIMERS 64 
+#define MAX_IDS 64
+
+/* The timer is prescaled by this value + 1 */
+#define PRESCALE 63 
+
+#define NOT_INITIALISED 0
+#define INITIALISED 1
 
 typedef uint64_t timestamp_t;
 typedef void (*timer_callback_t)(uint32_t id, void *data);
@@ -163,6 +217,8 @@ int start_timer(seL4_CPtr interrupt_ep);
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+
+uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data);
 
 /*
  * Remove a previously registered callback by its ID
@@ -191,5 +247,7 @@ timestamp_t time_stamp(void);
  * Returns CLOCK_R_OK iff successful.
  */
 int stop_timer(void);
+
+int timer_status(void);
 
 #endif /* _CLOCK_H_ */
