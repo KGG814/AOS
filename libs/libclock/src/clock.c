@@ -181,7 +181,7 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
     while (i <= MAX_IDS && timers[i] != NULL) {
         i++;
     }
-    if (i == MAX_IDS) {//no IDs LEFT(pos)
+    if (i > MAX_IDS) {//no IDs LEFT(pos)
         free(t);
         return 0;
     }
