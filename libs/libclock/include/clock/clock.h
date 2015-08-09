@@ -190,7 +190,7 @@ struct gpt_map {
 #define MAX_IDS 64
 
 /* The timer is prescaled by this value + 1 */
-#define PRESCALE 32
+#define PRESCALE 63 
 
 #define NOT_INITIALISED 0
 #define INITIALISED 1
