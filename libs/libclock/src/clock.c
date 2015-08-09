@@ -134,7 +134,9 @@ int start_timer(seL4_CPtr interrupt_ep) {
     /* Ack the handler before continuing */
     err = seL4_IRQHandler_Ack(timerCap);
     conditional_panic(err, "Failure to acknowledge pending interrupts");
-
+    if (err) {
+        return CLOCK_R_FAIL;
+    }
     initialised = INITIALISED;
     return CLOCK_R_OK;
 }
@@ -270,6 +272,10 @@ int remove_timer(uint32_t id) {
     struct timer *t = timers[id];
     timers[id] = NULL;
 
+    if (initialised == NOT_INITIALISED) {
+        return CLOCK_R_UINT;
+    }
+
     if (t == NULL) {
         return CLOCK_R_FAIL;
     }
@@ -294,6 +300,9 @@ int remove_timer(uint32_t id) {
  */
 int timer_interrupt(void) {
     volatile uint32_t* status = &gpt->gptsr;
+    if (initialised == NOT_INITIALISED) {
+        return CLOCK_R_UINT;
+    } 
     // Interrupt has happened
     if (*status & BIT(OF1)) {
         timestamp_t cur_time = time_stamp();
@@ -353,6 +362,11 @@ int timer_interrupt(void) {
         *status |= BIT(ROV);
     // Interupt on channel 1
     }
+
+    if (!(*status & BIT(ROV)) && !(*status & BIT(OF1))) {
+        return CLOCK_R_FAIL;
+    }
+
     seL4_IRQHandler_Ack(timerCap);
     return CLOCK_R_OK;
 }
