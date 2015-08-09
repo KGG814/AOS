@@ -269,7 +269,8 @@ int timer_interrupt(void) {
     volatile uint32_t* status = &gpt_registers->gptsr;
     // Interrupt has happened
     if (*status & BIT(OF1)) {
-        if (queue[0] != NULL &&UPPER_32(time_stamp()) >= UPPER_32(queue[0]->end)) {
+        *status |= BIT(OF1);
+        while (queue[0] != NULL &&UPPER_32(time_stamp()) >= UPPER_32(queue[0]->end)) {
             //remove current timer from heap. does not free id 
             struct timer *t = unqueue(0);
            
@@ -277,10 +278,6 @@ int timer_interrupt(void) {
             if (t->callback != NULL) {
                 (*(t->callback))(t->id, t->data);
             }
-
-            //ack the Interupt
-            *status |= BIT(OF1);
-            seL4_IRQHandler_Ack(timerCap);
 
             //delete the timer if it isn't a tick, otherwise put it back on the 
             //heap 
@@ -303,13 +300,12 @@ int timer_interrupt(void) {
 
                 num_timers++;
             }
-
-            //start the next timer 
-            if (queue[0] != NULL) {
-                gpt_registers->gptcr1 = LOWER_32(queue[0]->end);
-                gpt_registers->gptir |= BIT(OF1IE);
-            } 
         }
+        //start the next timer 
+        if (queue[0] != NULL) {
+            gpt_registers->gptcr1 = LOWER_32(queue[0]->end);
+            gpt_registers->gptir |= BIT(OF1IE);
+        } 
     }   
     // Rollover has occured
     if (*status & BIT(ROV)) {
@@ -318,9 +314,8 @@ int timer_interrupt(void) {
         
         *status |= BIT(ROV);
     // Interupt on channel 1
-    seL4_IRQHandler_Ack(timerCap);
     }
-
+    seL4_IRQHandler_Ack(timerCap);
     return CLOCK_R_OK;
 }
 
@@ -329,8 +324,11 @@ int timer_interrupt(void) {
  *
  * Returns CLOCK_R_OK iff successful.
  */
-int stop_timer(void);// {
-    //remove all existing timers, stop the counter, etc.
+int stop_timer(void) {
+    gpt_registers->gptcr |= BIT(EN);
+    return CLOCK_R_OK;
+}// {
+    //remove all existing timers.
     //return 1;
 //}
 
@@ -342,7 +340,8 @@ int stop_timer(void);// {
 timestamp_t time_stamp(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    return gpt_registers->gptcnt + (time_stamp_rollovers << 32);
+    return TO_64(time_stamp_rollovers, gpt_registers->gptcnt);
+    //return gpt_registers->gptcnt + (time_stamp_rollovers << 32);
 }
 
 int timer_status(void) {
