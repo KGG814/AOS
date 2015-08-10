@@ -17,42 +17,26 @@ static uint64_t time_stamp_rollovers = 0;
 seL4_CPtr timerCap;
 
 struct timer {
-    uint32_t id;
-    uint32_t pos; //position in heap 
     timestamp_t end;
     timer_callback_t callback;
     void *data;
+
+    //make timers a doubly linked list.
+    struct timer* prev;
+    struct timer* next;
 
     //this is 0 if the timer is not a ticking itmer, >0 if it is.
     uint64_t duration; 
 };
 
+struct timer* head = NULL;
+
 volatile struct gpt_map *gpt;
 
 static int initialised = NOT_INITIALISED;
 
-//queue of timers  
-static struct timer* queue[MAX_TIMERS] = {NULL}; 
-
-//an array of timers, indexed by their id 
-//currently gets used to find a free ID 
-static struct timer* timers[MAX_IDS + 1] = {NULL}; 
-
-//create a linked list of ids for quick finding of free ids 
-static uint32_t head = 1;
-static uint32_t tail = MAX_IDS;
-static uint32_t free_ids[MAX_IDS + 1] = {};
-
-static unsigned int num_timers = 0;
-
-//heap functions 
-static inline void queue_swap(uint32_t pos1, uint32_t pos2);
-static inline void heap_up(uint32_t pos);
-static inline void heap_down(uint32_t pos);
-
-//removes a timer from the queue at position pos. 
-//does not free the timer or its id; the timer's internal pos will be unreliable
-static inline struct timer* unqueue(uint32_t pos);
+//inline function for performing ordered insert
+static inline void insert(struct timer* t);
 
 //master function for creating timers/ ticking timers. 
 static inline uint32_t super_register(uint64_t delay
@@ -68,15 +52,6 @@ static inline uint32_t super_register(uint64_t delay
  * Returns CLOCK_R_OK iff successful.
  */
 int start_timer(seL4_CPtr interrupt_ep) {
-    //initialise ids 
-    int i = 1; 
-    //this sets: first (0th) and last (MAX_IDth) elements of free_ids to 0
-    //every other element i to i + 1
-    while (i < MAX_IDS) {
-        free_ids[i] = i + 1;
-        i++;
-    }
-
     //no need to error check; map_device panics on error.
     //TODO: always make sure this is the case
     if (initialised == NOT_INITIALISED) {
@@ -148,31 +123,43 @@ uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) 
  * Returns CLOCK_R_OK iff successful.
  */
 int remove_timer(uint32_t id) {
-    struct timer *t = timers[id];
-
     if (initialised == NOT_INITIALISED) {
         return CLOCK_R_UINT;
     }
 
-    if (t == NULL) {
+    if ((struct timer*) id == NULL) {
         return CLOCK_R_FAIL;
     }
 
-    uint32_t pos = t->pos; 
-
-    timers[id] = NULL;
-    unqueue(pos); 
-
-    free(t);
-    
-    free_ids[tail] = id;
-    tail = id;
-    
-    //if the removed timer was the current timer, start the next timer
-    if (pos == 0) {
-        gpt->gptcr1 = LOWER_32(queue[0]->end);
-        gpt->gptir |= BIT(OF1IE);       
+    //traverse list to see if id is valid
+    struct timer *cur = head;
+    while (cur != NULL && cur->next != NULL && cur != (struct timer*) id) {
+        cur = cur->next;
     }
+    //we are either at the head of an empty list, at the end of the list, or 
+    //at t itself
+    if (cur != (struct timer*) id) {
+        return CLOCK_R_FAIL;
+    }
+
+    //if the removed timer was the current timer, start the next timer
+    if (head == cur) {
+        head = cur->next;       
+        if (cur->next != NULL) {
+            gpt->gptcr1 = LOWER_32(cur->next->end);
+            gpt->gptir |= BIT(OF1IE);
+        }
+    }
+
+    if (cur->prev != NULL) {
+        cur->prev->next = cur->next;
+    }
+    if (cur->next != NULL) {
+        cur->next->prev = cur->prev; 
+    }
+    
+    free(cur);
+    
     return CLOCK_R_OK;
 }
 
@@ -194,13 +181,10 @@ int timer_interrupt(void) {
     // Interrupt has happened
     if (*status & BIT(OF1)) {
         *status |= BIT(OF1);
-        while (queue[0] != NULL && time_stamp() >= queue[0]->end) {
-            //remove current timer from heap. does not free id 
-            struct timer *t = queue[0];//unqueue(0);
-
+        while (head != NULL && time_stamp() >= head->end) {
             //perform the callback 
-            if (t->callback != NULL) {
-                t->callback(t->id, t->data);
+            if (head->callback != NULL) {
+                head->callback((uint32_t) head, head->data);
             }
             //this call may have stopped the timer. In this case, we just return 
             if (initialised == TIMER_STOPPED) {
@@ -209,22 +193,23 @@ int timer_interrupt(void) {
             }
 
             //delete the timer if it isn't a tick, otherwise put it back on the 
-            //heap 
+            //queue 
+            struct timer* t = head;
+            head = t->next;
+            if (head != NULL) {
+                head->prev = NULL;
+            }
+
             if (t->duration == 0) {
-                unqueue(0);
-                timers[t->id] = NULL;
-                //insert fresh id to end of list 
-                free_ids[tail] = t->id;
-                tail = t->id;
                 free(t);
             } else {
                 t->end += (timestamp_t) t->duration; 
-                heap_down(0);
+                insert(t);
             }
         }
         //start the next timer 
-        if (queue[0] != NULL) {
-            gpt->gptcr1 = LOWER_32(queue[0]->end);
+        if (head != NULL) {
+            gpt->gptcr1 = LOWER_32(head->end);
             gpt->gptir |= BIT(OF1IE);
         } 
     }   
@@ -248,15 +233,15 @@ int timer_interrupt(void) {
 int stop_timer(void) {
     gpt->gptcr &= ~BIT(EN);
     gpt->gptcr |= BIT(SWR); /* Reset the GPT */
-    for (int i = 0; i < MAX_IDS; i++) {
-        if (queue[i] != NULL) {
-            free(queue[i]);
+    struct timer* cur = head;
+    if (cur != NULL) {
+        while (cur->next != NULL) {
+            cur = cur->next;
+            free(cur->prev);          
         }
-        timers[i + 1] = NULL;
-        queue[i] = NULL;
-        //dprintf(0, "stop_timer: removing timer %d\n", i);
+        free(cur);
     }
-    num_timers = 0;
+    head = NULL;
     initialised = TIMER_STOPPED;
     time_stamp_rollovers = 0;
     return CLOCK_R_OK;
@@ -273,84 +258,31 @@ timestamp_t time_stamp(void) {
     return TO_64(time_stamp_rollovers, gpt->gptcnt);
 }
 
-/* deprecated
-int timer_status(void) {
-    //this assumes that the rollover handling won't happen in the middle of this 
-    //function
-    return gpt->gptsr;
-}
-*/
-static inline void queue_swap(uint32_t pos1, uint32_t pos2) {
-    struct timer* t = queue[pos1];
-    queue[pos1] = queue[pos2];
-    queue[pos2] = t;
-    queue[pos1]->pos = pos1;
-    queue[pos2]->pos = pos2;
-}
-
-static inline void heap_up(uint32_t pos) {
-    uint32_t parent = (pos - 1)/2;
-    while (pos > 0 && queue[parent]->end > queue[pos]->end) {
-        queue_swap(pos, parent);
-        pos = parent;
-        parent = (pos - 1)/2;
-    }
-}
-
-static inline void heap_down(uint32_t pos) {
-    int done = 0; 
-    uint32_t left = 2*pos + 1;
-    uint32_t right = 2*pos + 2;
-    while (pos < num_timers && !done) {
-        //check if we have any children
-        done = 1;
-        //only need to first check if we have a left child due to heap 
-        //implementation
-        if (left < num_timers && queue[left] != NULL) { 
-            if (right < num_timers 
-                && queue[right] != NULL 
-                && queue[right]->end < queue[left]->end 
-                && queue[right]->end < queue[pos]->end) 
-            {
-                //if the right child exists and is the correct thing to swap, 
-                //swap it 
-                queue_swap(pos, right);
-                pos = right;
-                done = 0;
-            } else if (queue[left]->end < queue[pos]->end) {
-                //otherwise check the left child
-                queue_swap(pos, left);
-                pos = left;
-                done = 0; 
-            }
-        }
-        left = 2*pos + 1;
-        right = 2*pos + 2;
-    }
-}
-
-//removes a timer from the queue at position pos. does not free the timer or its id
-//its pos will be unreliable
-static inline struct timer* unqueue(uint32_t pos) {
-    if (pos > MAX_TIMERS) {
-        return NULL;
-    }
-
-    struct timer* t = queue[pos];
+static inline void insert(struct timer* t) {
     if (t == NULL) {
-        return NULL;
-    } 
+        return;
+    }
 
-    //copy last timer into current pos 
-    queue[pos] = queue[--num_timers];
-
-    //set old position of moved timer to NULL
-    queue[num_timers] = NULL;
-
-    //reheap 
-    heap_down(pos);
-
-    return t;
+    if (head == NULL || head->end >= t->end) {
+        t->next = head;
+        t->prev = NULL; 
+        if (head != NULL) {
+            head->prev = t;
+        }
+        head = t;
+        return;
+    }
+    struct timer* cur = head; 
+    while (cur->next != NULL && cur->next->end < t->end) {
+        cur = cur->next;
+    }
+    
+    t->next = cur->next;
+    t->prev = cur;
+    cur->next = t;
+    if (t->next != NULL) {
+        t->next->prev = t;
+    }  
 }
 
 static inline uint32_t super_register(uint64_t delay
@@ -358,9 +290,6 @@ static inline uint32_t super_register(uint64_t delay
                                      ,timer_callback_t callback
                                      ,void *data) {
     timestamp_t cur_time = time_stamp();
-    if (num_timers == MAX_TIMERS) {
-        return 0;
-    }
 
     struct timer* t = malloc(sizeof(struct timer));
     if (t == NULL) {
@@ -372,27 +301,13 @@ static inline uint32_t super_register(uint64_t delay
     t->data = data;
     t->duration = duration;
 
-    if (head == INVALID_ID) {//no IDs left
-        free(t);
-        return 0;
-    } 
-    t->id = head;
-    timers[head] = t;
-    head = free_ids[t->id]; //set the head of the free ids to the next free id
-    free_ids[t->id] = 0; //invalidate the pointer in the free ids 
-    t->pos = num_timers;
-
-    //perform heap insertion
-    queue[num_timers] = t;
-    heap_up(num_timers);
-    num_timers++;
-
-    if (t->pos == 0) {
+    insert(t);
+    if (t == head) {
         //set delay value 
         gpt->gptcr1 = LOWER_32(t->end);
         //Turn on channel 1 interrupts 
         gpt->gptir |= BIT(OF1IE);
     }
 
-    return t->id;
+    return (uint32_t) t;
 }

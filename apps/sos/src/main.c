@@ -462,6 +462,11 @@ void clock_test(seL4_CPtr interrupt_ep) {
     dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
     stop_timer();
     start_timer(interrupt_ep);
+    
+    int id = register_timer(200000000, &check, NULL);
+    dprintf(0, "registered a timer with id %d\n", id);
+    dprintf(0, "tried to remove timer %d. err: %d\n", id, remove_timer(id));
+
     dprintf(0, "registered a timer with id %d\n", register_timer(1000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000100, &check, NULL));

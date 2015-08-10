@@ -41,9 +41,6 @@
 #define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
 #define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
 
-#define MAX_TIMERS 100 
-#define MAX_IDS MAX_TIMERS
-
 /* The timer is prescaled by this value + 1 */
 #define PRESCALE 65 
 
