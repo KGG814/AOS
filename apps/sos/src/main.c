@@ -424,17 +424,21 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 
 void check(uint32_t id, void* data) {
     (void *) data;
-    dprintf(0, "hello %d at time_stamp: %llu\n", id, time_stamp());
+    dprintf(0, "\nhello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
-
+/*
 uint64_t tick_check_tss[10] = {};
 int num_ts = 0;
+*/
 int count = 0;
 
 void tick_check(uint32_t id, void *data) {
     (void *) data;
+    uint64_t cur_time = time_stamp();
+    /*
     tick_check_tss[num_ts++] = time_stamp();
+    
     if (num_ts == 10) {
         num_ts = 0;
         count++;
@@ -448,7 +452,13 @@ void tick_check(uint32_t id, void *data) {
                ,tick_check_tss[8], tick_check_tss[9]
                );
     }
-    //dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp());
+    */
+    dprintf(0, "tick: %12llu (us)\t", id, cur_time);
+    count++;
+    if (count % 3 == 0) {
+        dprintf(0, "\n");
+        count = 0;
+    }
 }
 
 void stop_cb(uint32_t id, void *data) {
