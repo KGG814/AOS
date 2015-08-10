@@ -10,6 +10,9 @@
 
 #define INVALID_ID 0
 
+#define GPT1_DEVICE_PADDR 0x02098000
+#define GPT1_INTERRUPT 87
+
 static uint64_t time_stamp_rollovers = 0; 
 seL4_CPtr timerCap;
 
