@@ -13,7 +13,7 @@
 
 #include <sel4/sel4.h>
 #include <cspace/cspace.h>
-#include <mapping.h>
+#include <../../../apps/sos/src/mapping.h>
 #include <stdio.h>
 #include <platsupport/plat/gpt_constants.h>
 
