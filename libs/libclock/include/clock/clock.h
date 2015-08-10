@@ -31,6 +31,77 @@
 /* Create a 64 bit value form 2 32 bit numbers */
 #define TO_64(x,y) (((x) << 32) + (y))
 
+/*
+ * Return codes for driver functions
+ */
+#define CLOCK_R_OK     0        /* success */
+#define CLOCK_R_UINT (-1)       /* driver not initialised */
+#define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
+#define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
+
+#define MAX_TIMERS 100 
+#define MAX_IDS MAX_TIMERS
+
+/* The timer is prescaled by this value + 1 */
+#define PRESCALE 65 
+
+
+typedef uint64_t timestamp_t;
+typedef void (*timer_callback_t)(uint32_t id, void *data);
+
+/*
+ * Initialise driver. Performs implicit stop_timer() if already initialised.
+ *    interrupt_ep:       A (possibly badged) async endpoint that the driver
+                          should use for deliverying interrupts to
+ *
+ * Returns CLOCK_R_OK iff successful.
+ */
+int start_timer(seL4_CPtr interrupt_ep);
+
+/*
+ * Register a callback to be called after a given delay
+ *    delay:  Delay time in microseconds before callback is invoked
+ *    callback: Function to be called
+ *    data: Custom data to be passed to callback function
+ *
+ * Returns 0 on failure, otherwise an unique ID for this timeout
+ */
+uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+
+/*
+ * The same as above but the timer does not expire when it times out, and instead 
+ * begins counting again with the same duration
+ */
+uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data);
+
+/*
+ * Remove a previously registered callback by its ID
+ *    id: Unique ID returned by register_time
+ * Returns CLOCK_R_OK iff successful.
+ */
+int remove_timer(uint32_t id);
+
+/*
+ * Handle an interrupt message sent to 'interrupt_ep' from start_timer
+ *
+ * Returns CLOCK_R_OK iff successful
+ */
+int timer_interrupt(void);
+
+/*
+ * Returns present time in microseconds since booting.
+ *
+ * Returns a negative value if failure.
+ */
+timestamp_t time_stamp(void);
+
+/*
+ * Stop clock driver operation.
+ *
+ * Returns CLOCK_R_OK iff successful.
+ */
+int stop_timer(void);
+
 /* GPT CONTROL REGISTER BITS */
 typedef enum {
     /*
@@ -177,77 +248,5 @@ struct gpt_map {
     /* gpt counter register */
     uint32_t gptcnt;
 };
-
-/*
- * Return codes for driver functions
- */
-#define CLOCK_R_OK     0        /* success */
-#define CLOCK_R_UINT (-1)       /* driver not initialised */
-#define CLOCK_R_CNCL (-2)       /* operation cancelled (driver stopped) */
-#define CLOCK_R_FAIL (-3)       /* operation failed for other reason */
-
-#define MAX_TIMERS 64 
-#define MAX_IDS 64
-
-/* The timer is prescaled by this value + 1 */
-#define PRESCALE 63 
-
-#define NOT_INITIALISED 0
-#define INITIALISED 1
-
-typedef uint64_t timestamp_t;
-typedef void (*timer_callback_t)(uint32_t id, void *data);
-
-
-/*
- * Initialise driver. Performs implicit stop_timer() if already initialised.
- *    interrupt_ep:       A (possibly badged) async endpoint that the driver
-                          should use for deliverying interrupts to
- *
- * Returns CLOCK_R_OK iff successful.
- */
-int start_timer(seL4_CPtr interrupt_ep);
-
-/*
- * Register a callback to be called after a given delay
- *    delay:  Delay time in microseconds before callback is invoked
- *    callback: Function to be called
- *    data: Custom data to be passed to callback function
- *
- * Returns 0 on failure, otherwise an unique ID for this timeout
- */
-uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
-
-uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data);
-
-/*
- * Remove a previously registered callback by its ID
- *    id: Unique ID returned by register_time
- * Returns CLOCK_R_OK iff successful.
- */
-int remove_timer(uint32_t id);
-
-/*
- * Handle an interrupt message sent to 'interrupt_ep' from start_timer
- *
- * Returns CLOCK_R_OK iff successful
- */
-int timer_interrupt(void);
-
-/*
- * Returns present time in microseconds since booting.
- *
- * Returns a negative value if failure.
- */
-timestamp_t time_stamp(void);
-
-/*
- * Stop clock driver operation.
- *
- * Returns CLOCK_R_OK iff successful.
- */
-int stop_timer(void);
-
-int timer_status(void);
 
 #endif /* _CLOCK_H_ */

@@ -424,7 +424,7 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 
 void check(uint32_t id, void* data) {
     (void *) data;
-    dprintf(0, "hello %d\n", id);
+    dprintf(0, "hello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
 
@@ -434,12 +434,12 @@ int count = 0;
 
 void tick_check(uint32_t id, void *data) {
     (void *) data;
-    tick_check_tss[num_ts++] = time_stamp()/1000;
+    tick_check_tss[num_ts++] = time_stamp();
     if (num_ts == 10) {
         num_ts = 0;
         count++;
         dprintf(0
-               ,"timestamps %d:\
+               ,"\ntimestamps %d:\
 \n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
 \n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
                ,count
@@ -459,6 +459,10 @@ void stop_cb(uint32_t id, void *data) {
 
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
+    dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
+    stop_timer();
+    start_timer(interrupt_ep);
+    dprintf(0, "registered a timer with id %d\n", register_timer(1000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000100, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000200, &check, NULL));
@@ -469,13 +473,17 @@ void clock_test(seL4_CPtr interrupt_ep) {
 
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a timer with id %d\n", register_timer(5000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(4000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(3000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(1000000, &check, NULL));
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
 
     dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
     dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
 
-    dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
+    dprintf(0, "Current us since boot = %d\n", time_stamp());
     /* 
     uint64_t timestamps[4] = {};
     for (int i = 0; i < 128; i++) {
