@@ -39,10 +39,10 @@ static int initialised = NOT_INITIALISED;
 static inline void insert(struct timer* t);
 
 //master function for creating timers/ ticking timers. 
-static inline uint32_t super_register(uint64_t delay
-                                     ,uint64_t duration
-                                     ,timer_callback_t callback
-                                     ,void *data);
+static inline uint32_t new_timer(uint64_t delay
+                                ,uint64_t duration
+                                ,timer_callback_t callback
+                                ,void *data);
 
 /*
  * Initialise driver. Performs implicit stop_timer() if already initialised.
@@ -110,11 +110,11 @@ int start_timer(seL4_CPtr interrupt_ep) {
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
 uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data) {
-    return super_register(delay, 0, callback, data);
+    return new_timer(delay, 0, callback, data);
 }
 
 uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data) {
-    return super_register(0, duration, callback, data);
+    return new_timer(0, duration, callback, data);
 }
 
 /*
@@ -145,9 +145,11 @@ int remove_timer(uint32_t id) {
     //if the removed timer was the current timer, start the next timer
     if (head == cur) {
         head = cur->next;       
-        if (cur->next != NULL) {
+        if (head != NULL) {
             gpt->gptcr1 = LOWER_32(cur->next->end);
             gpt->gptir |= BIT(OF1IE);
+        } else {//we can just turn off interrupts until the next register_timer
+            gpt->gptir &= ~BIT(OF1IE);
         }
     }
 
@@ -157,6 +159,7 @@ int remove_timer(uint32_t id) {
     if (cur->next != NULL) {
         cur->next->prev = cur->prev; 
     }
+    //if the removed timer was the last timer, turn off compare interrupts 
     
     free(cur);
     
@@ -211,6 +214,8 @@ int timer_interrupt(void) {
         if (head != NULL) {
             gpt->gptcr1 = LOWER_32(head->end);
             gpt->gptir |= BIT(OF1IE);
+        } else { //no timers left to start 
+            gpt->gptir &= ~BIT(OF1IE);
         } 
     }   
     // Rollover has occured
@@ -285,10 +290,10 @@ static inline void insert(struct timer* t) {
     }  
 }
 
-static inline uint32_t super_register(uint64_t delay
-                                     ,uint64_t duration
-                                     ,timer_callback_t callback
-                                     ,void *data) {
+static inline uint32_t new_timer(uint64_t delay
+                                ,uint64_t duration
+                                ,timer_callback_t callback
+                                ,void *data) {
     timestamp_t cur_time = time_stamp();
 
     struct timer* t = malloc(sizeof(struct timer));
