@@ -21,6 +21,7 @@
 
 #include "network.h"
 #include "elf.h"
+#include "frametable.h"
 
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
@@ -395,7 +396,9 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* DMA uses a large amount of memory that will never be freed */
     dma_addr = ut_steal_mem(DMA_SIZE_BITS);
     conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
-
+    /* Frametable memory */
+    seL4_Word ft_addr = ut_steal_mem(FT_TOTAL_SIZE_BITS);
+    conditional_panic(ft_addr == 0, "Failed to reserve FT memory\n");
     /* find available memory */
     ut_find_memory(&low, &high);
 
@@ -406,7 +409,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
     conditional_panic(err, "Failed to initialise the c space\n");
-
+    /* Reserve frame table memory */
+    frame_init(ft_addr);
     /* Initialise DMA memory */
     err = dma_init(dma_addr, DMA_SIZE_BITS);
     conditional_panic(err, "Failed to intiialise DMA memory\n");
@@ -423,7 +427,7 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 }
 
 void check(uint32_t id, void* data) {
-    (void *) data;
+    //(void *) data;
     dprintf(0, "\nhello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
@@ -434,7 +438,7 @@ int num_ts = 0;
 int count = 0;
 
 void tick_check(uint32_t id, void *data) {
-    (void *) data;
+    //(void *) data;
     uint64_t cur_time = time_stamp();
     /*
     tick_check_tss[num_ts++] = time_stamp();
