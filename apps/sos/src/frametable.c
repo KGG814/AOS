@@ -42,9 +42,9 @@ int frame_init(seL4_Word low, seL4_Word high) {
             /* Get some memory from ut manager */
             pt_addr = ut_alloc(seL4_PageTableBits);
             /* Translate memory */
-            ut_translate(pt_addr, seL4_Untyped* ret_cptr, seL4_Word* ret_offset);
+            //ut_translate(pt_addr, seL4_Untyped* ret_cptr, seL4_Word* ret_offset);
             /* Create the frame cap */	
-            err = cspace_ut_retype_addr(ft_addr_current, seL4_ARM_SmallPageObject,
+            err = cspace_ut_retype_addr(pt_addr, seL4_ARM_SmallPageObject,
                                         seL4_PageBits, cur_cspace, ft_caps);
             conditional_panic(err, "Cannot create frame table cap\n");
             /* Map in the frame */
