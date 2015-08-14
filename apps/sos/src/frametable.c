@@ -10,37 +10,39 @@
 
 seL4_Word* frametable;
 seL4_Word* captable;
+static seL4_Word numFrames;
 static seL4_CPtr* ft_caps;
-static seL4_CPtr* ct_caps;
 
 
-int frame_init(seL4_Word addr) {
+int frame_init(seL4_Word low, seL4_Word high) {
     /* We put the frametable at the start of the stolen memory */
-	seL4_Word ft_addr_start = addr;
+	seL4_Word ft_addr_start = low;
     frametable = (seL4_Word *)ft_addr_start
-    seL4_Word ft_addr_end = ft_addr_start + (1 << FT_SIZE_BITS);
+
+    /* Calculate how many frames the frame table tracks*/
+    numFrames = (high - low) / PAGE_SIZE;
+
+    /* Calculate the size of the actual frame table */
+    seL4_Word frameTableSize = (numFrames * sizeof(seL4_Word)) / PAGE_SIZE;
     /* Initialise memory to store frame table caps */
-	ft_caps = (seL4_CPtr*)malloc(sizeof(seL4_CPtr) * FT_PAGES);
-	memset(ft_caps, 0, sizeof(seL4_CPtr) * FT_PAGES);
+    ft_caps = (seL4_CPtr*)malloc(sizeof(seL4_CPtr) * frameTableSize);
+    memset(ft_caps, 0, sizeof(seL4_CPtr) * frameTableSize);
 
-    /* Cap table goes straight after frame table */
-    seL4_Word ct_addr_start = ft_addr_end;
-    captable = (seL4_Word *)cp_addr_end;
-    seL4_Word ct_addr_end = ft_addr_start + (1 << CT_SIZE_BITS);
-    /*  Initialise memory to store cap table caps */
-    ct_caps = (seL4_CPtr*)malloc(sizeof(seL4_CPtr) * CT_PAGES);
-    memset(ct_caps, 0, sizeof(seL4_CPtr) * CT_PAGES);
+    seL4_Word ft_addr_end = ft_addr_start + frameTableSize;
+    seL4_Word ft_addr_current = ft_addr_start;
 
-    /*  */
  	seL4_ARM_VMAttributes vm_attr = 0;
     /* Loop variables */
  	int err = 0;
-    seL4_Word ft_addr_current = ft_addr_start;
-    seL4_Word ct_addr_current = ct_addr_start;
+    seL4_Word pt_addr
     /* Initialise the memory for the frame table and cap tables */
-	while((ft_addr_current < ft_addr_end) && (ct_addr_current < ct_addr_end)){
+    for (int currFrame = 0; currFrame < numFrames; numFrames++) {
         /* Get the caps for the frametable */
         if(*ft_caps == seL4_CapNull){
+            /* Get some memory from ut manager */
+            pt_addr = ut_alloc(seL4_PageTableBits);
+            /* Translate memory */
+            ut_translate(pt_addr, seL4_Untyped* ret_cptr, seL4_Word* ret_offset);
             /* Create the frame cap */	
             err = cspace_ut_retype_addr(ft_addr_current, seL4_ARM_SmallPageObject,
                                         seL4_PageBits, cur_cspace, ft_caps);
@@ -50,22 +52,9 @@ int frame_init(seL4_Word addr) {
                            seL4_AllRights, vm_attr);
             conditional_panic(err, "Cannot map frame table page\n");
         }    
-        /* Get the caps for the cap table */
-        if(*ct_caps == seL4_CapNull){
-            /* Create the cap table cap */  
-            err = cspace_ut_retype_addr(ct_addr_current, seL4_ARM_SmallPageObject,
-                                        seL4_PageBits, cur_cspace, ct_caps);
-            conditional_panic(err, "Cannot create cap table cap\n");
-            /* Map in the cap table entry */
-            err = map_page(*ct_caps, seL4_CapInitThreadPD, paddrToVaddr(ct_addr_current), 
-                           seL4_AllRights, vm_attr);
-            conditional_panic(err, "Cannot map cap table page\n");
-        }
-        /* Next */
+        
         ft_addr_current += (1 << seL4_PageBits);
         ft_caps++;
-        ct_addr_current += (1 << seL4_PageBits);
-        ct_caps++;
     }
 
     for (int ftIndex = 0; ftIndex < FT_PAGES * ENTRIES_IN_PAGE; ftIndex++) {

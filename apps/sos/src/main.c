@@ -405,12 +405,14 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* Initialise the untyped memory allocator */
     ut_allocator_init(low, high);
 
+    /* Initalise frame table */
+    frame_init(low, high);
+
     /* Initialise the cspace manager */
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
     conditional_panic(err, "Failed to initialise the c space\n");
     /* Reserve frame table memory */
-    frame_init(ft_addr);
     /* Initialise DMA memory */
     err = dma_init(dma_addr, DMA_SIZE_BITS);
     conditional_panic(err, "Failed to intiialise DMA memory\n");
