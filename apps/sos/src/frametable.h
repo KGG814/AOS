@@ -1,9 +1,14 @@
 #include <sel4/types.h>
+#include <limits.h>
 
 #define FT_TOTAL_SIZE_BITS	21
 #define FT_SIZE_BITS 		20
 #define CT_SIZE_BITS 		20
 #define ENTRIES_IN_PAGE		1024
+
+#define FRAME_INDEX_MASK	0x000FFFFF
+#define FRAME_UT_ALLOCED	(1 << 31)
+#define FRAME_ALLOCED       (1 << 30)
 
 /* Frame table entry bits */
 #define FTE_STATE_BITS		3

@@ -170,3 +170,7 @@ void sos_dma_cache_op(void *cookie, void *addr, size_t size, dma_cache_op_t op) 
 seL4_Word paddrToVaddr(seL4_Word paddr) {
     return VIRT(paddr);
 }
+
+seL4_Word paddrToVaddr(seL4_Word vaddr) {
+    return PHYS(paddr);
+}
