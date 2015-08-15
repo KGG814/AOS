@@ -171,6 +171,6 @@ seL4_Word paddrToVaddr(seL4_Word paddr) {
     return VIRT(paddr);
 }
 
-seL4_Word paddrToVaddr(seL4_Word vaddr) {
-    return PHYS(paddr);
+seL4_Word vaddrToPaddr(seL4_Word vaddr) {
+    return PHYS(vaddr);
 }

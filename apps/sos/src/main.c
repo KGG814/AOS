@@ -396,16 +396,11 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* DMA uses a large amount of memory that will never be freed */
     dma_addr = ut_steal_mem(DMA_SIZE_BITS);
     conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
-    /* Frametable memory */
-    seL4_Word ft_addr = ut_steal_mem(FT_TOTAL_SIZE_BITS);
-    conditional_panic(ft_addr == 0, "Failed to reserve FT memory\n");
     /* find available memory */
     ut_find_memory(&low, &high);
 
     /* Initialise the untyped memory allocator */
     ut_allocator_init(low, high);
-
-   
 
     /* Initialise the cspace manager */
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
