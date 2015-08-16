@@ -32,6 +32,7 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#include "ft_tests.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -401,14 +402,15 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 
     /* Initialise the untyped memory allocator */
     ut_allocator_init(low, high);
-
+    
     /* Initialise the cspace manager */
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
 
+    dprintf(0, "low = 0x%08x, hi = 0x%08x, offset = 0x%08x\n", low, high, paddrToVaddr(0));
      /* Initalise frame table */
-    frame_init(low, high);
-    
+    int test = frame_init();
+    dprintf(0, "size = 0x%08x\n", test);
     conditional_panic(err, "Failed to initialise the c space\n");
     /* Reserve frame table memory */
     /* Initialise DMA memory */
@@ -473,6 +475,7 @@ void stop_cb(uint32_t id, void *data) {
 
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
+    /*
     dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
     stop_timer();
     start_timer(interrupt_ep);
@@ -503,6 +506,7 @@ void clock_test(seL4_CPtr interrupt_ep) {
     dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
 
     dprintf(0, "Current us since boot = %d\n", time_stamp());
+    */
     /* 
     uint64_t timestamps[4] = {};
     for (int i = 0; i < 128; i++) {
@@ -536,6 +540,15 @@ int main(void) {
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
+    /*
+    if (all_tests() == PASSED) {
+        dprintf(0, "it workded!\n");
+    } else {
+        dprintf(0,"no\n");
+    }*/
+    
+    free_test();
+
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
 
