@@ -34,15 +34,22 @@ int oom_test(void) {
 }
 
 int free_test(void) {
+    seL4_Word vaddr = 0;
+    seL4_Word prev = 0;
+    int err = 0; 
     for (int i = 0;; i++) {
-         seL4_Word vaddr = frame_alloc();
+         prev = vaddr;
+         vaddr = frame_alloc();
          assert(vaddr);
          *((seL4_Word *) vaddr) = 0x37;
          assert(*((seL4_Word *) vaddr) == 0x37);
 
-         dprintf(0, "Page #%d allocated at %p\n",  i, vaddr);
+         if (!(i % 10000))dprintf(0, "Page #%d allocated at %p\n",  i, vaddr);
 
-         frame_free(vaddr);
+         err = frame_free(vaddr);
+         if (err) {
+            dprintf(0, "something went wrong.\n");
+         }
     }
     return PASSED;
 }

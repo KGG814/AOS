@@ -38,7 +38,8 @@
  * be stored in the clients cspace. */
 #define USER_EP_CAP          (1)
 /* To differencient between async and and sync IPC, we assign a
- * badge to the async endpoint. The badge that we receive will
+ * badge to the a
+sync endpoint. The badge that we receive will
  * be the bitwise 'OR' of the async endpoint badge and the badges
  * of all pending notifications. */
 #define IRQ_EP_BADGE         (1 << (seL4_BadgeBits - 1))
@@ -407,10 +408,10 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
 
-    dprintf(0, "low = 0x%08x, hi = 0x%08x, offset = 0x%08x\n", low, high, paddrToVaddr(0));
-     /* Initalise frame table */
+    //dprintf(0, "low = 0x%08x, hi = 0x%08x, offset = 0x%08x\n", low, high, paddrToVaddr(0));
+    
+    /* Initalise frame table */
     int test = frame_init();
-    dprintf(0, "size = 0x%08x\n", test);
     conditional_panic(err, "Failed to initialise the c space\n");
     /* Reserve frame table memory */
     /* Initialise DMA memory */
