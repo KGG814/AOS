@@ -5,7 +5,8 @@
 
 int basic_test(void) { 
     for (int i = 0; i < 10; i++) {
-        seL4_Word vaddr = frame_alloc();
+        seL4_Word vaddr;
+        frame_alloc(&vaddr);
         assert(vaddr);
 
         *((seL4_Word *) vaddr) = 0x37;
@@ -20,29 +21,31 @@ int oom_test(void) {
     seL4_Word i = 0;
     for (;;) {
         i++;
-         seL4_Word vaddr = frame_alloc();
-         if (!vaddr) {
-    	  dprintf(0, "Out of memory!\n");
-    	  break;
-         }
+        seL4_Word vaddr;
+        frame_alloc(&vaddr);
+        if (!vaddr) {
+            dprintf(0, "Out of memory!\n");
+            break;
+        }
 
-         if (!(i % 1000)) dprintf(0, "Page #%d allocated at %p\n", i , (void *) vaddr);
-         *((seL4_Word *) vaddr) = 0x37;
-         assert(*((seL4_Word *) vaddr) == 0x37);
+        if (!(i % 1000)) dprintf(0, "Page #%d allocated at %p\n", i , (void *) vaddr);
+        *((seL4_Word *) vaddr) = 0x37;
+        assert(*((seL4_Word *) vaddr) == 0x37);
     }
     return PASSED;
 }
 
 int free_test(void) {
     for (int i = 0;; i++) {
-         seL4_Word vaddr = frame_alloc();
-         assert(vaddr);
-         *((seL4_Word *) vaddr) = 0x37;
-         assert(*((seL4_Word *) vaddr) == 0x37);
+        seL4_Word vaddr;
+        frame_alloc(&vaddr);
+        assert(vaddr);
+        *((seL4_Word *) vaddr) = 0x37;
+        assert(*((seL4_Word *) vaddr) == 0x37);
 
-         dprintf(0, "Page #%d allocated at %p\n",  i, vaddr);
+        dprintf(0, "Page #%d allocated at %p\n",  i, vaddr);
 
-         frame_free(vaddr);
+        frame_free(vaddr);
     }
     return PASSED;
 }
