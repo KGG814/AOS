@@ -21,6 +21,7 @@
 
 #include "network.h"
 #include "elf.h"
+#include "frametable.h"
 
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
@@ -31,6 +32,7 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#include "ft_tests.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -395,18 +397,22 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* DMA uses a large amount of memory that will never be freed */
     dma_addr = ut_steal_mem(DMA_SIZE_BITS);
     conditional_panic(dma_addr == 0, "Failed to reserve DMA memory\n");
-
     /* find available memory */
     ut_find_memory(&low, &high);
 
     /* Initialise the untyped memory allocator */
     ut_allocator_init(low, high);
-
+    
     /* Initialise the cspace manager */
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
-    conditional_panic(err, "Failed to initialise the c space\n");
 
+    dprintf(0, "low = 0x%08x, hi = 0x%08x, offset = 0x%08x\n", low, high, paddrToVaddr(0));
+     /* Initalise frame table */
+    int test = frame_init();
+    dprintf(0, "size = 0x%08x\n", test);
+    conditional_panic(err, "Failed to initialise the c space\n");
+    /* Reserve frame table memory */
     /* Initialise DMA memory */
     err = dma_init(dma_addr, DMA_SIZE_BITS);
     conditional_panic(err, "Failed to intiialise DMA memory\n");
@@ -423,23 +429,27 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 }
 
 void check(uint32_t id, void* data) {
-    (void *) data;
-    dprintf(0, "hello %d\n", id);
+    //(void *) data;
+    dprintf(0, "\nhello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
-
+/*
 uint64_t tick_check_tss[10] = {};
 int num_ts = 0;
+*/
 int count = 0;
 
 void tick_check(uint32_t id, void *data) {
-    (void *) data;
-    tick_check_tss[num_ts++] = time_stamp()/1000;
+    //(void *) data;
+    uint64_t cur_time = time_stamp();
+    /*
+    tick_check_tss[num_ts++] = time_stamp();
+    
     if (num_ts == 10) {
         num_ts = 0;
         count++;
         dprintf(0
-               ,"timestamps %d:\
+               ,"\ntimestamps %d:\
 \n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
 \n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
                ,count
@@ -448,7 +458,13 @@ void tick_check(uint32_t id, void *data) {
                ,tick_check_tss[8], tick_check_tss[9]
                );
     }
-    //dprintf(0, "tick from %d happened at time %llu (ms)\n", id, time_stamp());
+    */
+    dprintf(0, "tick: %12llu (us)\t", id, cur_time);
+    count++;
+    if (count % 3 == 0) {
+        dprintf(0, "\n");
+        count = 0;
+    }
 }
 
 void stop_cb(uint32_t id, void *data) {
@@ -459,6 +475,16 @@ void stop_cb(uint32_t id, void *data) {
 
 void clock_test(seL4_CPtr interrupt_ep) {
     start_timer(interrupt_ep);
+    /*
+    dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
+    stop_timer();
+    start_timer(interrupt_ep);
+    
+    int id = register_timer(200000000, &check, NULL);
+    dprintf(0, "registered a timer with id %d\n", id);
+    dprintf(0, "tried to remove timer %d. err: %d\n", id, remove_timer(id));
+
+    dprintf(0, "registered a timer with id %d\n", register_timer(1000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000000, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000100, &check, NULL));
     dprintf(0, "registered a timer with id %d\n", register_timer(10000200, &check, NULL));
@@ -469,13 +495,18 @@ void clock_test(seL4_CPtr interrupt_ep) {
 
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a timer with id %d\n", register_timer(5000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(4000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(3000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
+    dprintf(0, "registered a timer with id %d\n", register_timer(1000000, &check, NULL));
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
 
     dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
     dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
 
-    dprintf(0, "Current us since boot = %d\n", time_stamp()/2);
+    dprintf(0, "Current us since boot = %d\n", time_stamp());
+    */
     /* 
     uint64_t timestamps[4] = {};
     for (int i = 0; i < 128; i++) {
@@ -509,6 +540,15 @@ int main(void) {
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
+    /*
+    if (all_tests() == PASSED) {
+        dprintf(0, "it workded!\n");
+    } else {
+        dprintf(0,"no\n");
+    }*/
+    
+    free_test();
+
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
 
