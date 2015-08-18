@@ -4,15 +4,14 @@
 
 #include <sys/panic.h>
 #include "ut_manager/ut.h"
+#include "vmem_layout.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <cspace/cspace.h>
 #include <mapping.h>
 
-//virtual address space layout offsets
-#define FT_START_ADDR   0x20000000
-#define VM_START_ADDR   0x30000000
+
 
 #define CEIL_DIV(num, den) ((num)/(den) + ((num) % (den) == 0 ? 0 : 1))
 
@@ -33,6 +32,7 @@ int ft_initialised = 0;
 //frametable is essentially a list stack of free frames 
 
 static seL4_Word low;
+static seL4_Word high;
 
 typedef struct _ft_entry {
     seL4_Word frame_status;
@@ -53,7 +53,6 @@ int frame_init(void) {
     if (ft_initialised == 1) {
         return FT_INITIALISED;
     }
-    seL4_Word high;
     seL4_Word num_frames;
     ut_find_memory(&low, &high);
 
@@ -63,9 +62,10 @@ int frame_init(void) {
     /* Calculate the size of the actual frame table */
     seL4_Word frame_table_size = CEIL_DIV((num_frames * sizeof(ft_entry)), PAGE_SIZE);
 
+    //temporary array to store the real indices and caps of the frames used for 
+    //the frame table 
     ft_entry *real_indices = malloc(sizeof(ft_entry) * frame_table_size);
 
-    
     //dummy var to get caps
     seL4_CPtr curr_cap = 0;
 
@@ -75,31 +75,25 @@ int frame_init(void) {
     seL4_Word pt_addr;
     /* Initialise the memory for the frame table */
     for (int i = 0; i < frame_table_size; i++) {
-        /* Get the caps for the frametable */
-            /* Get some memory from ut manager */
         
+        /* Get some memory from ut manager */
         pt_addr = ut_alloc(seL4_PageBits);
-        conditional_panic(pt_addr == 0, "eh");
-
-        dprintf(0, "pt_addr: 0x%08x\n", pt_addr);
+        conditional_panic(pt_addr == 0, "Cannot get memory for frame table\n");
 
         /* Create the frame cap */	
         err = cspace_ut_retype_addr(pt_addr, seL4_ARM_SmallPageObject,
                                     seL4_PageBits, cur_cspace, &curr_cap);
-
         conditional_panic(err, "Cannot create frame table cap\n");
-        dprintf(0, "a\n", pt_addr);
 
         /* Map in the frame, once into the ft, once into the sos vspace */
-        err = map_page(curr_cap, seL4_CapInitThreadPD, ((seL4_Word) frametable) + (i * PAGE_SIZE), 
-                       seL4_AllRights, vm_attr);
+        err = map_page(curr_cap
+                      ,seL4_CapInitThreadPD
+                      ,((seL4_Word) frametable) + (i * PAGE_SIZE)
+                      ,seL4_AllRights, vm_attr
+                      );
         conditional_panic(err, "Cannot map frame table page\n");
-        dprintf(0, "b\n", pt_addr);
         
-        //set the corresponding page in the frame table to 1. in use, 2. not to be swapped
-        //note that the page that contains this entry will have been alloced by
-        //now, so it's safe to access.
-        
+        //store the real frame number 
         real_indices[i].frame_status = (pt_addr - low) / PAGE_SIZE;
         real_indices[i].frame_cap = curr_cap;
         curr_cap = 0;
@@ -126,17 +120,24 @@ int frame_init(void) {
     return FT_OK;
     //return paddrToVaddr(pt_addr);
 }
+<<<<<<< HEAD
+//frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
+//retyped into a frame, and the frame is mapped into the SOS window at a fixed 
+//offset of the physical address.
+seL4_Word frame_alloc(void) {
+=======
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
 //and the frame is mapped into the SOS window at a fixed offset of the physical address.
 int frame_alloc(seL4_Word* vaddr) {
+>>>>>>> 5195f9cdff37d27a0c1bcacdb115d4ac937303e8
 
     /* Check frame table has been initialised */
-    /*
+    
     if (ft_initialised != 1) {
         //this is not the correct behaviour; we should instead steal_mem or something 
-        return FT_NOT_INITIALISED; 
+        return 0; 
     }
-*/
+
     int err = 0;
     seL4_ARM_VMAttributes vm_attr = 0;
 
@@ -146,15 +147,22 @@ int frame_alloc(seL4_Word* vaddr) {
         return 0;
     }
     seL4_Word index = (pt_addr - low) / PAGE_SIZE;
-    err |= cspace_ut_retype_addr(pt_addr, seL4_ARM_SmallPageObject,
-                                        seL4_PageBits, cur_cspace, &frametable[index].frame_cap);
-    err |= map_page(frametable[index].frame_cap, seL4_CapInitThreadPD, paddrToVaddr(pt_addr), 
-                           seL4_AllRights, vm_attr);
-    /*if (err) {
-        return FT_ERR;
-    }*/
+    err |= cspace_ut_retype_addr(pt_addr
+                                ,seL4_ARM_SmallPageObject
+                                ,seL4_PageBits
+                                ,cur_cspace
+                                ,&frametable[index].frame_cap
+                                );
+    err |= map_page(frametable[index].frame_cap
+                   ,seL4_CapInitThreadPD
+                   ,paddrToVaddr(pt_addr)
+                   ,seL4_AllRights
+                   ,vm_attr
+                   );
+    if (err) {
+        return 0;
+    }
  
-    
     //set the status bits of the new frame 
     frametable[index].frame_status = FRAME_IN_USE;
 
@@ -168,9 +176,13 @@ int frame_free(seL4_Word vaddr) {
         //this is not the correct behaviour; we should instead steal_mem or something 
         return FT_NOT_INITIALISED; 
     }
+    seL4_Word paddr = vaddrToPaddr(vaddr);
     //TODO: check we have a valid vaddr 
+    if ((paddr < low) || (paddr > high)) {
+        return FT_ERR;
+    }
 
-    seL4_Word index = (vaddrToPaddr(vaddr) - low) / PAGE_SIZE;
+    seL4_Word index = (paddr - low) / PAGE_SIZE;
     //tried to free a free frame 
     if (!(frametable[index].frame_status & FRAME_IN_USE)) {
         return FT_ERR;
@@ -178,15 +190,22 @@ int frame_free(seL4_Word vaddr) {
         
     //do any sort of untyping/retyping capping/uncapping here 
     seL4_ARM_Page_Unmap(frametable[index].frame_cap);
-    seL4_CNode_Revoke(cur_cspace->root_cnode, frametable[index].frame_cap, CSPACE_DEPTH);
-    seL4_CNode_Delete(cur_cspace->root_cnode, frametable[index].frame_cap, CSPACE_DEPTH);
     
-    ut_free(vaddrToPaddr(vaddr), PAGE_BITS);
-    frametable[index].frame_cap = 0;
+    int err = cspace_revoke_cap(cur_cspace, frametable[index].frame_cap);
 
+    if (err) {
+        return FT_ERR;
+    }
+
+    err = cspace_delete_cap(cur_cspace, frametable[index].frame_cap); 
+    if (err) {
+        return FT_ERR;
+    }
+    ut_free(vaddrToPaddr(vaddr), PAGE_BITS);
 
     //set status bits here.
     frametable[index].frame_status = FRAME_INVALID;
+    frametable[index].frame_cap = 0;
 
 	return FT_OK;
 }

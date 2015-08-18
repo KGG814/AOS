@@ -17,6 +17,12 @@
 #define DMA_SIZE_BITS       (22)
 #define DMA_VEND            (DMA_VSTART + (1ull << DMA_SIZE_BITS))
 
+/*frame table stuff*/
+#define FT_START_ADDR   DMA_VEND
+//the frame table only uses 244 frames, so we add a fixed offset to account for 
+//them 
+#define VM_START_ADDR   (FT_START_ADDR + 0x10000000)
+
 /* From this address onwards is where any devices will get mapped in
  * by the map_device function. You should not use any addresses beyond
  * here without first modifying map_device */
