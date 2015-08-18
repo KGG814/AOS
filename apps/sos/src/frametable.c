@@ -120,10 +120,16 @@ int frame_init(void) {
     return FT_OK;
     //return paddrToVaddr(pt_addr);
 }
+<<<<<<< HEAD
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
 seL4_Word frame_alloc(void) {
+=======
+//frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
+//and the frame is mapped into the SOS window at a fixed offset of the physical address.
+int frame_alloc(seL4_Word* vaddr) {
+>>>>>>> 5195f9cdff37d27a0c1bcacdb115d4ac937303e8
 
     /* Check frame table has been initialised */
     
@@ -160,8 +166,8 @@ seL4_Word frame_alloc(void) {
     //set the status bits of the new frame 
     frametable[index].frame_status = FRAME_IN_USE;
 
-    return paddrToVaddr(pt_addr);
-    //return FT_OK;
+    *vaddr = paddrToVaddr(pt_addr);
+    return index;
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 
 //object is destroyed, and the physical memory range is returned via ut_free.
