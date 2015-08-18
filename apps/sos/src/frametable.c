@@ -120,47 +120,47 @@ int frame_init(void) {
     return FT_OK;
     //return paddrToVaddr(pt_addr);
 }
-<<<<<<< HEAD
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-seL4_Word frame_alloc(void) {
-=======
-//frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
-//and the frame is mapped into the SOS window at a fixed offset of the physical address.
 int frame_alloc(seL4_Word* vaddr) {
->>>>>>> 5195f9cdff37d27a0c1bcacdb115d4ac937303e8
 
     /* Check frame table has been initialised */
     
     if (ft_initialised != 1) {
         //this is not the correct behaviour; we should instead steal_mem or something 
-        return 0; 
+        return FT_NOT_INITIALISED; 
     }
 
     int err = 0;
     seL4_ARM_VMAttributes vm_attr = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
+    //TODO: add demand paging 
     if (pt_addr < low) { //no frames available
-        // Some stuff
-        return 0;
+        return FT_NO_MEM;
     }
-    seL4_Word index = (pt_addr - low) / PAGE_SIZE;
+
+    int index = (pt_addr - low) / PAGE_SIZE;
     err |= cspace_ut_retype_addr(pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
                                 ,cur_cspace
                                 ,&frametable[index].frame_cap
                                 );
+    //TODO: interpret this error correctly
+    if (err) { 
+        return FT_ERR;
+    }
     err |= map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
                    ,paddrToVaddr(pt_addr)
                    ,seL4_AllRights
                    ,vm_attr
                    );
-    if (err) {
-        return 0;
+    //TODO: interpret this error correctly.
+    if (err) { 
+        return FT_ERR;
     }
  
     //set the status bits of the new frame 

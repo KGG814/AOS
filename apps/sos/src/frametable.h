@@ -12,6 +12,7 @@
 //"errors"
 #define FT_ERR              (-1)
 #define FT_NOT_INITIALISED  (-2)
+#define FT_NO_MEM           (-3)
 
 /*
  * This frametable allows for 256 pages (256*1024 entries) of frames.

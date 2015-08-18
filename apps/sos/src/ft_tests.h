@@ -7,6 +7,7 @@
 
 #define FAIL (-1)
 
+#define MAX_CYCLES 1000000
 
 int all_tests(void);
 
