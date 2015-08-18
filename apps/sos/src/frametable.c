@@ -42,12 +42,12 @@ typedef struct _ft_entry {
 //sos vspace addr of ft
 static ft_entry* frametable = (ft_entry *) FT_START_ADDR; 
 
-static seL4_Word paddrToVaddr(seL4_Word paddr) { 
+/*static seL4_Word paddrToVaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
-}
-static seL4_Word vaddrToPaddr(seL4_Word vaddr) { 
+}*/
+/*static seL4_Word vaddrToPaddr(seL4_Word vaddr) { 
     return vaddr - VM_START_ADDR;
-}
+}*/
 
 int frame_init(void) {
     if (ft_initialised == 1) {
@@ -123,7 +123,7 @@ int frame_init(void) {
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-int frame_alloc(seL4_Word* vaddr) {
+int frame_alloc(void) {
 
     /* Check frame table has been initialised */
     
@@ -133,7 +133,6 @@ int frame_alloc(seL4_Word* vaddr) {
     }
 
     int err = 0;
-    seL4_ARM_VMAttributes vm_attr = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
     //TODO: add demand paging 
@@ -152,12 +151,12 @@ int frame_alloc(seL4_Word* vaddr) {
     if (err) { 
         return FT_ERR;
     }
-    err |= map_page(frametable[index].frame_cap
+    /*err |= map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
                    ,paddrToVaddr(pt_addr)
                    ,seL4_AllRights
                    ,vm_attr
-                   );
+                   );*/
     //TODO: interpret this error correctly.
     if (err) { 
         return FT_ERR;
@@ -166,23 +165,17 @@ int frame_alloc(seL4_Word* vaddr) {
     //set the status bits of the new frame 
     frametable[index].frame_status = FRAME_IN_USE;
 
-    *vaddr = paddrToVaddr(pt_addr);
+    //*vaddr = paddrToVaddr(pt_addr);
     return index;
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 
 //object is destroyed, and the physical memory range is returned via ut_free.
-int frame_free(seL4_Word vaddr) {
+int frame_free(int index) {
     if (ft_initialised != 1) {
         //this is not the correct behaviour; we should instead steal_mem or something 
         return FT_NOT_INITIALISED; 
     }
-    seL4_Word paddr = vaddrToPaddr(vaddr);
-    //TODO: check we have a valid vaddr 
-    if ((paddr < low) || (paddr > high)) {
-        return FT_ERR;
-    }
 
-    seL4_Word index = (paddr - low) / PAGE_SIZE;
     //tried to free a free frame 
     if (!(frametable[index].frame_status & FRAME_IN_USE)) {
         return FT_ERR;
@@ -201,7 +194,7 @@ int frame_free(seL4_Word vaddr) {
     if (err) {
         return FT_ERR;
     }
-    ut_free(vaddrToPaddr(vaddr), PAGE_BITS);
+    ut_free(frametable[index].frame_status & FRAME_INDEX_MASK, PAGE_BITS);
 
     //set status bits here.
     frametable[index].frame_status = FRAME_INVALID;

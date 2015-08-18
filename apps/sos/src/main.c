@@ -19,6 +19,7 @@
 #include <serial/serial.h>
 #include <clock/clock.h>
 
+#include "pagetable.h"
 #include "network.h"
 #include "elf.h"
 #include "frametable.h"
@@ -552,7 +553,9 @@ int main(void) {
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
-
+    int index = frame_alloc();
+    page_init();
+    sos_map_page(index, 0x50000000);
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
