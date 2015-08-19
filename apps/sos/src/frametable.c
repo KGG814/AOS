@@ -5,7 +5,6 @@
 #include <sys/panic.h>
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <cspace/cspace.h>
@@ -34,22 +33,17 @@ int ft_initialised = 0;
 static seL4_Word low;
 static seL4_Word high;
 
-typedef struct _ft_entry {
-    seL4_Word frame_status;
-    seL4_CPtr frame_cap;
-} ft_entry;
 
-//sos vspace addr of ft
-static ft_entry* frametable = (ft_entry *) FT_START_ADDR; 
 
-/*static seL4_Word paddrToVaddr(seL4_Word paddr) { 
+static seL4_Word paddrToVaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
-}*/
+}
 /*static seL4_Word vaddrToPaddr(seL4_Word vaddr) { 
     return vaddr - VM_START_ADDR;
 }*/
 
 int frame_init(void) {
+    frametable = (ft_entry *) FT_START_ADDR; 
     if (ft_initialised == 1) {
         return FT_INITIALISED;
     }
@@ -123,7 +117,7 @@ int frame_init(void) {
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-int frame_alloc(void) {
+int frame_alloc(seL4_Word *vaddr) {
 
     /* Check frame table has been initialised */
     
@@ -151,12 +145,12 @@ int frame_alloc(void) {
     if (err) { 
         return FT_ERR;
     }
-    /*err |= map_page(frametable[index].frame_cap
+    err |= map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
                    ,paddrToVaddr(pt_addr)
                    ,seL4_AllRights
-                   ,vm_attr
-                   );*/
+                   ,0
+                   );
     //TODO: interpret this error correctly.
     if (err) { 
         return FT_ERR;
@@ -165,7 +159,7 @@ int frame_alloc(void) {
     //set the status bits of the new frame 
     frametable[index].frame_status = FRAME_IN_USE;
 
-    //*vaddr = paddrToVaddr(pt_addr);
+    *vaddr = paddrToVaddr(pt_addr);
     return index;
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 

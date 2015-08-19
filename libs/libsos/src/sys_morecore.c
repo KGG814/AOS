@@ -49,7 +49,16 @@ sys_brk(va_list ap)
     } else {
         ret = 0;
     }
-
+    /*
+    if (!newbrk) {
+        ret = heap_base;
+    } else if (newbrk < HEAP_TOP && newbrk > HEAP_OFFSET) {
+        ret = newbrk;
+        heap_base = newbrk;
+    } else {
+        ret = 0;
+    }
+    */
     return ret;
 }
 

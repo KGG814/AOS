@@ -42,6 +42,9 @@ int main(void){
     /* initialise communication */
     ttyout_init();
     int j = 0;
+    seL4_Word *ptr = 0x5000;
+    *ptr = 0x37;
+    printf("Value of int 0x%08x\n", *ptr);
     do {
         for (volatile uint64_t i = 0; i < 0xFFFFFFF; i++) {}
         printf("tic %d\n", j++);

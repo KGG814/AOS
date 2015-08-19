@@ -169,8 +169,8 @@ void syscall_loop(seL4_CPtr ep) {
             dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-
-            assert(!"Unable to handle vm faults");
+            handle_vm_fault(badge, tty_test_process.vroot);
+            //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
@@ -544,7 +544,7 @@ int main(void) {
     
     
     if (all_tests() == PASSED) {
-        dprintf(0, "it workded!\n");
+        dprintf(0, "Frame table tests passed!\n");
     } else {
         dprintf(0,"no\n");
     }
@@ -553,11 +553,10 @@ int main(void) {
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
-    int index = frame_alloc();
+    //int index = frame_alloc();
     page_init();
-    sos_map_page(index, 0x50000000);
+    //sos_map_page(index, 0x50000000);
     syscall_loop(_sos_ipc_ep_cap);
-
     /* Not reached */
     return 0;
 }
