@@ -25,7 +25,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "ttyout.h"
+#include <sos/ttyout.h>
 #include <sel4/sel4.h>
 
 /*

@@ -3,7 +3,7 @@
 
 #include <sel4/types.h>
 #include <limits.h>
-#include "vmem_layout.h"
+#include <sos/vmem_layout.h>
 //"warnings"
 #define FT_INITIALISED      1
 

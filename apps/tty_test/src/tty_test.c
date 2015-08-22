@@ -26,7 +26,7 @@
 #include <sel4/sel4.h>
 
 
-#include <ttyout.h>
+#include <sos/ttyout.h>
 
 // Block a thread forever
 // we do this by making an unimplemented system call.

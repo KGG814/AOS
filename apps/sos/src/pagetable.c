@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/debug.h>
 #include "pagetable.h"
+#include "frametable.h"
 
 seL4_Word** page_directory = (seL4_Word**)0x30000000;
 seL4_Word*  page_tables    = (seL4_Word*) 0x30004000;
@@ -63,6 +64,15 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
     /* TODO do this only if it is in the right region */
     /* Alloc and map it in to process page table if it is in stack or heap memory region*/
     int ft_index = frame_alloc(&page_vaddr);
+    if (ft_index < FT_OK) {
+        /* No memory left */
+
+    } else if ((fault_vaddr > PROCESS_STACK_BOT && fault_vaddr < PROCESS_STACK_TOP) ||
+               (fault_vaddr > PROCESS_IPC_BUFFER && fault_vaddr < PROCESS_IPC_BUFFER_END) ||
+               (fault_vaddr > PROCESS_SCRATCH) ||
+               (fault_vaddr > PROCESS_VMEM_START)) {
+
+    }
     sos_map_page(ft_index, fault_vaddr, pd);
 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);

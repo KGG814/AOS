@@ -24,7 +24,7 @@
 #include <dma.h>
 #include <mapping.h>
 #include <ut_manager/ut.h>
-#include <vmem_layout.h>
+#include <sos/vmem_layout.h>
 
 #define verbose 5
 #include <sys/debug.h>

@@ -16,7 +16,7 @@
 
 #include "elf.h"
 
-#include <vmem_layout.h>
+#include <sos/vmem_layout.h>
 #include <ut_manager/ut.h>
 #include <mapping.h>
 

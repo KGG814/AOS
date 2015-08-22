@@ -4,7 +4,7 @@
 
 #include <sys/panic.h>
 #include "ut_manager/ut.h"
-#include "vmem_layout.h"
+#include <sos/vmem_layout.h>
 #include <stdlib.h>
 #include <string.h>
 #include <cspace/cspace.h>
