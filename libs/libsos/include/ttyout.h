@@ -12,7 +12,7 @@
 #define _TTYOUT_H
 
 #include <stdio.h>
-
+#define SYSCALL_ENDPOINT_SLOT  (1)
 /* Print to the proper console.  You will need to finish these implementations */
 extern size_t
 sos_write(void *data, size_t count);

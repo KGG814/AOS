@@ -49,6 +49,7 @@ sys_brk(va_list ap)
     } else {
         ret = 0;
     }
+    /* TODO */
     /*
     if (!newbrk) {
         ret = heap_base;

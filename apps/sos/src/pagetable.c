@@ -58,7 +58,10 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
     seL4_Word fault_vaddr = seL4_GetMR(1);
 
     reply_cap = cspace_save_reply_cap(cur_cspace);
-    dprintf(0, "Handling vm fault at:  0x%08x\n", fault_vaddr);
+    
+    //dprintf(0, "Handling vm fault at:  0x%08x\n", fault_vaddr);
+    /* TODO do this only if it is in the right region */
+    /* Alloc and map it in to process page table if it is in stack or heap memory region*/
     int ft_index = frame_alloc(&page_vaddr);
     sos_map_page(ft_index, fault_vaddr, pd);
 
