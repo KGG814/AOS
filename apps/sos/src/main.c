@@ -542,15 +542,6 @@ int main(void) {
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
-    
-    if (all_tests() == PASSED) {
-        dprintf(0, "Frame table tests passed!\n");
-    } else {
-        dprintf(0,"no\n");
-    }
-    
-    //free_tests();
-
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     //int index = frame_alloc();
