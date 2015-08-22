@@ -13,6 +13,8 @@
 #define GPT1_DEVICE_PADDR 0x02098000
 #define GPT1_INTERRUPT 87
 
+#define TS_THRES 10000 //10 ms rollover threshold
+
 static uint64_t time_stamp_rollovers = 0; 
 seL4_CPtr timerCap;
 
@@ -21,8 +23,7 @@ struct timer {
     timer_callback_t callback;
     void *data;
 
-    //make timers a doubly linked list.
-    struct timer* prev;
+    //make timers a linked list.
     struct timer* next;
 
     //this is 0 if the timer is not a ticking itmer, >0 if it is.
@@ -131,37 +132,37 @@ int remove_timer(uint32_t id) {
         return CLOCK_R_FAIL;
     }
 
-    //traverse list to see if id is valid
-    struct timer *cur = head;
-    while (cur != NULL && cur->next != NULL && cur != (struct timer*) id) {
-        cur = cur->next;
-    }
-    //we are either at the head of an empty list, at the end of the list, or 
-    //at t itself
-    if (cur != (struct timer*) id) {
+    //empty list, no timers, so no timer to delete
+    if (head == NULL) {
         return CLOCK_R_FAIL;
     }
 
-    //if the removed timer was the current timer, start the next timer
-    if (head == cur) {
-        head = cur->next;       
+    if ((struct timer *) id == head) {
+        head = head->next; 
         if (head != NULL) {
-            gpt->gptcr1 = LOWER_32(cur->next->end);
+            gpt->gptcr1 = LOWER_32(head->next->end);
             gpt->gptir |= BIT(OF1IE);
         } else {//we can just turn off interrupts until the next register_timer
             gpt->gptir &= ~BIT(OF1IE);
         }
+        return CLOCK_R_OK;
     }
 
-    if (cur->prev != NULL) {
-        cur->prev->next = cur->next;
+    struct timer *cur = head;
+    //traverse list to see if id is valid
+    while (cur->next != NULL && cur->next != (struct timer*) id) {
+        cur = cur->next;
     }
-    if (cur->next != NULL) {
-        cur->next->prev = cur->prev; 
+
+    //either we are at the end of the list or at the timer before id
+    if (cur->next == NULL) {
+        return CLOCK_R_FAIL;
     }
-    //if the removed timer was the last timer, turn off compare interrupts 
+
+    //set the pointers
+    cur->next = cur->next->next;
     
-    free(cur);
+    free((struct timer*) id);
     
     return CLOCK_R_OK;
 }
@@ -199,9 +200,6 @@ int timer_interrupt(void) {
             //queue 
             struct timer* t = head;
             head = t->next;
-            if (head != NULL) {
-                head->prev = NULL;
-            }
 
             if (t->duration == 0) {
                 free(t);
@@ -238,15 +236,11 @@ int timer_interrupt(void) {
 int stop_timer(void) {
     gpt->gptcr &= ~BIT(EN);
     gpt->gptcr |= BIT(SWR); /* Reset the GPT */
-    struct timer* cur = head;
-    if (cur != NULL) {
-        while (cur->next != NULL) {
-            cur = cur->next;
-            free(cur->prev);          
-        }
+    for (struct timer* cur = head; cur != NULL; cur = head) {
+        head = cur->next;
         free(cur);
     }
-    head = NULL;
+    //head is already set to NULL
     initialised = TIMER_STOPPED;
     time_stamp_rollovers = 0;
     return CLOCK_R_OK;
@@ -260,7 +254,12 @@ int stop_timer(void) {
 timestamp_t time_stamp(void) {
     //this assumes that the rollover handling won't happen in the middle of this 
     //function
-    return TO_64(time_stamp_rollovers, gpt->gptcnt);
+    uint64_t hi = time_stamp_rollovers;
+    uint64_t lo = gpt->gptcnt; 
+    if (lo < TS_THRES) {
+        hi = time_stamp_rollovers;
+    }
+    return TO_64(hi, lo);
 }
 
 static inline void insert(struct timer* t) {
@@ -270,10 +269,6 @@ static inline void insert(struct timer* t) {
 
     if (head == NULL || head->end >= t->end) {
         t->next = head;
-        t->prev = NULL; 
-        if (head != NULL) {
-            head->prev = t;
-        }
         head = t;
         return;
     }
@@ -283,11 +278,7 @@ static inline void insert(struct timer* t) {
     }
     
     t->next = cur->next;
-    t->prev = cur;
     cur->next = t;
-    if (t->next != NULL) {
-        t->next->prev = t;
-    }  
 }
 
 static inline uint32_t new_timer(uint64_t delay
