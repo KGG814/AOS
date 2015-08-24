@@ -13,10 +13,6 @@
 #define _MEM_LAYOUT_H_
 
 
-
-uintptr_t get_morecore_base(void);
-void set_morecore_base(uintptr_t new_base);
-
 /* Address where memory used for DMA starts getting mapped.
  * Do not use the address range between DMA_VSTART and DMA_VEND */
 #define DMA_VSTART          (0x10000000)
@@ -38,10 +34,10 @@ void set_morecore_base(uintptr_t new_base);
 
 /* Constants for how SOS will layout the address space of any
  * processes it loads up */
-#define PROCESS_STACK_TOP   	(0x90000000)
-#define PROCESS_STACK_BOT   	(0x80000000) 
-#define PROCESS_IPC_BUFFER  	(0xA0000000)
-#define PROCESS_IPC_BUFFER_END  (0xA0004000)
+#define PROCESS_STACK_TOP   	(0xB0000000)
+#define PROCESS_STACK_BOT   	(0xA0000000) 
+#define PROCESS_IPC_BUFFER  	(0xB1000000)
+#define PROCESS_IPC_BUFFER_END  (0xB1004000)
 #define PROCESS_VMEM_START  	(0x50000000)
 #define PROCESS_SCRATCH     	(0xD0000000)
 

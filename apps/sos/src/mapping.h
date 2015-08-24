@@ -12,7 +12,7 @@
 #define _MAPPING_H_
 
 #include <sel4/sel4.h>
-
+#include "proc.h"
  /**
  * Maps a page into a page table. 
  * A 2nd level table will be created if required
@@ -26,6 +26,10 @@
  */
 int map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr, 
                 seL4_CapRights rights, seL4_ARM_VMAttributes attr);
+
+int 
+map_page_user(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr, 
+                seL4_CapRights rights, seL4_ARM_VMAttributes attr, addr_space* cap);
  
  /**
  * Maps a device to virtual memory

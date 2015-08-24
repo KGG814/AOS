@@ -15,6 +15,9 @@
 #include <cspace/cspace.h>
 
 #include "elf.h"
+#include "frametable.h"
+#include "proc.h"
+#include "pagetable.h"
 
 #include <sos/vmem_layout.h>
 #include <ut_manager/ut.h>
@@ -27,7 +30,7 @@
 /* Minimum of two values. */
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-#define PAGESIZE              (1 << (seL4_PageBits))
+//#define PAGESIZE              (1 << (seL4_PageBits))
 #define PAGEMASK              ((PAGESIZE) - 1)
 #define PAGE_ALIGN(addr)      ((addr) & ~(PAGEMASK))
 #define IS_PAGESIZE_ALIGNED(addr) !((addr) &  (PAGEMASK))
@@ -58,7 +61,7 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
                                     char *src, unsigned long segment_size,
                                     unsigned long file_size, unsigned long dst,
-                                    unsigned long permissions) {
+                                    unsigned long permissions, addr_space* as) {
 
     /* Overview of ELF segment loading
 
@@ -92,46 +95,28 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
     /* We work a page at a time in the destination vspace. */
     pos = 0;
     while(pos < segment_size) {
-        seL4_Word paddr;
-        seL4_CPtr sos_cap, tty_cap;
+        seL4_CPtr sos_cap;
         seL4_Word vpage, kvpage;
         unsigned long kdst;
         int nbytes;
         int err;
-
+        int ft_index;
+        seL4_Word vaddr;
         kdst   = dst + PROCESS_SCRATCH;
         vpage  = PAGE_ALIGN(dst);
         kvpage = PAGE_ALIGN(kdst);
-
-        /* First we need to create a frame */
-        paddr = ut_alloc(seL4_PageBits);
-        conditional_panic(!paddr, "Out of memory - could not allocate frame");
-        err = cspace_ut_retype_addr(paddr,
-                                    seL4_ARM_SmallPageObject,
-                                    seL4_PageBits,
-                                    cur_cspace,
-                                    &tty_cap);
-        conditional_panic(err, "Failed to retype to a frame object");
-
-        /* Copy the frame cap as we need to map it into 2 address spaces */
-        sos_cap = cspace_copy_cap(cur_cspace, cur_cspace, tty_cap, seL4_AllRights);
-        conditional_panic(sos_cap == 0, "Failed to copy frame cap");
-
-        /* Map the frame into tty_test address spaces */
-        err = map_page(tty_cap, dest_as, vpage, permissions, 
-                       seL4_ARM_Default_VMAttributes);
-        conditional_panic(err, "Failed to map to tty address space");
-        /* Map the frame into sos address spaces */
-        err = map_page(sos_cap, seL4_CapInitThreadPD, kvpage, seL4_AllRights, 
-                       seL4_ARM_Default_VMAttributes);
-        conditional_panic(err, "Failed to map sos address space");
+        /* First we need to create a frame */    
+        ft_index = frame_alloc(&vaddr, 0);
+        sos_map_page(ft_index, vpage, dest_as, as);
+        //conditional_panic(err, "Failed to map to tty address space");
+        sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as);
+        //conditional_panic(err, "Failed to map sos address space");
 
         /* Now copy our data into the destination vspace. */
         nbytes = PAGESIZE - (dst & PAGEMASK);
         if (pos < file_size){
             memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos));
         }
-
         /* Not observable to I-cache yet so flush the frame */
         seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
 
@@ -139,10 +124,11 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         dst += nbytes;
         src += nbytes;
     }
+
     return 0;
 }
 
-int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file) {
+int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
 
     int num_headers;
     int err;
@@ -172,7 +158,7 @@ int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file) {
         /* Copy it across into the vspace. */
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
         err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
-                                       get_sel4_rights_from_elf(flags) & seL4_AllRights);
+                                       get_sel4_rights_from_elf(flags) & seL4_AllRights, as);
         conditional_panic(err != 0, "Elf loading failed!\n");
     }
 

@@ -10,12 +10,16 @@ static void do_pt_test( char *buf ) {
     int i;
 
     /* set */
-    for(i = 0; i < NPAGES; i ++)
-	buf[i * 4096] = i;
+    for(i = 0; i < NPAGES; i ++) {
+        buf[i * 4096] = i;
+    }
+	
 
     /* check */
-    for(i = 0; i < NPAGES; i ++)
-	assert(buf[i * 4096] == i);
+    for(i = 0; i < NPAGES; i ++) {
+        assert(buf[i * 4096] == i);
+    }
+	
 }
 
 int main( void ) {

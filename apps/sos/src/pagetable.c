@@ -7,6 +7,7 @@
 #include <sys/debug.h>
 #include "pagetable.h"
 #include "frametable.h"
+#include "proc.h"
 #include <sos/vmem_layout.h>
 
 
@@ -17,41 +18,44 @@
 #define PAGE_MASK   0xFFFFF000
 #define verbose 5
 
-seL4_Word** page_directory;
 
-int page_init(void) {
-    frame_alloc((seL4_Word*)&page_directory);
-    //page_directory = (seL4_Word**)malloc(PAGEDIR_SIZE*sizeof(char));
+int page_init(addr_space* as) {
+    seL4_Word vaddr;
+    frame_alloc(&vaddr, 1);
+    as->page_directory = (seL4_Word**) vaddr;
+    for (int i = 0; i < CAP_TABLE_PAGES; i++) {
+        frame_alloc(&vaddr,1);
+        as->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
+    }
     return 0;
 }
 
-int sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd) {
-
+seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd, addr_space* as) {
 	seL4_Word dir_index = TOP(vaddr);
 	seL4_Word page_index = BOTTOM(vaddr);
 	/* Check that the page table exists */
-	if (page_directory[dir_index] == NULL) {;
-        int index = frame_alloc((seL4_Word*)&page_directory[dir_index]);
+    assert(as->page_directory != NULL);
+    int index = 0;
+    seL4_Word temp;
+	if (as->page_directory[dir_index] == NULL) {
+        index = frame_alloc(&temp, 1);
+        as->page_directory[dir_index] = (seL4_Word*)temp;
         assert(index > FT_OK);
 	}
 	/* Map into the sos page table 
        ft_index is the lower 20 bits */
-	page_directory[dir_index][page_index] = ft_index;
+    assert(as->page_directory[dir_index] != NULL);
+	as->page_directory[dir_index][page_index] = ft_index;
+
     /* Map into the given process page directory */
 
-    seL4_CPtr frame_cap = cspace_mint_cap(cur_cspace,
-                                  cur_cspace,
-                                  frametable[ft_index].frame_cap,
-                                  seL4_AllRights, 
-                                  seL4_CapData_Badge_new(0));
-
-    int err = map_page(frame_cap, pd, vaddr, 
-                seL4_AllRights, seL4_ARM_Default_VMAttributes);
-
-    return err;
+    seL4_CPtr frame_cap = cspace_copy_cap(cur_cspace, cur_cspace, frametable[ft_index].frame_cap, seL4_AllRights);
+    map_page_user(frame_cap, pd, vaddr, 
+                seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+    return frame_cap;
 }
 
-void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
+void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as) {
 
     seL4_CPtr reply_cap;
     seL4_Word page_vaddr;
@@ -59,23 +63,22 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
     fault_vaddr &= PAGE_MASK;
     int err = 0;
     dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
-    dprintf(0, "Morecore base is currently: 0x%08x\n", 0/*get_morecore_base()*/);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     /* Get the page of the fault address*/
-    int ft_index = frame_alloc(&page_vaddr);
+    int ft_index = frame_alloc(&page_vaddr, 1);
     assert(ft_index > FT_OK);
     /* Stack pages*/
     if ((fault_vaddr >= PROCESS_STACK_BOT && fault_vaddr < PROCESS_STACK_TOP)) {
-        err = sos_map_page(ft_index, fault_vaddr, pd);
+        sos_map_page(ft_index, fault_vaddr, pd, as);
     /* IPC Pages */
     } else if ((fault_vaddr >= PROCESS_IPC_BUFFER && fault_vaddr < PROCESS_IPC_BUFFER_END)) {
-        err = sos_map_page(ft_index, fault_vaddr, pd);
+        sos_map_page(ft_index, fault_vaddr, pd, as);
     /* VMEM */
-    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < PROCESS_SCRATCH /*get_morecore_base()*/)) {
-        err = sos_map_page(ft_index, fault_vaddr, pd);
+    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < PROCESS_STACK_BOT)) {
+        sos_map_page(ft_index, fault_vaddr, pd, as);
     /* Scratch */
     } else if((fault_vaddr >= PROCESS_SCRATCH)) {
-        err = sos_map_page(ft_index, fault_vaddr, pd);
+        sos_map_page(ft_index, fault_vaddr, pd, as);
     
     } else {
       err = 42;
