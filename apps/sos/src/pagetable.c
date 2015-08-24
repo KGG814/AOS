@@ -7,15 +7,17 @@
 #include <sys/debug.h>
 #include "pagetable.h"
 #include "frametable.h"
+#include <sos/vmem_layout.h>
 
-seL4_Word** page_directory;
 
 #define PAGEDIR_SIZE   4096
 #define PAGE_SIZE   4096
-#define BOTTOM(x)  (((x) & 0x3FF000) > 12)
+#define BOTTOM(x)  (((x) & 0x3FF000) >> 12)
 #define TOP(x)  (((x) & 0xFFC00000) >> 22)
 #define PAGE_MASK   0xFFFFF000
 #define verbose 5
+
+seL4_Word** page_directory;
 
 int page_init(void) {
     frame_alloc((seL4_Word*)&page_directory);
@@ -57,6 +59,7 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
     fault_vaddr &= PAGE_MASK;
     int err = 0;
     dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
+    dprintf(0, "Morecore base is currently: 0x%08x\n", 0/*get_morecore_base()*/);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     /* Get the page of the fault address*/
     int ft_index = frame_alloc(&page_vaddr);
@@ -68,7 +71,7 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd) {
     } else if ((fault_vaddr >= PROCESS_IPC_BUFFER && fault_vaddr < PROCESS_IPC_BUFFER_END)) {
         err = sos_map_page(ft_index, fault_vaddr, pd);
     /* VMEM */
-    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < PROCESS_SCRATCH)) {
+    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < PROCESS_SCRATCH /*get_morecore_base()*/)) {
         err = sos_map_page(ft_index, fault_vaddr, pd);
     /* Scratch */
     } else if((fault_vaddr >= PROCESS_SCRATCH)) {

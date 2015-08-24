@@ -27,7 +27,6 @@
 
 /* Pointer to free space in the morecore area. */
 static uintptr_t morecore_top = (uintptr_t) PROCESS_SCRATCH;
-uintptr_t morecore_base = PROCESS_VMEM_START;
 /* Actual morecore implementation
    returns 0 if failure, returns newbrk if success.
 */
@@ -38,27 +37,15 @@ sys_brk(va_list ap)
 
     uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
-
     /*if the newbrk is 0, return the bottom of the heap*/
     if (!newbrk) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
-        morecore_base = newbrk;
+        set_morecore_base(newbrk);
     } else {
         ret = 0;
     }
-    /* TODO */
-    /*
-    if (!newbrk) {
-        ret = heap_base;
-    } else if (newbrk < HEAP_TOP && newbrk > HEAP_OFFSET) {
-        ret = newbrk;
-        heap_base = newbrk;
-    } else {
-        ret = 0;
-    }
-    */
     return ret;
 }
 
@@ -80,7 +67,7 @@ sys_mmap2(va_list ap)
     if (flags & MAP_ANONYMOUS) {
         /* Steal from the top */
         uintptr_t base = morecore_top - length;
-        if (base < morecore_base) {
+        if (base < get_morecore_base() ) {
             return -ENOMEM;
         }
         morecore_top = base;
