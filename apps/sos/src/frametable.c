@@ -9,7 +9,8 @@
 #include <string.h>
 #include <cspace/cspace.h>
 #include <mapping.h>
-
+#include <sys/debug.h>
+#define verbose 5
 
 
 #define CEIL_DIV(num, den) ((num)/(den) + ((num) % (den) == 0 ? 0 : 1))
@@ -122,14 +123,12 @@ int frame_alloc(seL4_Word *vaddr) {
     /* Check frame table has been initialised */
     
     if (ft_initialised != 1) {
-        //this is not the correct behaviour; we should instead steal_mem or something 
         return FT_NOT_INITIALISED; 
     }
 
     int err = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
-    //TODO: add demand paging 
     if (pt_addr < low) { //no frames available
         return FT_NO_MEM;
     }
@@ -155,7 +154,6 @@ int frame_alloc(seL4_Word *vaddr) {
     if (err) { 
         return FT_ERR;
     }
- 
     //set the status bits of the new frame 
     frametable[index].frame_status = FRAME_IN_USE;
 
@@ -188,7 +186,8 @@ int frame_free(int index) {
     if (err) {
         return FT_ERR;
     }
-    ut_free(frametable[index].frame_status & FRAME_INDEX_MASK, PAGE_BITS);
+    seL4_Word pt_addr = index * PAGE_SIZE + low;
+    ut_free(pt_addr, PAGE_BITS);
 
     //set status bits here.
     frametable[index].frame_status = FRAME_INVALID;

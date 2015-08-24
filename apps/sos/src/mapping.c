@@ -13,7 +13,7 @@
 #include <ut_manager/ut.h>
 #include <sos/vmem_layout.h>
 
-#define verbose 0
+#define verbose 5
 #include <sys/panic.h>
 #include <sys/debug.h>
 #include <cspace/cspace.h>
@@ -69,7 +69,7 @@ map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
             err = seL4_ARM_Page_Map(frame_cap, pd, vaddr, rights, attr);
         }
     }
-
+    
     return err;
 }
 

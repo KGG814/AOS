@@ -36,18 +36,19 @@ int oom_test(void) {
 }
 
 int free_test(void) {
+    dprintf(0, "Doing free test\n");
     seL4_Word vaddr = 0;
-    int err = 0; 
+    int index = 0; 
+    int err = 0;
     for (int i = 0; i < MAX_CYCLES; i++) {
-        err = frame_alloc(&vaddr);
+        index = frame_alloc(&vaddr);
         assert(vaddr);
-        assert(err >= 0);
         *((seL4_Word *) vaddr) = 0x37;
         assert(*((seL4_Word *) vaddr) == 0x37);
 
         if (!(i % 10000))dprintf(0, "Page #%d allocated at %p\n",  i, vaddr);
 
-        err = frame_free(vaddr);
+        err = frame_free(index);
         if (err) {
             dprintf(0, "something went wrong.\n");
         }
@@ -56,5 +57,5 @@ int free_test(void) {
 }
 
 int all_tests(void) {
-    return (basic_test() == PASSED && oom_test() == PASSED) ? PASSED : FAIL;
+    return (basic_test() == PASSED && oom_test() == PASSED && free_test() == PASSED) ? PASSED : FAIL;
 }

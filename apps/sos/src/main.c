@@ -320,6 +320,12 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     err = elf_load(tty_test_process.vroot, elf_base);
     conditional_panic(err, "Failed to load elf image");
 
+    err = map_page(tty_test_process.ipc_buffer_cap, tty_test_process.vroot,
+                   PROCESS_IPC_BUFFER,
+                   seL4_AllRights, seL4_ARM_Default_VMAttributes);
+    conditional_panic(err, "Unable to map IPC buffer for user app");
+
+
     /* Start the new process */
     memset(&context, 0, sizeof(context));
     context.pc = elf_getEntryPoint(elf_base);
@@ -515,7 +521,7 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serialHandler = serial_init();
-    clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
+    //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     
