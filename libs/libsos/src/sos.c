@@ -41,11 +41,6 @@
  */
 #define SOS_WRITE    1
 
-//TODO move this into the process struct. for now this is for just the single 
-//user process
-sos_stat_t *files[PROCESS_MAX_FILES]; /* file descriptor table */
-sos_stat_t next_free_fd[PROCESS_MAX_FILES]; /* for finding free frames quickly */
-
 static size_t sos_debug_print(const void *vData, size_t count) {
     size_t i;
     const char *realdata = vData;
