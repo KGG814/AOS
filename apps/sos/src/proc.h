@@ -1,5 +1,5 @@
-#ifndef _MY_DICKKKKK_
-#define _MY_DICKKKKK_
+#ifndef _PROC_H_
+#define _PROC_H_
 
 #include <cspace/cspace.h>
 
@@ -23,4 +23,4 @@ typedef struct _addr_space {
 
 
 
-#endif /* _MY_DICKKKKK_ */
+#endif /* _PROC_H_ */

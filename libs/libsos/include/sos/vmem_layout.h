@@ -7,11 +7,10 @@
  *
  * @TAG(NICTA_BSD)
  */
+#ifndef _V_MEM_LAYOUT_H_
+#define _V_MEM_LAYOUT_H_
+
 #include <stdint.h>
-
-#ifndef _MEM_LAYOUT_H_
-#define _MEM_LAYOUT_H_
-
 
 /* Address where memory used for DMA starts getting mapped.
  * Do not use the address range between DMA_VSTART and DMA_VEND */
@@ -41,5 +40,5 @@
 #define PROCESS_VMEM_START  	(0x50000000)
 #define PROCESS_SCRATCH     	(0xD0000000)
 
-#endif /* _MEM_LAYOUT_H_ */
+#endif /* _V_MEM_LAYOUT_H_ */
 
