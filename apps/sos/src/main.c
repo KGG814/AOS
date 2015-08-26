@@ -129,7 +129,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
             *currentWord = seL4_GetMR(i);
             currentWord++;
         }
-        serial_send(serialHandler, data, num_args*sizeof(seL4_Word));
+        serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
         seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_Send(reply_cap, reply2);
         break;
