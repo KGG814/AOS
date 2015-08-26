@@ -17,6 +17,9 @@
 #include <stdint.h>
 #include <sel4/sel4.h>
 
+//for ttyout stuff 
+#define SYSCALL_ENDPOINT_SLOT  (1)
+
 /* System calls for SOS */
 
 /* Endpoint for talking to SOS */
@@ -58,6 +61,12 @@ typedef struct {
 } sos_process_t;
 
 /* I/O system calls */
+
+/* Print to the proper console.  You will need to finish these implementations */
+extern size_t
+sos_write(void *data, size_t count);
+extern size_t
+sos_read(void *data, size_t count);
 
 int sos_sys_open(const char *path, fmode_t mode);
 /* Open file and return file descriptor, -1 if unsuccessful

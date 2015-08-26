@@ -59,7 +59,7 @@ sync endpoint. The badge that we receive will
 extern char _cpio_archive[];
 const seL4_BootInfo* _boot_info;
 
-static struct serial *serialHandler;
+static struct serial *serial_handler;
 
 struct {
 
@@ -514,7 +514,7 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-	serialHandler = serial_init();
+	serial_handler = serial_init();
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     as = malloc(sizeof(addr_space));
