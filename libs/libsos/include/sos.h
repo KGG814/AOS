@@ -63,11 +63,12 @@ typedef struct {
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */
-extern size_t
-sos_write(void *data, size_t count);
-extern size_t
-sos_read(void *data, size_t count);
+//in sos.c
+extern size_t sos_write(void *data, size_t count);
+//in sos.c
+extern size_t sos_read(void *data, size_t count);
 
+//in sos.c
 int sos_sys_open(const char *path, fmode_t mode);
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
@@ -78,10 +79,12 @@ int sos_sys_open(const char *path, fmode_t mode);
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
 
+//in sos.c
 int sos_sys_close(int file);
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
 
+//in sos.c
 int sos_sys_read(int file, char *buf, size_t nbyte);
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
@@ -89,51 +92,61 @@ int sos_sys_read(int file, char *buf, size_t nbyte);
  * available. Returns -1 on error (invalid file).
  */
 
+//in sos.c
 int sos_sys_write(int file, const char *buf, size_t nbyte);
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
 
+//in sos_fs_scalls.c
 int sos_getdirent(int pos, char *name, size_t nbyte);
 /* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
 
+//in sos_fs_scalls.c
 int sos_stat(const char *path, sos_stat_t *buf);
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
 
+//in sos_proc.c
 pid_t sos_process_create(const char *path);
 /* Create a new process running the executable image "path".
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
 
+//in sos_proc.c
 int sos_process_delete(pid_t pid);
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
 
+//in sos_proc.c
 pid_t sos_my_id(void);
 /* Returns ID of caller's process. */
 
+//in sos_proc.c
 int sos_process_status(sos_process_t *processes, unsigned max);
 /* Returns through "processes" status of active processes (at most "max"),
  * returns number of process descriptors actually returned.
  */
 
+//in sos_proc.c
 pid_t sos_process_wait(pid_t pid);
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
 
+//in sos.c
 int64_t sos_sys_time_stamp(void);
 /* Returns time in microseconds since booting.
  */
 
+//in sos.c
 void sos_sys_usleep(int msec);
 /* Sleeps for the specified number of milliseconds.
  */
