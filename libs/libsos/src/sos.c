@@ -11,8 +11,10 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sos.h>
+
+//needed for string comparisons
+#include <string.h>
 
 #include <math.h>
 
@@ -38,6 +40,11 @@
  * A syscall for writing to libserial
  */
 #define SOS_WRITE    1
+
+//TODO move this into the process struct. for now this is for just the single 
+//user process
+sos_stat_t *files[PROCESS_MAX_FILES]; /* file descriptor table */
+sos_stat_t next_free_fd[PROCESS_MAX_FILES]; /* for finding free frames quickly */
 
 static size_t sos_debug_print(const void *vData, size_t count) {
     size_t i;
@@ -93,21 +100,6 @@ size_t sos_read(void *vData, size_t count) {
     return 0;
 }
 
-int sos_sys_open(const char *path, fmode_t mode) {
-    assert(!"You need to implement this");
-    return -1;
-}
-
-int sos_sys_read(int file, char *buf, size_t nbyte) {
-    assert(!"You need to implement this");
-    return -1;
-}
-
-int sos_sys_write(int file, const char *buf, size_t nbyte) {
-    assert(!"You need to implement this");
-    return -1;
-}
-
 void sos_sys_usleep(int msec) {
     assert(!"You need to implement this");
 }
@@ -116,4 +108,5 @@ int64_t sos_sys_time_stamp(void) {
     assert(!"You need to implement this");
     return -1;
 }
+
 

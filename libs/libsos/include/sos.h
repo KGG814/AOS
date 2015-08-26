@@ -58,7 +58,11 @@ typedef struct {
   unsigned  size;       /* in pages */
   unsigned  stime;      /* start time in msec since booting */
   char      command[N_NAME];    /* Name of exectuable */
+
 } sos_process_t;
+
+//TODO make an open file table
+
 
 /* I/O system calls */
 
@@ -68,7 +72,7 @@ extern size_t sos_write(void *data, size_t count);
 //in sos.c
 extern size_t sos_read(void *data, size_t count);
 
-//in sos.c
+//in sos_file.c
 int sos_sys_open(const char *path, fmode_t mode);
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
@@ -79,12 +83,12 @@ int sos_sys_open(const char *path, fmode_t mode);
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
 
-//in sos.c
+//in sos_file.c
 int sos_sys_close(int file);
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
 
-//in sos.c
+//in sos_file.c
 int sos_sys_read(int file, char *buf, size_t nbyte);
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
@@ -92,21 +96,21 @@ int sos_sys_read(int file, char *buf, size_t nbyte);
  * available. Returns -1 on error (invalid file).
  */
 
-//in sos.c
+//in sos_file.c
 int sos_sys_write(int file, const char *buf, size_t nbyte);
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
 
-//in sos_fs_scalls.c
+//in sos_file.c
 int sos_getdirent(int pos, char *name, size_t nbyte);
 /* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
 
-//in sos_fs_scalls.c
+//in sos_file.c
 int sos_stat(const char *path, sos_stat_t *buf);
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
