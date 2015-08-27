@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include <sel4/sel4.h>
+#include <clock/clock.h>
 
 /*
  * Masks for getting 1, 2 or 3 characters form the last message
@@ -101,7 +102,6 @@ void sos_sys_usleep(int msec) {
 
 int64_t sos_sys_time_stamp(void) {
     assert(!"You need to implement this");
-    return -1;
 }
 
 

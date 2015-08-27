@@ -32,7 +32,7 @@
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
-
+#include "syscalls.h"
 #include "ft_tests.h"
 
 /* This is the index where a clients syscall enpoint will
@@ -77,14 +77,7 @@ struct {
 } tty_test_process;
 
 addr_space* as;
-/*
- * A dummy starting syscall
- */
-#define SOS_SYSCALL0 0
-/*
- * A syscall for writing to libserial
- */
-#define SOS_WRITE    1
+
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
 
@@ -108,36 +101,36 @@ void handle_syscall(seL4_Word badge, int num_args) {
     /* Process system call */
     //dprintf(0, "Syscall at time %llu\n", time_stamp()); 
     switch (syscall_number) {
-    case SOS_SYSCALL0: {
-        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-        seL4_SetMR(0, 0);
-        seL4_Send(reply_cap, reply);
-        break;
-    }
-    case SOS_WRITE: {
-        //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
-        //dprintf(0, "num_args: %d\n", num_args);
-        // Send an acknowledgement
-        // Initialise serial comms
-        // Array for storing the data
-        //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
-        seL4_SetMR(0, 0);
-        char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
-        // Go through each message and transfer the word
-        seL4_Word* currentWord = (seL4_Word*)data;
-        for (int i = 1; i <= num_args; i++) {
-            *currentWord = seL4_GetMR(i);
-            currentWord++;
+        case SOS_SYSCALL0: {
+            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+            seL4_SetMR(0, 0);
+            seL4_Send(reply_cap, reply);
+            break;
         }
-        serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
-        seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
-        seL4_Send(reply_cap, reply2);
-        break;
-    }
-    default: {
-        printf("Unknown syscall %d\n", syscall_number);
-        /* we don't want to reply to an unknown syscall */
-    }
+        case SOS_WRITE: {
+            //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
+            //dprintf(0, "num_args: %d\n", num_args);
+            // Send an acknowledgement
+            // Initialise serial comms
+            // Array for storing the data
+            //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
+            seL4_SetMR(0, 0);
+            char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
+            // Go through each message and transfer the word
+            seL4_Word* currentWord = (seL4_Word*)data;
+            for (int i = 1; i <= num_args; i++) {
+                *currentWord = seL4_GetMR(i);
+                currentWord++;
+            }
+            serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
+            seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
+            seL4_Send(reply_cap, reply2);
+            break;
+        }
+        default: {
+            printf("Unknown syscall %d\n", syscall_number);
+            /* we don't want to reply to an unknown syscall */
+        }
     }
 
     /* Free the saved reply cap */

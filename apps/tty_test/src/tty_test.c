@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sel4/sel4.h>
+#include <time.h>
 
 #define NPAGES 27
 
