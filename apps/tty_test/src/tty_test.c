@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 #include <time.h>
-
 #define NPAGES 27
 
 /* called from pt_test */
@@ -24,26 +23,30 @@ static void do_pt_test( char *buf ) {
 }
 
 int main( void ) {
+    printf("%ld\n", (long)sos_sys_time_stamp());
+    printf("%ld\n", (long)sos_sys_time_stamp());
+    printf("%ld\n", (long)sos_sys_time_stamp());
+    printf("%ld\n", (long)sos_sys_time_stamp());
     /* need a decent sized stack */
-    printf("Getting stack\n");
+    /*printf("Getting stack\n");
     char buf1[NPAGES * 4096], *buf2 = NULL;
-    printf("Stack acquired\n");
+    printf("Stack acquired\n");*/
     /* check the stack is above phys mem */
-    assert((void *) buf1 > (void *) 0x20000000);
+    //assert((void *) buf1 > (void *) 0x20000000);
 
     /* stack test */
-    printf("Doing stack test\n");
+    /*printf("Doing stack test\n");
     do_pt_test(buf1);
-    printf("Stack test success\n");
+    printf("Stack test success\n");*/
     /* heap test */
     
-    printf("Doing malloc\n");
+    /*printf("Doing malloc\n");
     buf2 = malloc(NPAGES * 4096);
     assert(buf2);
     printf("Malloc success\n");
     printf("Doing heap test\n");
     do_pt_test(buf2);
     free(buf2);
-    printf("Heap test success\n");
+    printf("Heap test success\n");*/
     return 0;
 }

@@ -19,6 +19,8 @@ typedef struct _addr_space {
     seL4_TCB tcb_cap;
 
     cspace_t *croot;
+    seL4_Word brk;
+    
 } addr_space; 
 
 

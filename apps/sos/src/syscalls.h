@@ -1,13 +1,5 @@
+#include <sel4/sel4.h>
 
-
-/*
- * A dummy starting syscall
- */
-#define SOS_SYSCALL0 0
-/*
- * A syscall for writing to libserial
- */
-#define SOS_WRITE    1
 
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
@@ -82,7 +74,7 @@ int handle_process_wait(void);
 
 /* Returns time in microseconds since booting.
  */
-int handle_time_stamp(void);
+void handle_time_stamp(seL4_CPtr reply_cap);
 
 
 /* Sleeps for the specified number of milliseconds.

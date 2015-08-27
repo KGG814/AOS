@@ -12,6 +12,7 @@ config LIB_SOS
     bool "Build sos library"
     select HAVE_SEL4_LIBS
     select LIB_UTILS
+    select LIB_CLOCK
     default y
     help
         "C platform dependant function implementations for sos clients"

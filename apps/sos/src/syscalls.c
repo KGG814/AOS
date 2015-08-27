@@ -1,4 +1,6 @@
 #include "syscalls.h"
+#include <clock/clock.h>
+#include <sos.h>
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
  * A new file should be created if 'path' does not already exist.
@@ -8,13 +10,13 @@
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
 int handle_open(void) {
-
+	return 0 ;
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
 int handle_close(void) {
-
+	return 0;
 }
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
@@ -23,7 +25,7 @@ int handle_close(void) {
  * available. Returns -1 on error (invalid file).
  */
 int handle_read(void) {
-
+	return 0;
 }
 
 
@@ -32,7 +34,7 @@ int handle_read(void) {
  * Returns -1 on error (invalid file).
  */
 int handle_write(void) {
-
+	return 0;
 }
 
 
@@ -41,7 +43,7 @@ int handle_write(void) {
  * -1 if error (non-existent entry).
  */
 int handle_getdirent(void) {
-
+	return 0;
 }
 
 
@@ -49,7 +51,7 @@ int handle_getdirent(void) {
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
 int handle_stat(void) {
-
+	return 0;
 }
 
 
@@ -58,7 +60,7 @@ int handle_stat(void) {
  * file).
  */
 int handle_process_create(void) {
-
+	return 0;
 }
 
 
@@ -66,13 +68,13 @@ int handle_process_create(void) {
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
 int handle_process_delete(void) {
-
+	return 0;
 }
 
 
 /* Returns ID of caller's process. */
 int handle_my_id(void) {
-
+	return 0;
 }
 
 
@@ -80,7 +82,7 @@ int handle_my_id(void) {
  * returns number of process descriptors actually returned.
  */
 int handle_process_status(void) {
-
+	return 0;
 }
 
 
@@ -88,21 +90,25 @@ int handle_process_status(void) {
  * to exit. Returns the pid of the process which exited.
  */
 int handle_process_wait(void) {
-
+	return 0;
 }
 
 
 /* Returns time in microseconds since booting.
  */
-int handle_time_stamp(void) {
-
+void handle_time_stamp(seL4_CPtr reply_cap) {
+	timestamp_t timestamp = time_stamp();
+	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
+	seL4_SetMR(1, (seL4_Word)(LOWER_32(timestamp)));
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 2);
+    seL4_Send(reply_cap, reply);
 }
 
 
 /* Sleeps for the specified number of milliseconds.
  */
 int handle_usleep(int msec) {
-
+	return 0;
 }
 
 
@@ -123,4 +129,6 @@ int handle_usleep(int msec) {
  *
  * Returns 0 if successful, -1 otherwise (invalid address or size).
  */
-int handle_share_vm(void);
+int handle_share_vm(void) {
+	return 0;
+}

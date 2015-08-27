@@ -26,7 +26,7 @@
 
 #include "ut_manager/ut.h"
 #include <sos/vmem_layout.h>
-
+#include <sos.h>
 #include <autoconf.h>
 
 #define verbose 5
@@ -34,6 +34,7 @@
 #include <sys/panic.h>
 #include "syscalls.h"
 #include "ft_tests.h"
+#include "mapping.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -99,15 +100,14 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     /* Process system call */
-    //dprintf(0, "Syscall at time %llu\n", time_stamp()); 
+    dprintf(0, "Syscall %d\n", syscall_number); 
     switch (syscall_number) {
         case SOS_SYSCALL0: {
             seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_SetMR(0, 0);
             seL4_Send(reply_cap, reply);
             break;
-        }
-        case SOS_WRITE: {
+        } case SOS_WRITE: {
             //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
             //dprintf(0, "num_args: %d\n", num_args);
             // Send an acknowledgement
@@ -125,6 +125,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
             serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
             seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_Send(reply_cap, reply2);
+            break;
+        } case TIMESTAMP: {
+            handle_time_stamp(reply_cap);
             break;
         }
         default: {
@@ -159,6 +162,7 @@ void syscall_loop(seL4_CPtr ep) {
 
         }else if(label == seL4_VMFault){
             /* Page fault */
+            assert(seL4_GetMR(1) != 0);
             dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
             seL4_GetMR(0),
             seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
@@ -508,6 +512,7 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serial_handler = serial_init();
+    start_timer(_sos_interrupt_ep_cap);
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     as = malloc(sizeof(addr_space));

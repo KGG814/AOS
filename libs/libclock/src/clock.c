@@ -1,8 +1,11 @@
 #include <stdlib.h>
-
+#include <stdio.h>
 #include <clock/clock.h>
 #include <bits/limits.h>
 #include "../../../apps/sos/src/sys/panic.h"
+#include <sel4/sel4.h>
+#include <cspace/cspace.h>
+#include "../../../../apps/sos/src/mapping.h"
 
 #define NOT_INITIALISED 0
 #define INITIALISED 1
@@ -256,9 +259,6 @@ timestamp_t time_stamp(void) {
     //function
     uint64_t hi = time_stamp_rollovers;
     uint64_t lo = gpt->gptcnt; 
-    if (lo < TS_THRES) {
-        hi = time_stamp_rollovers;
-    }
     return TO_64(hi, lo);
 }
 

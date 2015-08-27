@@ -64,6 +64,18 @@ typedef struct {
 //TODO make an open file table
 int oft_init(void); 
 
+/*
+ * The message used to hold the syscall number
+ */
+#define SYSCALL 0
+
+/* A dummy starting syscall */
+#define SOS_SYSCALL0 0
+/* A syscall for writing to libserial */
+#define SOS_WRITE    1
+/* A syscall for getting the timestamp */
+#define TIMESTAMP    2
+
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */

@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <sos.h>
 
 //needed for string comparisons
@@ -28,19 +29,8 @@
 #define CHAR_MASK_2 0x0000FFFF
 #define CHAR_MASK_3 0x00FFFFFF
 #define min(a, b) (((a) < (b)) ? (a) : (b)) 
-/*
- * The message used to hold the syscall number
- */
-#define SYSCALL 0
 
-/*
- * A dummy starting syscall
- */
-#define SOS_SYSCALL0 0
-/*  
- * A syscall for writing to libserial
- */
-#define SOS_WRITE    1
+
 
 static size_t sos_debug_print(const void *vData, size_t count) {
     size_t i;
@@ -55,9 +45,9 @@ size_t sos_write(void *vData, size_t count) {
     for (int sentMessages = 0; sizeof(seL4_Word)*sentMessages < count; sentMessages += (seL4_MsgMaxLength-1)) {
         //Number of messages required
         int length = ceil((count-sizeof(seL4_Word)*sentMessages)/(double)sizeof(seL4_Word));
-		  if (length > seL4_MsgMaxLength-1) {
-		      length = seL4_MsgMaxLength-1;
-		  }
+    	if (length > seL4_MsgMaxLength-1) {
+    	   length = seL4_MsgMaxLength-1;
+    	}
         // Need messages for the data and one for the syscall number
         seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, length+1);
         seL4_SetTag(tag);    
@@ -88,7 +78,6 @@ size_t sos_write(void *vData, size_t count) {
         seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     }
     return count;
-
 }
 
 size_t sos_read(void *vData, size_t count) {
@@ -101,7 +90,13 @@ void sos_sys_usleep(int msec) {
 }
 
 int64_t sos_sys_time_stamp(void) {
-    assert(!"You need to implement this");
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, TIMESTAMP);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    int64_t timestamp = seL4_GetMR(0) << 32;
+    timestamp += seL4_GetMR(1);
+    return timestamp;
 }
 
 

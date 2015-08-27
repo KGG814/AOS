@@ -10,11 +10,8 @@
 
 #ifndef _CLOCK_H_
 #define _CLOCK_H_
-
 #include <sel4/sel4.h>
-#include <cspace/cspace.h>
-#include "../../../../apps/sos/src/mapping.h"
-#include <stdio.h>
+ 
 //#include <platsupport/plat/gpt_constants.h>
 //no quick way to include the above and make it work in a patch
 ////instead the relevant defines are copied into the .c
