@@ -1,5 +1,5 @@
-
-
+#ifndef _SYSCALLS_H_
+#define _SYSCALLS_H_
 /*
  * A dummy starting syscall
  */
@@ -108,3 +108,5 @@ int handle_usleep(int msec);
  * Returns 0 if successful, -1 otherwise (invalid address or size).
  */
 int handle_share_vm(void);
+
+#endif /* _SYSCALLS_H_ */
