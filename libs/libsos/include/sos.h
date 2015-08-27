@@ -62,7 +62,7 @@ typedef struct {
 } sos_process_t;
 
 //TODO make an open file table
-
+int oft_init(void); 
 
 /* I/O system calls */
 
