@@ -1,5 +1,13 @@
-#include <sel4/sel4.h>
-
+#ifndef _SYSCALLS_H_
+#define _SYSCALLS_H_
+/*
+ * A dummy starting syscall
+ */
+#define SOS_SYSCALL0 0
+/*
+ * A syscall for writing to libserial
+ */
+#define SOS_WRITE    1
 
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
@@ -100,3 +108,5 @@ int handle_usleep(int msec);
  * Returns 0 if successful, -1 otherwise (invalid address or size).
  */
 int handle_share_vm(void);
+
+#endif /* _SYSCALLS_H_ */
