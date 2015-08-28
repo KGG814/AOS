@@ -35,29 +35,17 @@ uintptr_t morecore_base = PROCESS_VMEM_START;
 */
 
 long
-sys_brk(va_list ap)
-{
+sys_brk(va_list ap) {
     uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
-
-    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    printf("break: %p\n", newbrk);
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, BRK);
     seL4_SetMR(1, newbrk);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-
-
-    
-    /*if the newbrk is 0, return the bottom of the heap*/
-    if (!newbrk) {
-        ret = PROCESS_VMEM_START;
-    } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
-        ret = newbrk;
-        morecore_base = newbrk;
-    } else {
-        ret = 0;
-    }
-    return ret;
+    seL4_Word brk = seL4_GetMR(0);
+    return brk;
 }
 
 /* Large mallocs will result in muslc calling mmap, so we do a minimal implementation

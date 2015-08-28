@@ -2,8 +2,27 @@
 
 #include <clock/clock.h>
 #include <sos.h>
+#include <sos/vmem_layout.h>
+#define verbose 5
+#include <sys/debug.h>
 
-
+void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
+	seL4_Word newbrk = seL4_GetMR(1);
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    uintptr_t ret;
+    dprintf(0, "newbrk: %p\n", newbrk);
+    if (!newbrk) {
+        ret = PROCESS_VMEM_START;
+    } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
+        ret = newbrk;
+        dprintf(0, "as->brk: %p\n", as->brk);
+        as->brk = newbrk;
+    } else {
+        ret = 0;
+    }
+    seL4_SetMR(0, ret);
+    seL4_Send(reply_cap, reply);
+}
 
 /* Create a new process running the executable image "path".
  * Returns ID of new process, -1 if error (non-executable image, nonexisting

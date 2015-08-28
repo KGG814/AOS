@@ -99,7 +99,6 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         seL4_Word vpage, kvpage;
         unsigned long kdst;
         int nbytes;
-        int err;
         int ft_index;
         seL4_Word vaddr;
         kdst   = dst + PROCESS_SCRATCH;

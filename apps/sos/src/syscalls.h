@@ -1,5 +1,6 @@
 #ifndef _SYSCALLS_H_
 #define _SYSCALLS_H_
+#include <proc.h>
 /*
  * A dummy starting syscall
  */
@@ -8,6 +9,8 @@
  * A syscall for writing to libserial
  */
 #define SOS_WRITE    1
+
+void handle_brk(seL4_CPtr reply_cap, addr_space* as);
 
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).

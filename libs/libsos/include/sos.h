@@ -75,6 +75,8 @@ int oft_init(void);
 #define SOS_WRITE    1
 /* A syscall for getting the timestamp */
 #define TIMESTAMP    2
+/* BRK */
+#define BRK 3
 
 /* I/O system calls */
 

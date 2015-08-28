@@ -129,6 +129,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap);
             break;
+        } case BRK: {
+            handle_brk(reply_cap, as);
+            break;
         }
         default: {
             printf("Unknown syscall %d\n", syscall_number);

@@ -94,7 +94,8 @@ int64_t sos_sys_time_stamp(void) {
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, TIMESTAMP);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int64_t timestamp = seL4_GetMR(0) << 32;
+    int64_t timestamp = seL4_GetMR(0);
+    timestamp = timestamp << 32;
     timestamp += seL4_GetMR(1);
     return timestamp;
 }
