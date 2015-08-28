@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <assert.h>
 #include <sos/vmem_layout.h>
+#include <sos.h>
+
 /*
  * Statically allocated morecore area.
  *
@@ -35,9 +37,17 @@ uintptr_t morecore_base = PROCESS_VMEM_START;
 long
 sys_brk(va_list ap)
 {
-
     uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
+
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, BRK);
+    seL4_SetMR(1, newbrk);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+
+
+    
     /*if the newbrk is 0, return the bottom of the heap*/
     if (!newbrk) {
         ret = PROCESS_VMEM_START;
