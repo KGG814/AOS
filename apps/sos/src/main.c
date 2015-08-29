@@ -138,10 +138,6 @@ void handle_syscall(seL4_Word badge, int num_args) {
             break;
         } case USLEEP: {
             handle_usleep(reply_cap);
-            //cspace_free_slot(cur_cspace, reply_cap);
-            break;
-        } case USLEEP: {
-            handle_usleep(reply_cap);
             break;
         } default: {
             printf("Unknown syscall %d\n", syscall_number);
