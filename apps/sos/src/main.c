@@ -94,18 +94,19 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
 
     syscall_number = seL4_GetMR(0);
-
+    //dprintf(0, "Syscall %d\n", syscall_number); 
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
 
     /* Process system call */
-    dprintf(0, "Syscall %d\n", syscall_number); 
+    
     switch (syscall_number) {
         case SOS_SYSCALL0: {
             seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_SetMR(0, 0);
             seL4_Send(reply_cap, reply);
+            cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case SOS_WRITE: {
             //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
@@ -125,22 +126,25 @@ void handle_syscall(seL4_Word badge, int num_args) {
             serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
             seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_Send(reply_cap, reply2);
+            cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap);
+            cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case BRK: {
             handle_brk(reply_cap, as);
+            cspace_free_slot(cur_cspace, reply_cap);
             break;
-        }
-        default: {
+        } case USLEEP: {
+            handle_usleep(reply_cap);
+            break;
+        } default: {
             printf("Unknown syscall %d\n", syscall_number);
             /* we don't want to reply to an unknown syscall */
         }
     }
 
-    /* Free the saved reply cap */
-    cspace_free_slot(cur_cspace, reply_cap);
 }
 
 void syscall_loop(seL4_CPtr ep) {
@@ -152,7 +156,8 @@ void syscall_loop(seL4_CPtr ep) {
 
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);  
-
+        //dprintf(0, "Badge: %p\n", badge);
+        //dprintf(0, "Label: %p\n", label);
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
@@ -160,15 +165,16 @@ void syscall_loop(seL4_CPtr ep) {
             }
 
             if(badge & IRQ_BADGE_TIMER) {
+                //dprintf(0, "Timer Interrupt\n");
                 timer_interrupt();
             }
 
         }else if(label == seL4_VMFault){
             /* Page fault */
             assert(seL4_GetMR(1) != 0);
-            dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
-            seL4_GetMR(0),
-            seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+            //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
+            //seL4_GetMR(0),
+            //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
             handle_vm_fault(badge, as->vroot, as);
             //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
@@ -446,18 +452,18 @@ void tick_check(uint32_t id, void *data) {
     }
 }
 
-void stop_cb(uint32_t id, void *data) {
+/*void stop_cb(uint32_t id, void *data) {
     dprintf(0, "\n%d: stopping timer at time %llu\n", id, time_stamp());
     int err = stop_timer();
     dprintf(0, "\ntimer stopped with err:%d\n", err);
-}
+}*/
 
 void clock_test(seL4_CPtr interrupt_ep) {
-    start_timer(interrupt_ep);
-    /*
+    //start_timer(interrupt_ep);
+    
     dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
-    stop_timer();
-    start_timer(interrupt_ep);
+    //stop_timer();
+    //start_timer(interrupt_ep);
     
     int id = register_timer(200000000, &check, NULL);
     dprintf(0, "registered a timer with id %d\n", id);
@@ -481,11 +487,11 @@ void clock_test(seL4_CPtr interrupt_ep) {
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
 
-    dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
+    //dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
     dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
 
     dprintf(0, "Current us since boot = %d\n", time_stamp());
-    */
+    
     /* 
     uint64_t timestamps[4] = {};
     for (int i = 0; i < 128; i++) {
@@ -515,14 +521,14 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serial_handler = serial_init();
-    start_timer(_sos_interrupt_ep_cap);
+    start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
+
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     as = malloc(sizeof(addr_space));
     page_init(as);
 
-    start_first_process(TTY_NAME, _sos_ipc_ep_cap);
-    
+    start_first_process(TTY_NAME, _sos_ipc_ep_cap);;
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     //int index = frame_alloc();

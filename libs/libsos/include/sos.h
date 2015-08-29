@@ -75,7 +75,8 @@ typedef struct {
 #define TIMESTAMP    2
 /* BRK */
 #define BRK 3
-
+/* USLEEP */
+#define USLEEP 4
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */

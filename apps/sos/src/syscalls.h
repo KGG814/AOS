@@ -1,14 +1,7 @@
 #ifndef _SYSCALLS_H_
 #define _SYSCALLS_H_
 #include <proc.h>
-/*
- * A dummy starting syscall
- */
-#define SOS_SYSCALL0 0
-/*
- * A syscall for writing to libserial
- */
-#define SOS_WRITE    1
+
 
 void handle_brk(seL4_CPtr reply_cap, addr_space* as);
 
@@ -90,7 +83,7 @@ void handle_time_stamp(seL4_CPtr reply_cap);
 
 /* Sleeps for the specified number of milliseconds.
  */
-int handle_usleep(int msec);
+void handle_usleep(seL4_CPtr reply_cap);
 
 
 

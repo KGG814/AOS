@@ -6,6 +6,14 @@
 #include <sos.h>
 #define NPAGES 27
 
+static void
+thread_block(void){
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(0, 10);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+}
+
 /* called from pt_test */
 static void do_pt_test( char *buf ) {
     int i;
@@ -49,5 +57,9 @@ int main( void ) {
     do_pt_test(buf2);
     free(buf2);
     printf("Heap test success\n");
+    printf("Starting sleep test\n");
+    sos_sys_usleep(5000);
+    printf("Sleep test success\n");
+
     return 0;
 }
