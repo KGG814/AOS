@@ -74,7 +74,7 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
     } else if ((fault_vaddr >= PROCESS_IPC_BUFFER && fault_vaddr < PROCESS_IPC_BUFFER_END)) {
         sos_map_page(ft_index, fault_vaddr, pd, as);
     /* VMEM */
-    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < PROCESS_STACK_BOT)) {
+    } else if((fault_vaddr >= PROCESS_VMEM_START) && (fault_vaddr < as->brk)) {
         sos_map_page(ft_index, fault_vaddr, pd, as);
     /* Scratch */
     } else if((fault_vaddr >= PROCESS_SCRATCH)) {

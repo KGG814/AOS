@@ -13,9 +13,9 @@ int console = INVALID_FD;
 int console_read = 0;
 
 int oft_init(void) {
-    for (int i = 0; i < SOS_MAX_FILES; i++) {
+    /*for (int i = 0; i < SOS_MAX_FILES; i++) {
         oft[i] = NULL;
-    } 
+    } */
 
     return 0;
 } 
@@ -24,9 +24,9 @@ static int attach_console(sos_stat_t *f, fmode_t mode) {
     return 0;
 }
 int fdt_init(void) {
-    for (int i = 3; i < PROCESS_MAX_FILES; i++) {
+    /*for (int i = 3; i < PROCESS_MAX_FILES; i++) {
         fdt.file_descriptor[i] = INVALID_FD;
-    }
+    }*/
     
     return 0;
 }

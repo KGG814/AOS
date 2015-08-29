@@ -49,5 +49,8 @@ int main( void ) {
     do_pt_test(buf2);
     free(buf2);
     printf("Heap test success\n");
+    printf("Starting sleep test\n");
+    //sos_sys_usleep(2000);
+    printf("Sleep test success\n");
     return 0;
 }

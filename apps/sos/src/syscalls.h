@@ -90,7 +90,7 @@ void handle_time_stamp(seL4_CPtr reply_cap);
 
 /* Sleeps for the specified number of milliseconds.
  */
-int handle_usleep(int msec);
+void handle_usleep(seL4_CPtr reply_cap);
 
 
 

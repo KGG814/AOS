@@ -125,6 +125,8 @@ void handle_syscall(seL4_Word badge, int num_args) {
             serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
             seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_Send(reply_cap, reply2);
+            /* Free the saved reply cap */
+            cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap);
@@ -132,14 +134,14 @@ void handle_syscall(seL4_Word badge, int num_args) {
         } case BRK: {
             handle_brk(reply_cap, as);
             break;
-        }
-        default: {
+        } case USLEEP: {
+            handle_usleep(reply_cap);
+            break;
+        } default: {
             printf("Unknown syscall %d\n", syscall_number);
             /* we don't want to reply to an unknown syscall */
         }
     }
-
-    /* Free the saved reply cap */
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
