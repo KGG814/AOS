@@ -2,27 +2,31 @@
 #define _VFS_H_ 
 
 #include <sos.h>
+#include <clock/clock.h>
 
 typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
 
 /* function declarations for functions that aren't fs specific */
 vnode*  vfs_open(const char* path, fmode_t mode);
-int     vfs_close(vnode *vn);
+int     vfs_close(vnode *vn, fmode_t mode);
 
 //store vnodes as a linked list for now
 struct _vnode {
     fmode_t         fmode;   /* access mode */
     unsigned        size;    /* file size in bytes */
-    long            ctime;   /* file creation time (ms since booting) */
-    long            atime;   /* file last access (open) time (ms since booting) */
+    timestamp_t     ctime;   /* file creation time (ms since booting) */
+    timestamp_t     atime;   /* file last access (open) time (ms since booting) */
+
+    unsigned int    ref_count;    /* current number of reference */
+
     //long            mtime;   /* file last modify time */
     void*           fs_data;
     
     struct _vnode   *next;
 
     //inspired by OS/161
-    const vnode_ops* ops;
+    const vnode_ops *ops;
 
     //empty array for filename
     char name[];
