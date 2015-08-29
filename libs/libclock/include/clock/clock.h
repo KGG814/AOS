@@ -42,8 +42,8 @@
 #define PRESCALE 65 
 
 
-typedef uint64_t timestamp_t;
-typedef void (*timer_callback_t)(uint32_t id, void *data);
+typedef seL4_Uint64 timestamp_t;
+typedef void (*timer_callback_t)(seL4_Uint32 id, void *data);
 
 /*
  * Initialise driver. Performs implicit stop_timer() if already initialised.
@@ -62,20 +62,20 @@ int start_timer(seL4_CPtr interrupt_ep);
  *
  * Returns 0 on failure, otherwise an unique ID for this timeout
  */
-uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+seL4_Uint32 register_timer(seL4_Uint64 delay, timer_callback_t callback, void *data);
 
 /*
  * The same as above but the timer does not expire when it times out, and instead 
  * begins counting again with the same duration
  */
-uint32_t register_tic(uint64_t duration, timer_callback_t callback, void *data);
+seL4_Uint32 register_tic(seL4_Uint64 duration, timer_callback_t callback, void *data);
 
 /*
  * Remove a previously registered callback by its ID
  *    id: Unique ID returned by register_time
  * Returns CLOCK_R_OK iff successful.
  */
-int remove_timer(uint32_t id);
+int remove_timer(seL4_Uint32 id);
 
 /*
  * Handle an interrupt message sent to 'interrupt_ep' from start_timer
@@ -224,25 +224,25 @@ typedef enum {
 /* Memory map for GPT. */
 struct gpt_map {
     /* gpt control register */
-    uint32_t gptcr;
+    seL4_Uint32 gptcr;
     /* gpt prescaler register */
-    uint32_t gptpr;
+    seL4_Uint32 gptpr;
     /* gpt status register */
-    uint32_t gptsr;
+    seL4_Uint32 gptsr;
     /* gpt interrupt register */
-    uint32_t gptir;
+    seL4_Uint32 gptir;
     /* gpt output compare register 1 */
-    uint32_t gptcr1;
+    seL4_Uint32 gptcr1;
     /* gpt output compare register 2 */
-    uint32_t gptcr2;
+    seL4_Uint32 gptcr2;
     /* gpt output compare register 3 */
-    uint32_t gptcr3;
+    seL4_Uint32 gptcr3;
     /* gpt input capture register 1 */
-    uint32_t gpticr1;
+    seL4_Uint32 gpticr1;
     /* gpt input capture register 2 */
-    uint32_t gpticr2;
+    seL4_Uint32 gpticr2;
     /* gpt counter register */
-    uint32_t gptcnt;
+    seL4_Uint32 gptcnt;
 };
 
 #endif /* _CLOCK_H_ */

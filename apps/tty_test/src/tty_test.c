@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 #include <time.h>
+#include <sos.h>
 #define NPAGES 27
 
 /* called from pt_test */

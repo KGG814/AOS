@@ -1,5 +1,6 @@
 #include "ft_tests.h"
 #include <sys/debug.h>
+#include <assert.h>
 
 #define verbose 5
 

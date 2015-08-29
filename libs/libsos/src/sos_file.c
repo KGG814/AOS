@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 int sos_sys_open(const char *path, fmode_t mode) {
     return -1;

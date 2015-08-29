@@ -9,7 +9,7 @@
 #include "frametable.h"
 #include "proc.h"
 #include <sos/vmem_layout.h>
-
+#include <assert.h>
 
 #define PAGEDIR_SIZE   4096
 #define PAGE_SIZE   4096
