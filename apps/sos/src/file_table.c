@@ -8,34 +8,30 @@
 #define INVALID_FD -1
 
 //this is an open file table 
-sos_stat_t *oft[SOS_MAX_FILES]; 
+file_handle* oft[SOS_MAX_FILES]; 
+int console = INVALID_FD; 
+int console_read = 0;
 
 int oft_init(void) {
     for (int i = 0; i < SOS_MAX_FILES; i++) {
         oft[i] = NULL;
     } 
+
     return 0;
 } 
 //taken from cs3231 asst2 solution 
 static int attach_console(sos_stat_t *f, fmode_t mode) {
-    f->st_fmode = mode;
-    f->st_type = ST_SPECIAL;
-    //TODO set other fields
-
     return 0;
 }
 int fdt_init(void) {
-    /*for (int i = 3; i < PROCESS_MAX_FILES; i++) {
+    for (int i = 3; i < PROCESS_MAX_FILES; i++) {
         fdt.file_descriptor[i] = INVALID_FD;
     }
     
-    
-    fdt.file_descriptor[0] = malloc(sizeof(sos_stat_t));
-    if (fdt.file_descriptor[0] == NULL) {
-    
-    }*/
     return 0;
 }
+
+
 
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).

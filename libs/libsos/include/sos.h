@@ -61,9 +61,6 @@ typedef struct {
 
 } sos_process_t;
 
-//TODO make an open file table
-int oft_init(void); 
-
 /*
  * The message used to hold the syscall number
  */
