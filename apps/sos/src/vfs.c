@@ -8,8 +8,12 @@
 //TODO change this to something sensible
 vnode* vnode_list;
 
-vnode_ops console_ops;
+
+int con_read(int file, const char *buf, size_t nbyte);
+
+vnode_ops console_ops = {NULL, &con_read, NULL, NULL};
 vnode_ops nfs_ops;
+
 
 vnode* find_vnode(const char* path);
 
@@ -32,13 +36,16 @@ vnode* vfs_open(const char* path, fmode_t mode) {
         }
 
         //console wasn't open. make a new vnode
-        vn = malloc(sizeof(vnode) + strlen("console"));
-
+        vn = malloc(sizeof(vnode) + strlen("console") + 1);
+        
+        if (vn == NULL) {
+            return vn;
+        }
         //set fields
         vn->fmode = FM_READ | FM_WRITE;
         vn->size = 0;
         vn->ctime = time_stamp();
-        vn->atime = time_stamp();
+        vn->atime = vn->ctime;
         vn->ref_count = 1;
 
         //the console doesn't need the fs_data 
@@ -65,4 +72,10 @@ vnode* find_vnode(const char* path) {
         vn = vn->next;
     }
     return vn;
+}
+
+int con_read(int file, const char *buf, size_t nbyte) {
+    int bytes = 0;
+    /**/
+    return bytes;
 }
