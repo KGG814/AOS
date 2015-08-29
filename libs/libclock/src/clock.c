@@ -148,6 +148,7 @@ int remove_timer(uint32_t id) {
         } else {//we can just turn off interrupts until the next register_timer
             gpt->gptir &= ~BIT(OF1IE);
         }
+        free((struct timer*) id);
         return CLOCK_R_OK;
     }
 
