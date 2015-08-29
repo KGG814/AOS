@@ -6,6 +6,12 @@
 #define verbose 5
 #include <sys/debug.h>
 
+void wake_process(uint32_t id, void* data) {
+    //(void *) data;
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_Send((seL4_CPtr)data, reply);
+}
+
 void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
 	seL4_Word newbrk = seL4_GetMR(1);
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
@@ -76,8 +82,10 @@ void handle_time_stamp(seL4_CPtr reply_cap) {
 
 /* Sleeps for the specified number of milliseconds.
  */
-int handle_usleep(int msec) {
-	return 0;
+void handle_usleep(seL4_CPtr reply_cap) {
+    int usec = seL4_GetMR(1) * 1000;
+    register_timer(usec, &wake_process, reply_cap);
+    printf("Timestamp registered\n");
 }
 
 

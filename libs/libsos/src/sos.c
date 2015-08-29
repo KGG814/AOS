@@ -86,7 +86,11 @@ size_t sos_read(void *vData, size_t count) {
 }
 
 void sos_sys_usleep(int msec) {
-    assert(!"You need to implement this");
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, USLEEP);
+    seL4_SetMR(1, msec);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
 }
 
 int64_t sos_sys_time_stamp(void) {
