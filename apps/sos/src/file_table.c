@@ -10,13 +10,11 @@
 
 //this is an open file table 
 file_handle* oft[SOS_MAX_FILES]; 
-int console = INVALID_FD; 
-int console_read = 0;
 
 int oft_init(void) {
     /*for (int i = 0; i < SOS_MAX_FILES; i++) {
-        oft[i] = NULL;
-    } */
+      oft[i] = NULL;
+      } */
 
     return 0;
 } 
@@ -24,16 +22,20 @@ int oft_init(void) {
 static int attach_console(sos_stat_t *f, fmode_t mode) {
     return 0;
 }
-int fdt_init(void) {
-    /*for (int i = 3; i < PROCESS_MAX_FILES; i++) {
-        fdt.file_descriptor[i] = INVALID_FD;
-    }*/
-    
+int fdt_init(addr_space *as) {
+    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+        as->file_table[i] = INVALID_FD;
+    }
+
     return 0;
 }
 
-
-
+void send_seL4_reply(seL4_CPtr reply_cap, int ret) {
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, ret);
+    seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
+}
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
  * A new file should be created if 'path' does not already exist.
@@ -47,33 +49,49 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     const char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
-    vnode* new_vnode = vfs_open(path, mode);
-    /* Return a file descriptor to the user for them to use to do operation on the file */
-    (void)path;
-    (void)mode;
-    /* 9242_TODO Search for file in open file table */
-    /* 9242_TODO If OFT ref not found: Get the next free index for the open file table*/
-    /* 9242_TODO If OFT ref not found:  Make new file handle*/
-    /* 9242_TODO Get the next free file index for the process file table*/
-    /* 9242_TODO Refer to the newly created handle in the open filetable from the process filetable somehow i.e. pointer or index*/
-    /* Notes
-     * For the process file table, if we use indices, then we will have space left over in the int in the upper bits to store a linked list for the next free index
-     * If you want to do pointers you'll need to figure out some other method since the pointer will take the full 32 bits.
-     * 
-     * For the OFT, we will also need a list, maybe a next free index within the handle?
-     * Also consider what we do if the file is already opened in the process (do we allow multiple handles to the same file?)
-    */
-    int file_desc = 0;
-    printf("Open not implemented yet\n");
-    /* Generate and send response */
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, file_desc);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    int fd = -1; //assume we have failed
+
+    vnode* vn = vfs_open(path, mode);
+    if (vn == NULL) {
+        //failed      
+        send_seL4_reply(reply_cap, fd);
+        return;
+    }
+
+    int i = 0;
+    while (oft[i] != NULL && i < SOS_MAX_FILES) {
+        ++i;
+    }
+    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
+        ++fd;
+    }
+
+    //no room in oft or fdt
+    if (i == SOS_MAX_FILES || fd == PROCESS_MAX_FILES) {
+        vfs_close(vn, mode);
+        send_seL4_reply(reply_cap, fd);
+        return;
+    }
+
+    file_handle* fh = malloc(sizeof(file_handle));
+    if (fh == NULL) {
+        vfs_close(vn, mode);
+        send_seL4_reply(reply_cap, fd);
+        return;
+    }
+    
+    oft[i] = fh;
+    as->file_table[fd] = i;
+    fh->flags = mode;
+    fh->offset = 0;
+    fh->vn = vn;
+    fh->ref_count = 0;
+
+    send_seL4_reply(reply_cap, fd);
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
- */
+*/
 void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file         =  (int)          seL4_GetMR(1);

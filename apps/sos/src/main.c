@@ -544,6 +544,7 @@ int main(void) {
     /* Start the user application */
     as = malloc(sizeof(addr_space));
     page_init(as);
+    fdt_init(as);
 
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);;
     /* Wait on synchronous endpoint for IPC */

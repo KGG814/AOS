@@ -65,6 +65,31 @@ vnode* vfs_open(const char* path, fmode_t mode) {
     return vn;
 }
 
+int vfs_close(vnode *vn, fmode_t mode) {
+    if (vn == NULL) {
+        return -1;
+    }
+    if (strcmp(vn->name, "console") == 0) {
+        vn->fs_data = NULL;
+    }
+    vn->ref_count--;
+    if (vn->ref_count == 0) {
+        //actually need to close the vnode 
+        if (vnode_list == vn) {
+            vnode_list = vnode_list->next;
+        } else {
+            vnode* cur = vnode_list;
+            while (cur->next != vn) {
+                cur = cur->next;
+            }
+            cur->next = vn->next;
+        }
+        free(vn);
+    }
+
+    return 0;
+}
+
 //traverse the linked list and see if the file has been opened by the vfs.
 vnode* find_vnode(const char* path) {
     vnode *vn = vnode_list; 
