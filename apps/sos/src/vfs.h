@@ -33,8 +33,8 @@ struct _vnode {
 /* 9242_TODO Change these so they take a vnode instead of a file desc */
 struct _vnode_ops {
     /* function pointers for fs specific functions */
-    int (*vfs_write)(int file, const char *buf, size_t nbyte);
-    int (*vfs_read)(int file, const char *buf, size_t nbyte);
+    int (*vfs_write)(vnode *vn, const char *buf, size_t nbyte);
+    int (*vfs_read)(vnode *vn, const char *buf, size_t nbyte);
     int (*vfs_getdirent)(int pos, const char *name, size_t nbyte);
     int (*vfs_stat)(const char *path, sos_stat_t *buf); 
 };

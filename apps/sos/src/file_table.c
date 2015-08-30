@@ -94,28 +94,25 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 */
 void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
-    int file         =  (int)          seL4_GetMR(1);
+    int file =  (int) seL4_GetMR(1);
     int err = 0;
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     if (oft_index != INVALID_FD) {
         file_handle* handle = oft[oft_index];
         if (handle != NULL) {
-            /* 9242_TODO Decrement ref count*/
-            /* 9242_TODO If 0, call vnode_close */
-            /* 9242_TODO If 0, delete and fix up your next free OFT index list however you have implemented it */
-            /* Delete the process filetable reference */
+            handle->ref_count--;
+            if (handle->ref_count == 0) {
+                err = vfs_close(handle->vn);
+                free(oft[oft_index]);
+            }
         }
         as->file_table[file] = INVALID_FD;
     } else {
         err = -1;
     }
-    printf("Close not implemented yet\n");
     /* Generate and send response */
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, err);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, err);
 }
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
@@ -131,9 +128,10 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
+
     /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
     /* Call the read vnode op */
-    int bytes_read = handle->vn->ops->vfs_read(oft_index, buf, nbyte);
+    int bytes_read = handle->vn->ops->vfs_read(handle->vn, buf, nbyte);
     printf("Read not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
@@ -157,7 +155,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     file_handle* handle = oft[oft_index];
     /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
     /* Call the write vnode op */
-    int bytes_written = handle->vn->ops->vfs_write(oft_index, buf, nbyte);  
+    int bytes_written = handle->vn->ops->vfs_write(handle->vn, buf, nbyte);  
     printf("Write not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 

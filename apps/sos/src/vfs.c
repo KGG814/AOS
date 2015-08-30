@@ -12,8 +12,8 @@ int console_status = CONSOLE_READ_CLOSE;
 //TODO change this to something sensible
 vnode* vnode_list;
 
-int con_read(int file, const char *buf, size_t nbyte);
-int con_write(int file, const char *buf, size_t nbyte);
+int con_read(vnode *vn, const char *buf, size_t nbyte);
+int con_write(vnode *vn, const char *buf, size_t nbyte);
 
 vnode_ops console_ops = {&con_write, &con_read, NULL, NULL};
 vnode_ops nfs_ops;
@@ -80,13 +80,13 @@ int vfs_close(vnode *vn) {
     return 0;
 }
 
-int con_read(int file, const char *buf, size_t nbyte) {
+int con_read(vnode *vn, const char *buf, size_t nbyte) {
     int bytes = 0;
     /**/
     return bytes;
 }
 
-int con_write(int file, const char *buf, size_t nbyte) {
+int con_write(vnode *vn, const char *buf, size_t nbyte) {
     int bytes = 0;
-    return sos_write(buf, nbyte);
+    return 0;//sos_write(buf, nbyte);
 }
