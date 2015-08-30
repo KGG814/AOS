@@ -30,6 +30,7 @@ struct _vnode {
     char name[];
 };
 
+/* 9242_TODO Change these so they take a vnode instead of a file desc */
 struct _vnode_ops {
     /* function pointers for fs specific functions */
     int (*vfs_write)(int file, const char *buf, size_t nbyte);

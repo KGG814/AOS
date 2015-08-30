@@ -95,18 +95,25 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file         =  (int)          seL4_GetMR(1);
-    /* Find the vnode and close it */
-    (void)file;
-    /* 9242_TODO Get the OFT reference from the process filetable */
-    /* 9242_TODO Decrement ref count*/
-    /* 9242_TODO If 0, call vnode_close */
-    /* 9242_TODO If 0, delete and fix up your next free OFT index list however you have implemented it */
-    /* 9242_TODO Delete the process filetable reference (if we have refcounts at the process level as well, then check for that too) */
-    int returnVal = 0;
+    int err = 0;
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[file];
+    if (oft_index != INVALID_FD) {
+        file_handle* handle = oft[oft_index];
+        if (handle != NULL) {
+            /* 9242_TODO Decrement ref count*/
+            /* 9242_TODO If 0, call vnode_close */
+            /* 9242_TODO If 0, delete and fix up your next free OFT index list however you have implemented it */
+            /* Delete the process filetable reference */
+        }
+        as->file_table[file] = INVALID_FD;
+    } else {
+        err = -1;
+    }
     printf("Close not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, returnVal);
+    seL4_SetMR(0, err);
     seL4_Send(reply_cap, reply);
     cspace_free_slot(cur_cspace, reply_cap);
 }
@@ -121,13 +128,12 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf        =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    /* Find the vnode and do the read vnode call */
-    (void)file;
-    (void)buf;
-    (void)nbyte;
-    /* 9242_TODO Get the OFT reference from the process filetable */
-    /* 9242_TODO Call the read vnode op */
-    int bytes_read = 0;
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[file];
+    file_handle* handle = oft[oft_index];
+    /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
+    /* Call the read vnode op */
+    int bytes_read = handle->vn->ops->vfs_read(oft_index, buf, nbyte);
     printf("Read not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
@@ -146,13 +152,12 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     int file         =  (int)          seL4_GetMR(1);
     const char* buf  =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    /* Find the vnode and do the write vnode call */
-    (void)file;
-    (void)buf;
-    (void)nbyte;
-    /* 9242_TODO Get the OFT reference from the process filetable */
-    /* 9242_TODO Call the write vnode op */
-    int bytes_written = 0;
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[file];
+    file_handle* handle = oft[oft_index];
+    /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
+    /* Call the write vnode op */
+    int bytes_written = handle->vn->ops->vfs_write(oft_index, buf, nbyte);  
     printf("Write not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
@@ -171,13 +176,12 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    /* Find the vnode and do the write getdirent call */
-    (void)pos;
-    (void)name;
-    (void)nbyte;
-    /* 9242_TODO Get the OFT reference from the process filetable */
-    /* 9242_TODO Call the getdirent vnode op */
-    int bytes_returned = 0;
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[pos];
+    file_handle* handle = oft[oft_index];
+    /* 9242_TODO Turn the user ptr name into a kernel ptr*/
+    /* Call the getdirent vnode op */
+    int bytes_returned = handle->vn->ops->vfs_getdirent(oft_index, name, nbyte); 
     printf("GetDirent not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
@@ -194,16 +198,19 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     const char* path =  (char*)        seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);  
-    /* Find the vnode and do the write stat call */
     (void)path;
     (void)buf;
-    /* 9242_TODO Get the OFT reference from the process filetable */
-    /* 9242_TODO Call the stat vnode op */
-    int returnVal = 0;
-    printf("Stat not implemented yet\n");
+    /* Get the vnode using the process filetable and OFT */
+    //int oft_index = as->file_table[file];
+    //file_handle* handle = oft[oft_index];
+    /* 9242_TODO Turn the user ptrs path and buf into kernel ptrs*/
+    /* Call the stat vnode op */
+    //int return_val = handle->vn->ops->vfs_getdirent(oft_index, buf, nbyte);
+    int return_val = 0;
+    //printf("Stat not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
-    seL4_SetMR(0,  returnVal);
+    seL4_SetMR(0,  return_val);
     seL4_Send(reply_cap, reply);
     cspace_free_slot(cur_cspace, reply_cap);
 }
