@@ -36,9 +36,8 @@ uintptr_t morecore_base = PROCESS_VMEM_START;
 
 long
 sys_brk(va_list ap) {
-    uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
-    printf("break: %p\n", newbrk);
+    printf("break: %p\n", (void*)newbrk);
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, BRK);

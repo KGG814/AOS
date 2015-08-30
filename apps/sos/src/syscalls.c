@@ -28,44 +28,40 @@ void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
     }
     seL4_SetMR(0, ret);
     seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
 }
 
 /* Create a new process running the executable image "path".
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
-int handle_process_create(void) {
-	return 0;
+void handle_process_create(void) {
 }
 
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
-int handle_process_delete(void) {
-	return 0;
+void handle_process_delete(void) {
 }
 
 
 /* Returns ID of caller's process. */
-int handle_my_id(void) {
-	return 0;
+void handle_my_id(void) {
 }
 
 
 /* Returns through "processes" status of active processes (at most "max"),
  * returns number of process descriptors actually returned.
  */
-int handle_process_status(void) {
-	return 0;
+void handle_process_status(void) {
 }
 
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
-int handle_process_wait(void) {
-	return 0;
+void handle_process_wait(void) {
 }
 
 
@@ -77,6 +73,7 @@ void handle_time_stamp(seL4_CPtr reply_cap) {
 	seL4_SetMR(1, (seL4_Word)(LOWER_32(timestamp)));
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
 }
 
 
@@ -84,7 +81,7 @@ void handle_time_stamp(seL4_CPtr reply_cap) {
  */
 void handle_usleep(seL4_CPtr reply_cap) {
     int usec = seL4_GetMR(1) * 1000;
-    register_timer(usec, &wake_process, reply_cap);
+    register_timer(usec, &wake_process, (void *)reply_cap);
     printf("Timestamp registered\n");
 }
 

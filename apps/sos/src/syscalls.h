@@ -13,67 +13,67 @@ void handle_brk(seL4_CPtr reply_cap, addr_space* as);
  * for the console.
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
-int handle_open(void);
+void handle_open(seL4_CPtr reply_cap);
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
-int handle_close(void);
+void handle_close(seL4_CPtr reply_cap);
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
  * Will block when reading from console and no input is presently
  * available. Returns -1 on error (invalid file).
  */
-int handle_read(void);
+void handle_read(seL4_CPtr reply_cap);
 
 
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
-int handle_write(void);
+void handle_write(seL4_CPtr reply_cap);
 
 
 /* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
-int handle_getdirent(void);
+void handle_getdirent(seL4_CPtr reply_cap);
 
 
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
-int handle_stat(void);
+void handle_stat(seL4_CPtr reply_cap);
 
 
 /* Create a new process running the executable image "path".
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
-int handle_process_create(void);
+void handle_process_create(void);
 
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
-int handle_process_delete(void);
+void handle_process_delete(void);
 
 
 /* Returns ID of caller's process. */
-int handle_my_id(void);
+void handle_my_id(void);
 
 
 /* Returns through "processes" status of active processes (at most "max"),
  * returns number of process descriptors actually returned.
  */
-int handle_process_status(void);
+void handle_process_status(void);
 
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
-int handle_process_wait(void);
+void handle_process_wait(void);
 
 
 /* Returns time in microseconds since booting.

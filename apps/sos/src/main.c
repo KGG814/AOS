@@ -130,17 +130,34 @@ void handle_syscall(seL4_Word badge, int num_args) {
             break;
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap);
-            cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case BRK: {
-            handle_brk(reply_cap, as);
-            cspace_free_slot(cur_cspace, reply_cap);
+            handle_brk(reply_cap, as);      
             break;
         } case USLEEP: {
             handle_usleep(reply_cap);
             break;
+        } case OPEN: {
+            handle_open(reply_cap);
+            break;
+        } case CLOSE: {
+            handle_close(reply_cap);
+            break;
+        } case READ: {
+            handle_read(reply_cap);
+            break;
+        } case WRITE: {
+            handle_write(reply_cap);
+            break;
+        } case GETDIRENT: {
+            handle_getdirent(reply_cap);
+            break;
+        } case STAT: {
+            handle_stat(reply_cap);
+            break;
         } default: {
             printf("Unknown syscall %d\n", syscall_number);
+            cspace_free_slot(cur_cspace, reply_cap);
             /* we don't want to reply to an unknown syscall */
         }
     }
@@ -278,7 +295,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     assert(as->croot != NULL);
     
     /* Create an IPC buffer */
-    index = frame_alloc(&temp, 0);
+    index = frame_alloc(&temp, NOMAP);
     as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/

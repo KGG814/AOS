@@ -68,15 +68,27 @@ typedef struct {
 #define SYSCALL 0
 
 /* A dummy starting syscall */
-#define SOS_SYSCALL0 0
+#define SOS_SYSCALL0 		0
 /* A syscall for writing to libserial */
-#define SOS_WRITE    1
+#define SOS_WRITE    		1
 /* A syscall for getting the timestamp */
-#define TIMESTAMP    2
-/* BRK */
-#define BRK 3
-/* USLEEP */
-#define USLEEP 4
+#define TIMESTAMP    		2
+/* A syscall for setting the brk for the process */
+#define BRK 				3
+/* A syscall to sleep the user process for a specified amount of time */
+#define USLEEP 				4
+/* A syscall to open a file and return a file handle */
+#define OPEN 				5
+/* A syscall to close a file */
+#define CLOSE 				6
+/* A syscall to read a specified number of bytes from a file */
+#define READ 				7 
+/* A syscall to write a specified number of bytes to a file */
+#define WRITE   			8
+/* GETDIRENT */
+#define GETDIRENT           9
+/* STAT */
+#define STAT 				10
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */

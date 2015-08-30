@@ -6,13 +6,17 @@
 #include <sos/vmem_layout.h>
 //"warnings"
 #define FT_INITIALISED      1
-
 #define FT_OK               0
 
 //"errors"
 #define FT_ERR              (-1)
 #define FT_NOT_INITIALISED  (-2)
 #define FT_NO_MEM           (-3)
+
+// Alloc options
+#define NOMAP				0
+#define KMAP				1
+
 
 typedef struct _ft_entry {
     seL4_Word frame_status;

@@ -21,10 +21,10 @@
 
 int page_init(addr_space* as) {
     seL4_Word vaddr;
-    frame_alloc(&vaddr, 1);
+    frame_alloc(&vaddr, KMAP);
     as->page_directory = (seL4_Word**) vaddr;
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        frame_alloc(&vaddr,1);
+        frame_alloc(&vaddr,KMAP);
         as->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
     }
     return 0;
@@ -38,7 +38,7 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     int index = 0;
     seL4_Word temp;
 	if (as->page_directory[dir_index] == NULL) {
-        index = frame_alloc(&temp, 1);
+        index = frame_alloc(&temp, KMAP);
         as->page_directory[dir_index] = (seL4_Word*)temp;
         assert(index > FT_OK);
 	}
@@ -56,7 +56,8 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
 }
 
 void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as) {
-
+    /* 9242_TODO Kill process if invalid memory */
+    /* 9242_TODO Instruction faults? */
     seL4_CPtr reply_cap;
     seL4_Word page_vaddr;
     seL4_Word fault_vaddr = seL4_GetMR(1);
@@ -65,7 +66,7 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
     dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     /* Get the page of the fault address*/
-    int ft_index = frame_alloc(&page_vaddr, 1);
+    int ft_index = frame_alloc(&page_vaddr, KMAP);
     assert(ft_index > FT_OK);
     /* Stack pages*/
     if ((fault_vaddr >= PROCESS_STACK_BOT && fault_vaddr < PROCESS_STACK_TOP)) {
@@ -78,8 +79,7 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
         sos_map_page(ft_index, fault_vaddr, pd, as);
     /* Scratch */
     } else if((fault_vaddr >= PROCESS_SCRATCH)) {
-        sos_map_page(ft_index, fault_vaddr, pd, as);
-    
+        sos_map_page(ft_index, fault_vaddr, pd, as);   
     } else {
       err = 42;
       frame_free(ft_index);
@@ -87,8 +87,6 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
     if (err) {
         dprintf(0, "Something went wrong in handle_vm_fault: %d\n", err);
     }
-    
-
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
     seL4_Send(reply_cap, reply);

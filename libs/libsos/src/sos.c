@@ -28,17 +28,6 @@
 #define CHAR_MASK_1 0x000000FF
 #define CHAR_MASK_2 0x0000FFFF
 #define CHAR_MASK_3 0x00FFFFFF
-#define min(a, b) (((a) < (b)) ? (a) : (b)) 
-
-
-
-static size_t sos_debug_print(const void *vData, size_t count) {
-    size_t i;
-    const char *realdata = vData;
-    for (i = 0; i < count; i++)
-        seL4_DebugPutChar(realdata[i]);
-    return count;
-}
 
 size_t sos_write(void *vData, size_t count) {
     seL4_Word msg;
