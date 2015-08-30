@@ -11,13 +11,13 @@
 static void do_pt_test( char *buf ) {
 
     /* set */
-    for(i = 0; i < NPAGES; i ++) {
+    for(int i = 0; i < NPAGES; i ++) {
         buf[i * 4096] = i;
     }
 	
 
     /* check */
-    for(i = 0; i < NPAGES; i ++) {
+    for(int i = 0; i < NPAGES; i ++) {
         assert(buf[i * 4096] == i);
     }
 	

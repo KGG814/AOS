@@ -13,38 +13,38 @@ void handle_brk(seL4_CPtr reply_cap, addr_space* as);
  * for the console.
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
-void handle_open(seL4_CPtr reply_cap);
+void handle_open(seL4_CPtr reply_cap, addr_space* as);
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
-void handle_close(seL4_CPtr reply_cap);
+void handle_close(seL4_CPtr reply_cap, addr_space* as);
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
  * Will block when reading from console and no input is presently
  * available. Returns -1 on error (invalid file).
  */
-void handle_read(seL4_CPtr reply_cap);
+void handle_read(seL4_CPtr reply_cap, addr_space* as);
 
 
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
-void handle_write(seL4_CPtr reply_cap);
+void handle_write(seL4_CPtr reply_cap, addr_space* as);
 
 
 /* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
-void handle_getdirent(seL4_CPtr reply_cap);
+void handle_getdirent(seL4_CPtr reply_cap, addr_space* as);
 
 
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
-void handle_stat(seL4_CPtr reply_cap);
+void handle_stat(seL4_CPtr reply_cap, addr_space* as);
 
 
 /* Create a new process running the executable image "path".

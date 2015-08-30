@@ -2,6 +2,7 @@
 #define _PROC_H_
 
 #include <cspace/cspace.h>
+#include <sos.h>
 
 #define CAP_TABLE_PAGES 4
 
@@ -20,7 +21,7 @@ typedef struct _addr_space {
 
     cspace_t *croot;
     seL4_Word brk;
-    
+    int file_table[PROCESS_MAX_FILES];
 } addr_space; 
 
 

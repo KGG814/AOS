@@ -138,22 +138,22 @@ void handle_syscall(seL4_Word badge, int num_args) {
             handle_usleep(reply_cap);
             break;
         } case OPEN: {
-            handle_open(reply_cap);
+            handle_open(reply_cap, as);
             break;
         } case CLOSE: {
-            handle_close(reply_cap);
+            handle_close(reply_cap, as);
             break;
         } case READ: {
-            handle_read(reply_cap);
+            handle_read(reply_cap, as);
             break;
         } case WRITE: {
-            handle_write(reply_cap);
+            handle_write(reply_cap, as);
             break;
         } case GETDIRENT: {
-            handle_getdirent(reply_cap);
+            handle_getdirent(reply_cap, as);
             break;
         } case STAT: {
-            handle_stat(reply_cap);
+            handle_stat(reply_cap, as);
             break;
         } default: {
             printf("Unknown syscall %d\n", syscall_number);
