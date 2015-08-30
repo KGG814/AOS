@@ -540,6 +540,8 @@ int main(void) {
 	serial_handler = serial_init();
     start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
 
+    oft_init();
+
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
     as = malloc(sizeof(addr_space));

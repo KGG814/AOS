@@ -12,9 +12,9 @@
 file_handle* oft[SOS_MAX_FILES]; 
 
 int oft_init(void) {
-    /*for (int i = 0; i < SOS_MAX_FILES; i++) {
-      oft[i] = NULL;
-      } */
+    for (int i = 0; i < SOS_MAX_FILES; i++) {
+        oft[i] = NULL;
+    }
 
     return 0;
 } 
