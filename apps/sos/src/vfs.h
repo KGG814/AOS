@@ -9,7 +9,7 @@ typedef struct _vnode_ops vnode_ops;
 
 /* function declarations for functions that aren't fs specific */
 vnode*  vfs_open(const char* path, fmode_t mode);
-int     vfs_close(vnode *vn, fmode_t mode);
+int     vfs_close(vnode *vn);
 
 //store vnodes as a linked list for now
 struct _vnode {
@@ -17,8 +17,6 @@ struct _vnode {
     unsigned        size;    /* file size in bytes */
     timestamp_t     ctime;   /* file creation time (ms since booting) */
     timestamp_t     atime;   /* file last access (open) time (ms since booting) */
-
-    unsigned int    ref_count;    /* current number of reference */
 
     //long            mtime;   /* file last modify time */
     void*           fs_data;

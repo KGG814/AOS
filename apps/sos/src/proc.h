@@ -2,9 +2,10 @@
 #define _PROC_H_
 
 #include <cspace/cspace.h>
-#include <sos.h>
+//#include <sos.h>
 
 #define CAP_TABLE_PAGES 4
+#define PROCESS_MAX_FILES 16
 
 typedef struct _addr_space {
 	seL4_Word vroot_addr;

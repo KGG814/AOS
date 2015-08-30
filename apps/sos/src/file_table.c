@@ -68,14 +68,14 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 
     //no room in oft or fdt
     if (i == SOS_MAX_FILES || fd == PROCESS_MAX_FILES) {
-        vfs_close(vn, mode);
+        vfs_close(vn);
         send_seL4_reply(reply_cap, fd);
         return;
     }
 
     file_handle* fh = malloc(sizeof(file_handle));
     if (fh == NULL) {
-        vfs_close(vn, mode);
+        vfs_close(vn);
         send_seL4_reply(reply_cap, fd);
         return;
     }

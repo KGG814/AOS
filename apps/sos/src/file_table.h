@@ -15,7 +15,7 @@ typedef struct _file_handle {
     uint32_t ref_count;
 } file_handle;
 
-
+int oft_init(void);
 
 int sos_sys_write(int file, const char *buf, size_t nbyte);
 
