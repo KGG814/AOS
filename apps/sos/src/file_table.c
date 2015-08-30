@@ -82,7 +82,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* 9242_TODO Get the OFT reference from the process filetable */
     /* 9242_TODO Decrement ref count*/
     /* 9242_TODO If 0, call vnode_close */
-    /* 9242_TODO If 0, delete and fix up your next free OFT index however you have implemented it */
+    /* 9242_TODO If 0, delete and fix up your next free OFT index list however you have implemented it */
     /* 9242_TODO Delete the process filetable reference (if we have refcounts at the process level as well, then check for that too) */
     int returnVal = 0;
     printf("Close not implemented yet\n");
