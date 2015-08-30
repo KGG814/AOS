@@ -20,5 +20,5 @@ typedef struct _file_handle {
 int sos_sys_write(int file, const char *buf, size_t nbyte);
 
 int fdt_init(addr_space *as);
-
+int oft_init(void);
 #endif /*_FILE_TABLE_H_*/

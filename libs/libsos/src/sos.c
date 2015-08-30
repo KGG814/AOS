@@ -29,7 +29,7 @@
 #define CHAR_MASK_2 0x0000FFFF
 #define CHAR_MASK_3 0x00FFFFFF
 
-size_t sos_write(void *vData, size_t count) {
+size_t sos_write(const void *vData, size_t count) {
     seL4_Word msg;
     for (int sentMessages = 0; sizeof(seL4_Word)*sentMessages < count; sentMessages += (seL4_MsgMaxLength-1)) {
         //Number of messages required

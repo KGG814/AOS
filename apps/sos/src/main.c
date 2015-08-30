@@ -35,6 +35,7 @@
 #include "syscalls.h"
 #include "ft_tests.h"
 #include "mapping.h"
+ #include "file_table.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */

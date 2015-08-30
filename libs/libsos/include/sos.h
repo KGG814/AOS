@@ -93,7 +93,7 @@ typedef struct {
 
 /* Print to the proper console.  You will need to finish these implementations */
 //in sos.c
-extern size_t sos_write(void *data, size_t count);
+extern size_t sos_write(const void *data, size_t count);
 //in sos.c
 extern size_t sos_read(void *data, size_t count);
 

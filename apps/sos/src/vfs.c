@@ -1,6 +1,7 @@
 #include "vfs.h"
 #include <string.h>
 #include <stdlib.h>
+#include <sos.h>
 
 #define CONSOLE_OPEN_READ ((void*) 1)
 
@@ -10,8 +11,9 @@ vnode* vnode_list;
 
 
 int con_read(int file, const char *buf, size_t nbyte);
+int con_write(int file, const char *buf, size_t nbyte);
 
-vnode_ops console_ops = {NULL, &con_read, NULL, NULL};
+vnode_ops console_ops = {&con_write, &con_read, NULL, NULL};
 vnode_ops nfs_ops;
 
 
@@ -103,4 +105,9 @@ int con_read(int file, const char *buf, size_t nbyte) {
     int bytes = 0;
     /**/
     return bytes;
+}
+
+int con_write(int file, const char *buf, size_t nbyte) {
+    int bytes = 0;
+    return sos_write(buf, nbyte);
 }
