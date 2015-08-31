@@ -5,6 +5,10 @@
 
 void handle_brk(seL4_CPtr reply_cap, addr_space* as);
 
+void handle_syscall0(seL4_CPtr reply_cap, addr_space* as);
+
+void handle_sos_write(seL4_CPtr reply_cap, addr_space* as);
+
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
  * A new file should be created if 'path' does not already exist.
@@ -78,12 +82,12 @@ void handle_process_wait(void);
 
 /* Returns time in microseconds since booting.
  */
-void handle_time_stamp(seL4_CPtr reply_cap);
+void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as);
 
 
 /* Sleeps for the specified number of milliseconds.
  */
-void handle_usleep(seL4_CPtr reply_cap);
+void handle_usleep(seL4_CPtr reply_cap, addr_space* as);
 
 
 

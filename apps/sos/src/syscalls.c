@@ -12,6 +12,14 @@ void wake_process(uint32_t id, void* data) {
     seL4_Send((seL4_CPtr)data, reply);
 }
 
+void handle_syscall0(seL4_CPtr reply_cap, addr_space* as) {
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, 0);
+    seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
+}
+
+
 void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
 	seL4_Word newbrk = seL4_GetMR(1);
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
@@ -67,7 +75,7 @@ void handle_process_wait(void) {
 
 /* Returns time in microseconds since booting.
  */
-void handle_time_stamp(seL4_CPtr reply_cap) {
+void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as) {
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
 	seL4_SetMR(1, (seL4_Word)(LOWER_32(timestamp)));
@@ -79,7 +87,7 @@ void handle_time_stamp(seL4_CPtr reply_cap) {
 
 /* Sleeps for the specified number of milliseconds.
  */
-void handle_usleep(seL4_CPtr reply_cap) {
+void handle_usleep(seL4_CPtr reply_cap, addr_space* as) {
     int usec = seL4_GetMR(1) * 1000;
     register_timer(usec, &wake_process, (void *)reply_cap);
     printf("Timestamp registered\n");
