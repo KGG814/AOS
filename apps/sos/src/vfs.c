@@ -16,10 +16,10 @@
 int console_status = CONSOLE_READ_CLOSE;
 
 char console_buf[CONSOLE_BUFFER_SIZE];
-int console_data_size = 0;
+volatile int console_data_size = 0;
 char *console_data_start = console_buf;
 char *console_data_end = console_buf;
-const char *console_buf_end = console_buf + CONSOLE_READ_CLOSE - 1;
+const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 
 void console_cb(struct serial* s, char c); 
 
@@ -42,8 +42,9 @@ void vfs_init(struct serial *s) {
     
 vnode* vfs_open(const char* path, fmode_t mode) {
     vnode *vn = NULL;
+    mode &= O_ACCMODE;
     if (strcmp(path, "console") == 0) {         
-        if (mode & FM_READ) { 
+        if (mode == O_RDONLY || mode == O_RDWR) { 
             if (console_status == CONSOLE_READ_OPEN) {
                 return NULL;
             } 
@@ -118,14 +119,19 @@ int vfs_stat(const char *path, sos_stat_t *buf) {
 }
 
 int con_read(vnode *vn, const char *buf, size_t nbyte) {
-    if (vn == NULL || !(vn->fmode & FM_READ)) {
+    //assert(!"trying to read!");
+    if (vn == NULL || (vn->fmode == O_WRONLY)) {
         return VFS_ERR;
     }
     
     int bytes = 0;
     char *cur = (char *) buf;
-    while (bytes != nbyte) {
-        while (!console_data_size); //wait for data to be entered
+    while (!console_data_size) {
+
+    }
+
+    while (bytes < nbyte && console_data_size) {
+        //assert(!"got into copy loop");
         *cur++ = *console_data_start++; 
         if (console_data_start == console_buf_end) {
             console_data_start = console_buf;
@@ -138,7 +144,7 @@ int con_read(vnode *vn, const char *buf, size_t nbyte) {
 }
 
 int con_write(vnode *vn, const char *buf, size_t nbyte) {
-    if (vn == NULL || !(vn->fmode & FM_WRITE)) {
+    if (vn == NULL || (vn->fmode == O_RDONLY)) {
         return VFS_ERR;
     }
     char *c = (char *) buf;
@@ -147,6 +153,7 @@ int con_write(vnode *vn, const char *buf, size_t nbyte) {
 }
 
 void console_cb(struct serial* s, char c) {
+    assert(0);
     if (console_data_start == console_data_end && console_data_size != 0) {
         return; //buffer full
     }

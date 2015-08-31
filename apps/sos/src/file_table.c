@@ -30,14 +30,14 @@ int fdt_init(addr_space *as) {
         as->file_table[i] = INVALID_FD;
     }
     //open stdin, stdout, stderr
-    if (fh_open(as, "console", FM_READ) != 0) {
+    if (fh_open(as, "console", O_WRONLY) != 0) {
         return -1;
     }
-    if (fh_open(as, "console", FM_WRITE) != 1) {
+    if (fh_open(as, "console", O_WRONLY) != 1) {
         fd_close(as, 0);
         return -1;
     }
-    if (fh_open(as, "console", FM_WRITE) != 2) {
+    if (fh_open(as, "console", O_WRONLY) != 2) {
         fd_close(as, 0);
         fd_close(as, 1);
         return -1;
@@ -65,9 +65,8 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    dprintf(0, "Opening %s\n", (char*)k_ptr);
+    dprintf(0, "Opening %s with mode %d\n", (char*)k_ptr, mode);
     int fd = fh_open(as, (char*)k_ptr, mode);
-    assert(fd == 3);
     send_seL4_reply(reply_cap, fd);
 }
 
@@ -125,6 +124,7 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
+    dprintf(0, "Trying to read from fd %d: %d bytes into %p.\n", file, nbyte, buf);
     int bytes_read = handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte);
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
@@ -145,13 +145,13 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
     /* Get the vnode using the process filetable and OFT*/
     dprintf(0, "handle_write: file: %d, buf: %p, nbyte: %d\n", file, buf, nbyte);
-    dprintf(0, "Trying to write: %.*s\n", buf, nbyte);
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
     /* Check page boundaries and map in pages if necessary */
     user_buffer_check((seL4_Word)buf, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
+    dprintf(0, "Trying to write: %.*s\n", nbyte, k_ptr);
     /* Call the write vnode op */
     int bytes_written = handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte);  
     /* Generate and send response */

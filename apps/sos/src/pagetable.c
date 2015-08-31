@@ -92,6 +92,13 @@ void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
     seL4_Word start_page = user_ptr & PAGE_MASK;
     seL4_Word end_page = (user_ptr + nbyte) & PAGE_MASK;
     for (seL4_Word curr_page = start_page; curr_page <= end_page; curr_page += PAGE_SIZE) {
+        int pt_top = PT_TOP(curr_page);
+        int pt_bot = PT_BOTTOM(curr_page);
+        //TODO: change this to check if it was swapped out as well
+        if (as->page_directory[pt_top] != NULL && 
+            as->page_directory[pt_top][pt_bot] != 0) {
+            continue;
+        }
         dprintf(0,"Buffer didn't real, %p\n", curr_page);
         map_if_valid(curr_page, as);
     }

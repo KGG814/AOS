@@ -5,6 +5,11 @@
 #define VFS_ERR             (-1) //generic error
 #define VFS_ERR_NOT_DIR     (-2) //given thing wasn't a directory
 
+#define O_ACCMODE 03
+#define O_RDONLY  00
+#define O_WRONLY  01
+#define O_RDWR    02
+
 #include <sos.h>
 #include <clock/clock.h>
 #include <serial/serial.h>
