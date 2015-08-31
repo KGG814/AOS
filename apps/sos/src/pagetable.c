@@ -13,9 +13,10 @@
 
 #define PAGEDIR_SIZE   4096
 #define PAGE_SIZE   4096
-#define BOTTOM(x)  (((x) & 0x3FF000) >> 12)
-#define TOP(x)  (((x) & 0xFFC00000) >> 22)
+#define PT_BOTTOM(x)  (((x) & 0x3FF000) >> 12)
+#define PT_TOP(x)  (((x) & 0xFFC00000) >> 22)
 #define PAGE_MASK   0xFFFFF000
+#define FT_INDEX_MASK 0x000FFFFF
 #define verbose 5
 
 
@@ -31,8 +32,8 @@ int page_init(addr_space* as) {
 }
 
 seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd, addr_space* as) {
-	seL4_Word dir_index = TOP(vaddr);
-	seL4_Word page_index = BOTTOM(vaddr);
+	seL4_Word dir_index = PT_TOP(vaddr);
+	seL4_Word page_index = PT_BOTTOM(vaddr);
 	/* Check that the page table exists */
     assert(as->page_directory != NULL);
     int index = 0;
@@ -91,4 +92,13 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
     seL4_SetMR(0, 0);
     seL4_Send(reply_cap, reply);
     cspace_free_slot(cur_cspace, reply_cap);
+}
+
+seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, addr_space* as) {
+    // 9242_TODO error check instead
+    seL4_Word dir_index = PT_TOP(user_ptr);
+    seL4_Word page_index = PT_BOTTOM(user_ptr);
+    assert(as->page_directory[dir_index] != NULL);
+    seL4_Word frame_index = as->page_directory[dir_index][page_index];
+    return index_to_vaddr(frame_index); 
 }

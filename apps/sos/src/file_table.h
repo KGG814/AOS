@@ -1,7 +1,7 @@
 #ifndef _FILE_TABLE_H_
 #define _FILE_TABLE_H_
 
-#include <sel4/sel4.h>
+
 #include <sos.h>
 #include "vfs.h"
 #include "proc.h"

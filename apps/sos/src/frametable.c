@@ -36,12 +36,17 @@ static seL4_Word high;
 
 
 
-static seL4_Word paddrToVaddr(seL4_Word paddr) { 
+static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
 }
-/*static seL4_Word vaddrToPaddr(seL4_Word vaddr) { 
-    return vaddr - VM_START_ADDR;
-}*/
+
+seL4_Word index_to_paddr(int index) {
+    return index * PAGE_SIZE + low;
+}
+
+seL4_Word index_to_vaddr(int index) {
+    (index * PAGE_SIZE + low) + VM_START_ADDR;
+}
 
 int frame_init(void) {
     frametable = (ft_entry *) FT_START_ADDR; 
@@ -113,7 +118,6 @@ int frame_init(void) {
     ft_initialised = 1;
 
     return FT_OK;
-    //return paddrToVaddr(pt_addr);
 }
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
@@ -146,7 +150,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     if (map) {
         err |= map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
-                   ,paddrToVaddr(pt_addr)
+                   ,paddr_to_vaddr(pt_addr)
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
@@ -159,7 +163,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     //set the status bits of the new frame 
 
     frametable[index].frame_status = FRAME_IN_USE;
-    *vaddr = paddrToVaddr(pt_addr);
+    *vaddr = paddr_to_vaddr(pt_addr);
     if (map) {
         seL4_Word *tmp = (seL4_Word *) *vaddr;
         for (int i = 0; i < 1024; i++) {
@@ -207,6 +211,3 @@ int frame_free(int index) {
 	return FT_OK;
 }
 
-seL4_Word index_to_paddr(int index) {
-    return index * PAGE_SIZE + low;
-}

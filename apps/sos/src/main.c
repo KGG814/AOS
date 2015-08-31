@@ -400,8 +400,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* Initialise the cspace manager */
     err = cspace_root_task_bootstrap(ut_alloc, ut_free, ut_translate,
                                      malloc, free);
-
-    //dprintf(0, "low = 0x%08x, hi = 0x%08x, offset = 0x%08x\n", low, high, paddrToVaddr(0));
     
     /* Initalise frame table */
     frame_init();
