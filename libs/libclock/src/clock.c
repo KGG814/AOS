@@ -177,7 +177,6 @@ int remove_timer(uint32_t id) {
  * Returns CLOCK_R_OK if successful
  */
 int timer_interrupt(void) {
-    printf("Timer interrupt\n");
     volatile uint32_t* status = &gpt->gptsr;
     if (initialised != INITIALISED) {
         return CLOCK_R_UINT;

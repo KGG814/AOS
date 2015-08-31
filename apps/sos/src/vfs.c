@@ -11,7 +11,7 @@
 #define CONSOLE_READ_OPEN   1
 #define CONSOLE_READ_CLOSE  0
 
-#define READ_CB_DELAY 1000000
+#define READ_CB_DELAY 100000
 #define CONSOLE_BUFFER_SIZE 4096
 
 //console stuff. possibly move this to its own file
@@ -24,7 +24,6 @@ char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 
 void console_cb(struct serial* s, char c) {
-    assert(0);
     if (console_data_start == console_data_end && console_data_size != 0) {
         return; //buffer full
     }
