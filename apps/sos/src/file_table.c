@@ -67,8 +67,6 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
     dprintf(0, "Opening %s\n", (char*)k_ptr);
     int fd = fh_open(as, (char*)k_ptr, mode);
-    int fd = fh_open(as, k_ptr, mode);
-
     assert(fd == 3);
     send_seL4_reply(reply_cap, fd);
 }
