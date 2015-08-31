@@ -84,7 +84,7 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, addr_space* as) {
     seL4_Word page_index = PT_BOTTOM(user_ptr);
     assert(as->page_directory[dir_index] != NULL);
     seL4_Word frame_index = as->page_directory[dir_index][page_index];
-    return index_to_vaddr(frame_index); 
+    return index_to_vaddr(frame_index) + (user_ptr & ~(PAGE_MASK)); 
 }
 
 void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
