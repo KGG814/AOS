@@ -22,7 +22,9 @@ static int attach_console(sos_stat_t *f, fmode_t mode) {
     return 0;
 }
 int fdt_init(addr_space *as) {
-    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+
+
+    for (int i = 3; i < PROCESS_MAX_FILES; i++) {
         as->file_table[i] = INVALID_FD;
     }
 
