@@ -55,7 +55,7 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     int fd = -1; //assume we have failed
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    vnode* vn = vfs_open(k_ptr, mode);
+    vnode* vn = vfs_open((char*)k_ptr, mode);
     if (vn == NULL) {
         //failed      
         send_seL4_reply(reply_cap, fd);
@@ -142,6 +142,8 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)buf, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
@@ -166,6 +168,8 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)buf, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the write vnode op */
@@ -199,6 +203,8 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
         send_seL4_reply(reply_cap, FT_ERR);
         return;
     }
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)name, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
     /* Call the getdirent vnode op */
@@ -215,7 +221,10 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
 void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     const char* path =  (char*)        seL4_GetMR(1);
-    sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);  
+    sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
+    /* Check page boundaries and map in pages if necessary */
+    //user_buffer_check((seL4_Word)path, nbyte, as);  
+    //user_buffer_check((seL4_Word)buf, nbyte, as);  
     /* Turn the user ptrs path and buf into kernel ptrs*/
     seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, as);
     seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, as);
