@@ -96,9 +96,11 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
 
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, addr_space* as) {
     // 9242_TODO error check instead
+    dprintf(0, "got %p, translating to", user_ptr);
     seL4_Word dir_index = PT_TOP(user_ptr);
     seL4_Word page_index = PT_BOTTOM(user_ptr);
     assert(as->page_directory[dir_index] != NULL);
     seL4_Word frame_index = as->page_directory[dir_index][page_index];
-    return index_to_vaddr(frame_index); 
+    dprintf(0, " %p.\n", index_to_vaddr(frame_index));// + (user_ptr & ~(PAGE_MASK)));
+    return index_to_vaddr(frame_index) + (user_ptr & ~(PAGE_MASK)); 
 }

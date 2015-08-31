@@ -12,6 +12,9 @@
 //this is an open file table 
 file_handle* oft[SOS_MAX_FILES]; 
 
+int fh_open(addr_space *as, char *path, fmode_t mode); 
+int fd_close(addr_space* as, int file);
+
 int oft_init(void) {
     for (int i = 0; i < SOS_MAX_FILES; i++) {
         oft[i] = NULL;
@@ -19,15 +22,23 @@ int oft_init(void) {
 
     return 0;
 } 
-//taken from cs3231 asst2 solution 
-static int attach_console(sos_stat_t *f, fmode_t mode) {
-    return 0;
-}
+
 int fdt_init(addr_space *as) {
-
-
-    for (int i = 3; i < PROCESS_MAX_FILES; i++) {
+    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
         as->file_table[i] = INVALID_FD;
+    }
+    //open stdin, stdout, stderr
+    if (fh_open(as, "console", FM_READ) != 0) {
+        return -1;
+    }
+    if (fh_open(as, "console", FM_WRITE) != 1) {
+        fd_close(as, 0);
+        return -1;
+    }
+    if (fh_open(as, "console", FM_WRITE) != 2) {
+        fd_close(as, 0);
+        fd_close(as, 1);
+        return -1;
     }
 
     return 0;
@@ -52,51 +63,40 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
-    int fd = -1; //assume we have failed
-    /* Turn the user ptr buff into a kernel ptr */
+    
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    vnode* vn = vfs_open(k_ptr, mode);
-    if (vn == NULL) {
-        //failed      
-        send_seL4_reply(reply_cap, fd);
-        return;
-    }
-
-    int i = 0;
-    while (oft[i] != NULL && i < SOS_MAX_FILES) {
-        ++i;
-    }
-
-    //no room in oft or fdt
-    if (i == SOS_MAX_FILES) {
-        vfs_close(vn);
-        send_seL4_reply(reply_cap, FT_ERR_OFT_FULL);
-        return;
-    }
-
-    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
-        ++fd;
-    }  
-    if (fd == PROCESS_MAX_FILES) {
-        vfs_close(vn); 
-        send_seL4_reply(reply_cap, FT_ERR_FDT_FULL);  
-    }
-
-    file_handle* fh = malloc(sizeof(file_handle));
-    if (fh == NULL) {
-        vfs_close(vn);
-        send_seL4_reply(reply_cap, fd);
-        return;
-    }
-
-    oft[i] = fh;
-    as->file_table[fd] = i;
-    fh->flags = mode;
-    fh->offset = 0;
-    fh->vn = vn;
-    fh->ref_count = 0;
-
+    int fd = fh_open(as, k_ptr, mode);
+    
+    assert(0);
+    
     send_seL4_reply(reply_cap, fd);
+}
+
+int fd_close(addr_space* as, int file) {
+    //assert(0);
+    if (file < 0 || file >= PROCESS_MAX_FILES) {
+        return -1;
+    }
+    int oft_index = as->file_table[file];
+    if (oft_index == INVALID_FD) {
+        return FT_ERR;
+    }
+
+    file_handle* handle = oft[oft_index];
+    if (handle == NULL) {
+        return FT_ERR;
+    }
+
+    handle->ref_count--;
+    int err = 0;
+    if (handle->ref_count == 0) {
+        err = vfs_close(handle->vn);
+        free(handle);
+    }
+
+    as->file_table[file] = INVALID_FD;
+    return err;
+    /* Generate and send response */
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
@@ -105,28 +105,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file =  (int) seL4_GetMR(1);
     /* Get the vnode using the process filetable and OFT*/
-    int oft_index = as->file_table[file];
-    if (oft_index == INVALID_FD) {
-        send_seL4_reply(reply_cap, oft_index);
-        return;
-    }
-
-    file_handle* handle = oft[oft_index];
-    if (handle == NULL) {
-        send_seL4_reply(reply_cap, FT_ERR);
-        return;
-    }
-
-    handle->ref_count--;
-    int err = 0;
-    if (handle->ref_count == 0) {
-        err = vfs_close(handle->vn);
-        free(oft[oft_index]);
-    }
-
-    as->file_table[file] = INVALID_FD;
-    /* Generate and send response */
-    send_seL4_reply(reply_cap, err);
+    send_seL4_reply(reply_cap, fd_close(file, as));
 }
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
@@ -227,3 +206,46 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     /* Generate and send response */
     send_seL4_reply(reply_cap, return_val);
 }
+
+int fh_open(addr_space *as, char *path, fmode_t mode) {
+    int fd = FT_ERR; //assume we have failed
+    /* Turn the user ptr buff into a kernel ptr */
+    vnode* vn = vfs_open(path, mode);
+    if (vn == NULL) {
+        //failed      
+        return fd;
+    }
+
+    int i = 0;
+    while (oft[i] != NULL && i < SOS_MAX_FILES) {
+        ++i;
+    }
+
+    //no room in oft or fdt
+    if (i == SOS_MAX_FILES) {
+        vfs_close(vn);
+        return FT_ERR_OFT_FULL;
+    }
+
+    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
+        ++fd;
+    }  
+    if (fd == PROCESS_MAX_FILES) {
+        vfs_close(vn); 
+        return FT_ERR_FDT_FULL;
+    }
+
+    file_handle* fh = malloc(sizeof(file_handle));
+    if (fh == NULL) {
+        vfs_close(vn);
+        return FT_ERR;
+    }
+
+    oft[i] = fh;
+    as->file_table[fd] = i;
+    fh->flags = mode;
+    fh->offset = 0;
+    fh->vn = vn;
+    fh->ref_count = 0;
+    return fd;
+} 

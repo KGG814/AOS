@@ -45,7 +45,7 @@ seL4_Word index_to_paddr(int index) {
 }
 
 seL4_Word index_to_vaddr(int index) {
-    (index * PAGE_SIZE + low) + VM_START_ADDR;
+    return (index * PAGE_SIZE + low) + VM_START_ADDR;
 }
 
 int frame_init(void) {

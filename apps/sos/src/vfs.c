@@ -1,7 +1,9 @@
-#include "vfs.h"
 #include <string.h>
 #include <stdlib.h>
 #include <sos.h>
+#include <assert.h>
+
+#include "vfs.h"
 
 #define CONSOLE_READ_OPEN   0
 #define CONSOLE_READ_CLOSE  1
@@ -10,7 +12,7 @@ int console_status = CONSOLE_READ_CLOSE;
 
 //linked list for vnodes
 //TODO change this to something sensible
-vnode* vnode_list;
+vnode* vnode_list = NULL;
 
 int con_read(vnode *vn, const char *buf, size_t nbyte);
 int con_write(vnode *vn, const char *buf, size_t nbyte);
@@ -26,7 +28,7 @@ vnode* vfs_open(const char* path, fmode_t mode) {
                 return NULL;
             } 
 
-            console_status = CONSOLE_READ_CLOSE;
+            console_status = CONSOLE_READ_OPEN;
         }
 
         //console wasn't open. make a new vnode
