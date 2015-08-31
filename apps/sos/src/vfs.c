@@ -23,7 +23,18 @@ char *console_data_start = console_buf;
 char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 
-void console_cb(struct serial* s, char c); 
+void console_cb(struct serial* s, char c) {
+    assert(0);
+    if (console_data_start == console_data_end && console_data_size != 0) {
+        return; //buffer full
+    }
+    *console_data_end++ = c;
+    console_data_size++;
+    if (console_data_end == console_buf_end) {
+        console_data_end = console_buf;
+    }
+} 
+
 
 //linked list for vnodes
 //TODO change this to something sensible
@@ -207,16 +218,3 @@ int con_write(vnode *vn, const char *buf, size_t nbyte) {
     int bytes = serial_send(serial_handle, c, nbyte);
     return bytes;//sos_write(buf, nbyte);
 }
-
-void console_cb(struct serial* s, char c) {
-    assert(0);
-    if (console_data_start == console_data_end && console_data_size != 0) {
-        return; //buffer full
-    }
-    *console_data_end++ = c;
-    console_data_size++;
-    if (console_data_end == console_buf_end) {
-        console_data_end = console_buf;
-    }
-} 
-
