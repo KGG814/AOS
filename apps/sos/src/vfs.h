@@ -1,6 +1,10 @@
 #ifndef _VFS_H_
 #define _VFS_H_ 
 
+//error codes
+#define VFS_ERR             (-1) //generic error
+#define VFS_ERR_NOT_DIR     (-2) //given thing wasn't a directory
+
 #include <sos.h>
 #include <clock/clock.h>
 
@@ -20,7 +24,7 @@ struct _vnode {
 
     //long            mtime;   /* file last modify time */
     void*           fs_data;
-    
+  
     struct _vnode   *next;
 
     //inspired by OS/161

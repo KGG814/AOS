@@ -6,7 +6,6 @@
 
 #define SOS_MAX_FILES 2048
 
-#define INVALID_FD -1
 
 //this is an open file table 
 file_handle* oft[SOS_MAX_FILES]; 
@@ -62,15 +61,20 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     while (oft[i] != NULL && i < SOS_MAX_FILES) {
         ++i;
     }
-    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
-        ++fd;
-    }
 
     //no room in oft or fdt
-    if (i == SOS_MAX_FILES || fd == PROCESS_MAX_FILES) {
+    if (i == SOS_MAX_FILES) {
         vfs_close(vn);
-        send_seL4_reply(reply_cap, fd);
+        send_seL4_reply(reply_cap, FT_ERR_OFT_FULL);
         return;
+    }
+
+    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
+        ++fd;
+    }  
+    if (fd == PROCESS_MAX_FILES) {
+        vfs_close(vn); 
+        send_seL4_reply(reply_cap, FT_ERR_FDT_FULL);  
     }
 
     file_handle* fh = malloc(sizeof(file_handle));
@@ -79,7 +83,7 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
         send_seL4_reply(reply_cap, fd);
         return;
     }
-    
+
     oft[i] = fh;
     as->file_table[fd] = i;
     fh->flags = mode;
@@ -95,22 +99,27 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file =  (int) seL4_GetMR(1);
-    int err = 0;
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
-    if (oft_index != INVALID_FD) {
-        file_handle* handle = oft[oft_index];
-        if (handle != NULL) {
-            handle->ref_count--;
-            if (handle->ref_count == 0) {
-                err = vfs_close(handle->vn);
-                free(oft[oft_index]);
-            }
-        }
-        as->file_table[file] = INVALID_FD;
-    } else {
-        err = -1;
+    if (oft_index == INVALID_FD) {
+        send_seL4_reply(reply_cap, oft_index);
+        return;
     }
+
+    file_handle* handle = oft[oft_index];
+    if (handle == NULL) {
+        send_seL4_reply(reply_cap, FT_ERR);
+        return;
+    }
+
+    handle->ref_count--;
+    int err = 0;
+    if (handle->ref_count == 0) {
+        err = vfs_close(handle->vn);
+        free(oft[oft_index]);
+    }
+
+    as->file_table[file] = INVALID_FD;
     /* Generate and send response */
     send_seL4_reply(reply_cap, err);
 }
@@ -132,7 +141,6 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
     /* Call the read vnode op */
     int bytes_read = handle->vn->ops->vfs_read(handle->vn, buf, nbyte);
-    printf("Read not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
     seL4_SetMR(0, bytes_read);
@@ -156,7 +164,6 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     /* 9242_TODO Turn the user ptr buff into a kernel ptr*/
     /* Call the write vnode op */
     int bytes_written = handle->vn->ops->vfs_write(handle->vn, buf, nbyte);  
-    printf("Write not implemented yet\n");
     /* Generate and send response */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
     seL4_SetMR(0, bytes_written);
@@ -174,18 +181,23 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[pos];
+    if (oft_index == INVALID_FD) {
+        send_seL4_reply(reply_cap, oft_index);
+        return;
+    }
     file_handle* handle = oft[oft_index];
-    /* 9242_TODO Turn the user ptr name into a kernel ptr*/
+    if (handle == NULL) {
+        send_seL4_reply(reply_cap, FT_ERR);
+        return;
+    }
     /* Call the getdirent vnode op */
-    int bytes_returned = handle->vn->ops->vfs_getdirent(oft_index, name, nbyte); 
-    printf("GetDirent not implemented yet\n");
+    int err = handle->vn->ops->vfs_getdirent(oft_index, name, nbyte); 
+
     /* Generate and send response */
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
-    seL4_SetMR(0,  bytes_returned);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, err);
 }
 
 
@@ -205,10 +217,7 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     /* Call the stat vnode op */
     //int return_val = handle->vn->ops->vfs_getdirent(oft_index, buf, nbyte);
     int return_val = 0;
-    //printf("Stat not implemented yet\n");
+
     /* Generate and send response */
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
-    seL4_SetMR(0,  return_val);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, return_val);
 }

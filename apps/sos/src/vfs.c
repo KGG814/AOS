@@ -24,9 +24,9 @@ vnode* vfs_open(const char* path, fmode_t mode) {
         if (mode & FM_READ) { 
             if (console_status == CONSOLE_READ_OPEN) {
                 return NULL;
-            } else {
-                console_status = CONSOLE_READ_CLOSE;
-            }
+            } 
+
+            console_status = CONSOLE_READ_CLOSE;
         }
 
         //console wasn't open. make a new vnode
@@ -89,4 +89,8 @@ int con_read(vnode *vn, const char *buf, size_t nbyte) {
 int con_write(vnode *vn, const char *buf, size_t nbyte) {
     int bytes = 0;
     return 0;//sos_write(buf, nbyte);
+}
+
+int con_getdirent(int pos, const char *name, size_t nbyte) {
+    return VFS_ERR_NOT_DIR;
 }

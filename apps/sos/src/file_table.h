@@ -6,6 +6,12 @@
 #include "vfs.h"
 #include "proc.h"
 
+#define INVALID_FD  (-1)
+
+#define FT_ERR             (-1)
+#define FT_ERR_OFT_FULL    (-2)
+#define FT_ERR_FDT_FULL    (-3)
+
 typedef struct _file_handle {
     int flags; //store flags here
     seL4_Word offset; //offset for reads/writes
@@ -14,6 +20,8 @@ typedef struct _file_handle {
     //possibly need a lock for this structure
     uint32_t ref_count;
 } file_handle;
+
+
 
 int oft_init(void);
 
