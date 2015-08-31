@@ -13,9 +13,7 @@ int sos_sys_open(const char *path, fmode_t mode) {
     seL4_SetMR(1, (seL4_Word)path);
     seL4_SetMR(2, mode);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
 
 int sos_sys_close(int file) {
@@ -25,9 +23,7 @@ int sos_sys_close(int file) {
     seL4_SetMR(SYSCALL, CLOSE);
     seL4_SetMR(1, file);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
 
 int sos_sys_read(int file, char *buf, size_t nbyte) {
@@ -39,9 +35,7 @@ int sos_sys_read(int file, char *buf, size_t nbyte) {
     seL4_SetMR(1, (seL4_Word)buf);
     seL4_SetMR(1, nbyte);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
 
 int sos_sys_write(int file, const char *buf, size_t nbyte) {
@@ -53,9 +47,7 @@ int sos_sys_write(int file, const char *buf, size_t nbyte) {
     seL4_SetMR(1, (seL4_Word)buf);
     seL4_SetMR(1, nbyte);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
 
 int sos_getdirent(int pos, char *name, size_t nbyte) {
@@ -67,9 +59,7 @@ int sos_getdirent(int pos, char *name, size_t nbyte) {
     seL4_SetMR(1, (seL4_Word)name);
     seL4_SetMR(1, nbyte);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
 
 int sos_stat(const char *path, sos_stat_t *buf) {
@@ -80,7 +70,5 @@ int sos_stat(const char *path, sos_stat_t *buf) {
     seL4_SetMR(1, (seL4_Word)path);
     seL4_SetMR(2, (seL4_Word)buf);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    int err = seL4_GetMR(0);
-    (void)err;
-    return 0;
+    return seL4_GetMR(0);
 }
