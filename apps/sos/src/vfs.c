@@ -43,7 +43,7 @@ struct serial *serial_handle = NULL;
 
 void vfs_init(struct serial *s) {
     serial_handle = s;
-    serial_register_handler(s, &console_cb); 
+    serial_register_handler(s, console_cb); 
 }
     
 vnode* vfs_open(const char* path, fmode_t mode) {
