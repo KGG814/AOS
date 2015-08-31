@@ -104,18 +104,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
     
     switch (syscall_number) {
         case SOS_SYSCALL0: {
-            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-            seL4_SetMR(0, 0);
-            seL4_Send(reply_cap, reply);
-            cspace_free_slot(cur_cspace, reply_cap);
+            handle_syscall0(reply_cap, as);
             break;
         } case SOS_WRITE: {
-            //dprintf(0, "syscall: thread made syscall SOS_WRITE!\n");
-            //dprintf(0, "num_args: %d\n", num_args);
-            // Send an acknowledgement
-            // Initialise serial comms
-            // Array for storing the data
-            //dprintf(0, "\ntimestamp: 0x%016llx\n", time_stamp()); 
             seL4_SetMR(0, 0);
             char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
             // Go through each message and transfer the word
@@ -130,13 +121,13 @@ void handle_syscall(seL4_Word badge, int num_args) {
             cspace_free_slot(cur_cspace, reply_cap);
             break;
         } case TIMESTAMP: {
-            handle_time_stamp(reply_cap);
+            handle_time_stamp(reply_cap, as);
             break;
         } case BRK: {
             handle_brk(reply_cap, as);      
             break;
         } case USLEEP: {
-            handle_usleep(reply_cap);
+            handle_usleep(reply_cap, as);
             break;
         } case OPEN: {
             handle_open(reply_cap, as);
