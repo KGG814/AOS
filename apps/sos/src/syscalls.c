@@ -1,4 +1,6 @@
 #include "syscalls.h"
+#include "file_table.h"
+#include "pagetable.h"
 
 #include <clock/clock.h>
 #include <sos.h>
@@ -19,6 +21,136 @@ void handle_syscall0(seL4_CPtr reply_cap, addr_space* as) {
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
+/* Open file and return file descriptor, -1 if unsuccessful
+ * (too many open files, console already open for reading).
+ * A new file should be created if 'path' does not already exist.
+ * A failed attempt to open the console for reading (because it is already
+ * open) will result in a context switch to reduce the cost of busy waiting
+ * for the console.res
+ * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
+ */
+void handle_open(seL4_CPtr reply_cap, addr_space* as) {
+
+    /* Get syscall arguments */
+    char *path =  (char*)        seL4_GetMR(1);
+    fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
+    dprintf(0, "Opening %s with mode %d\n", (char*)k_ptr, mode);
+    int fd = fh_open(as, (char*)k_ptr, mode);
+    send_seL4_reply(reply_cap, fd);
+}
+
+/* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
+*/
+void handle_close(seL4_CPtr reply_cap, addr_space* as) {
+    /* Get syscall arguments */
+    int file =  (int) seL4_GetMR(1);
+    /* Get the vnode using the process filetable and OFT*/
+    send_seL4_reply(reply_cap, fd_close(as, file));
+}
+
+
+/* Read from an open file, into "buf", max "nbyte" bytes.
+ * Returns the number of bytes read.
+ * Will block when reading from console and no input is presently
+ * available. Returns -1 on error (invalid file).
+ */
+void handle_read(seL4_CPtr reply_cap, addr_space* as) {
+    /* Get syscall arguments */
+    int file         =  (int)          seL4_GetMR(1);
+    char* buf        =  (char*)        seL4_GetMR(2);
+    size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[file];
+    file_handle* handle = oft[oft_index];
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)buf, nbyte, as);
+    /* Turn the user ptr buff into a kernel ptr */
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
+    /* Call the read vnode op */
+    dprintf(0, "Trying to read from fd %d: %d bytes into %p.\n", file, nbyte, buf);
+
+    handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap);
+    
+    return;
+}
+
+/* Write to an open file, from "buf", max "nbyte" bytes.
+ * Returns the number of bytes written. <nbyte disk is full.
+ * Returns -1 on error (invalid file).
+ */
+void handle_write(seL4_CPtr reply_cap, addr_space* as) {
+    /* Get syscall arguments */
+    int file         =  (int)          seL4_GetMR(1);
+    char* buf  =  (char*)        seL4_GetMR(2);
+    size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    /* Get the vnode using the process filetable and OFT*/
+    dprintf(0, "handle_write: file: %d, buf: %p, nbyte: %d\n", file, buf, nbyte);
+    int oft_index = as->file_table[file];
+    file_handle* handle = oft[oft_index];
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)buf, nbyte, as);
+    /* Turn the user ptr buff into a kernel ptr */
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
+    dprintf(0, "Trying to write: %.*s\n", nbyte, k_ptr);
+    /* Call the write vnode op */
+    int bytes_written = handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte);  
+    /* Generate and send response */
+    send_seL4_reply(reply_cap, bytes_written);
+}
+
+
+/* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
+ * Returns number of bytes returned, zero if "pos" is next free entry,
+ * -1 if error (non-existent entry).
+ */
+void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
+    /* Get syscall arguments */
+    int pos          =  (int)          seL4_GetMR(1);
+    char* name       =  (char*)        seL4_GetMR(2);
+    size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+
+    /* Get the vnode using the process filetable and OFT*/
+    int oft_index = as->file_table[pos];
+    if (oft_index == INVALID_FD) {
+        send_seL4_reply(reply_cap, oft_index);
+        return;
+    }
+    file_handle* handle = oft[oft_index];
+    if (handle == NULL) {
+        send_seL4_reply(reply_cap, FT_ERR);
+        return;
+    }
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)name, nbyte, as);
+    /* Turn the user ptr buff into a kernel ptr */
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
+    /* Call the getdirent vnode op */
+    int err = vfs_getdirent(oft_index, (char*)k_ptr, nbyte); 
+
+    /* Generate and send response */
+    send_seL4_reply(reply_cap, err);
+}
+
+
+/* Returns information about file "path" through "buf".
+ * Returns 0 if successful, -1 otherwise (invalid name).
+ */
+void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
+    /* Get syscall arguments */
+    const char* path =  (char*)        seL4_GetMR(1);
+    sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
+    /* Check page boundaries and map in pages if necessary */
+    user_buffer_check((seL4_Word)path, 256, as);  
+    user_buffer_check((seL4_Word)buf, sizeof(sos_stat_t), as);  
+    /* Turn the user ptrs path and buf into kernel ptrs*/
+    seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, as);
+    seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, as);
+    /* Call the stat vnode op */
+    int return_val = vfs_stat((char*)k_ptr1, (char*)k_ptr2);
+    /* Generate and send response */
+    send_seL4_reply(reply_cap, return_val);
+}
 
 void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
 	seL4_Word newbrk = seL4_GetMR(1);
@@ -94,6 +226,12 @@ void handle_usleep(seL4_CPtr reply_cap, addr_space* as) {
 }
 
 
+void send_seL4_reply(seL4_CPtr reply_cap, int ret) {
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, ret);
+    seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
+}
 
 /*************************************************************************/
 /*                                   */

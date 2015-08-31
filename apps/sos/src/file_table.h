@@ -6,27 +6,30 @@
 #include "vfs.h"
 #include "proc.h"
 
+#define SOS_MAX_FILES 2048
+
 #define INVALID_FD  (-1)
 
 #define FT_ERR             (-1)
 #define FT_ERR_OFT_FULL    (-2)
 #define FT_ERR_FDT_FULL    (-3)
 
-typedef struct _file_handle {
+typedef struct _file_handle file_handle;
+file_handle* oft[SOS_MAX_FILES]; 
+
+struct _file_handle {
     int flags; //store flags here
     seL4_Word offset; //offset for reads/writes
     vnode *vn;
 
     //possibly need a lock for this structure
     uint32_t ref_count;
-} file_handle;
-
-
-
-int oft_init(void);
-
-int sos_sys_write(int file, const char *buf, size_t nbyte);
+};
 
 int fdt_init(addr_space *as);
 int oft_init(void);
+
+int fh_open(addr_space *as, char *path, fmode_t mode); 
+int fd_close(addr_space* as, int file);
+
 #endif /*_FILE_TABLE_H_*/

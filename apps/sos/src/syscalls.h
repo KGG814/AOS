@@ -89,6 +89,8 @@ void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as);
  */
 void handle_usleep(seL4_CPtr reply_cap, addr_space* as);
 
+//convenience functino for sending replies
+void send_seL4_reply(seL4_CPtr reply_cap, int ret);
 
 
 /*************************************************************************/
