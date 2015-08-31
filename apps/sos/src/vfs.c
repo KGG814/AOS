@@ -7,8 +7,8 @@
 
 #include "vfs.h"
 
-#define CONSOLE_READ_OPEN   0
-#define CONSOLE_READ_CLOSE  1
+#define CONSOLE_READ_OPEN   1
+#define CONSOLE_READ_CLOSE  0
 
 #define CONSOLE_BUFFER_SIZE 4096
 
@@ -30,7 +30,7 @@ vnode* vnode_list = NULL;
 int con_read(vnode *vn, const char *buf, size_t nbyte);
 int con_write(vnode *vn, const char *buf, size_t nbyte);
 
-vnode_ops console_ops = {&con_write, &con_read, NULL, NULL};
+vnode_ops console_ops = {&con_write, &con_read};
 vnode_ops nfs_ops;
 
 struct serial *serial_handle = NULL;
@@ -102,6 +102,21 @@ int vfs_close(vnode *vn) {
     return 0;
 }
 
+
+int vfs_getdirent(int pos, const char *name, size_t nbyte) {
+    return VFS_ERR_NOT_DIR;
+}
+
+int vfs_stat(const char *path, sos_stat_t *buf) {
+    /*if (strcmp(path, "console") == 0) {
+        buf->st_type = ST_SPECIAL;
+        buf->st_mode = FM_WRITE | FM_READ;
+        buf->st_size = 0;
+        buf->st_ctime
+    }*/
+    return VFS_ERR;
+}
+
 int con_read(vnode *vn, const char *buf, size_t nbyte) {
     if (vn == NULL || !(vn->fmode & FM_READ)) {
         return VFS_ERR;
@@ -128,10 +143,6 @@ int con_write(vnode *vn, const char *buf, size_t nbyte) {
 
     int bytes = serial_send(serial_handle, buf, nbyte);
     return bytes;//sos_write(buf, nbyte);
-}
-
-int con_getdirent(int pos, const char *name, size_t nbyte) {
-    return VFS_ERR_NOT_DIR;
 }
 
 void console_cb(struct serial* s, char c) {

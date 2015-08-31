@@ -15,6 +15,8 @@ typedef struct _vnode_ops vnode_ops;
 /* function declarations for functions that aren't fs specific */
 vnode*  vfs_open(const char* path, fmode_t mode);
 int     vfs_close(vnode *vn);
+int     vfs_getdirent(int pos, const char *name, size_t nbyte);
+int     vfs_stat(const char *path, sos_stat_t *buf); 
 
 void vfs_init(struct serial *s);
 
@@ -42,8 +44,7 @@ struct _vnode_ops {
     /* function pointers for fs specific functions */
     int (*vfs_write)(vnode *vn, const char *buf, size_t nbyte);
     int (*vfs_read)(vnode *vn, const char *buf, size_t nbyte);
-    int (*vfs_getdirent)(int pos, const char *name, size_t nbyte);
-    int (*vfs_stat)(const char *path, sos_stat_t *buf); 
+
 };
 
 #endif /* _VFS_H_ */

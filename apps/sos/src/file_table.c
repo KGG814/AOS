@@ -5,7 +5,9 @@
 #include "vfs.h"
 #include "pagetable.h"
 #include <sel4/types.h>
+#include <sys/debug.h>
 
+#define verbose 5
 #define SOS_MAX_FILES 2048
 
 
@@ -62,10 +64,9 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
-    
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    int fd = fh_open(as, k_ptr, mode);
-
+    dprintf(0, "Opening %s\n", (char*)k_ptr);
+    int fd = fh_open(as, (char*)k_ptr, mode);
     assert(fd == 3);
     send_seL4_reply(reply_cap, fd);
 }
@@ -103,7 +104,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file =  (int) seL4_GetMR(1);
     /* Get the vnode using the process filetable and OFT*/
-    send_seL4_reply(reply_cap, fd_close(file, as));
+    send_seL4_reply(reply_cap, fd_close(as, file));
 }
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
@@ -185,7 +186,7 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
     /* Call the getdirent vnode op */
-    int err = handle->vn->ops->vfs_getdirent(oft_index, (char*)k_ptr, nbyte); 
+    int err = vfs_getdirent(oft_index, (char*)k_ptr, nbyte); 
 
     /* Generate and send response */
     send_seL4_reply(reply_cap, err);
@@ -200,16 +201,13 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     const char* path =  (char*)        seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
     /* Check page boundaries and map in pages if necessary */
-    //user_buffer_check((seL4_Word)path, nbyte, as);  
-    //user_buffer_check((seL4_Word)buf, nbyte, as);  
+    user_buffer_check((seL4_Word)path, 256, as);  
+    user_buffer_check((seL4_Word)buf, sizeof(sos_stat_t), as);  
     /* Turn the user ptrs path and buf into kernel ptrs*/
     seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, as);
     seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, as);
-    /* 9242_TODO Find the file in the file table */
     /* Call the stat vnode op */
-    //int return_val = handle->vn->ops->vfs_getdirent(oft_index, buf, nbyte);
-    int return_val = 0;
-
+    int return_val = vfs_stat((char*)k_ptr1, (char*)k_ptr2);
     /* Generate and send response */
     send_seL4_reply(reply_cap, return_val);
 }
