@@ -3,12 +3,25 @@
 #include <sos.h>
 #include <assert.h>
 
+#include <serial/serial.h>
+
 #include "vfs.h"
 
 #define CONSOLE_READ_OPEN   0
 #define CONSOLE_READ_CLOSE  1
 
+#define CONSOLE_BUFFER_SIZE 4096
+
+//console stuff. possibly move this to its own file
 int console_status = CONSOLE_READ_CLOSE;
+
+char console_buf[CONSOLE_BUFFER_SIZE];
+int console_data_size = 0;
+char *console_data_start = console_buf;
+char *console_data_end = console_buf;
+const char *console_buf_end = console_buf + CONSOLE_READ_CLOSE - 1;
+
+void console_cb(struct serial* s, char c); 
 
 //linked list for vnodes
 //TODO change this to something sensible
@@ -20,6 +33,13 @@ int con_write(vnode *vn, const char *buf, size_t nbyte);
 vnode_ops console_ops = {&con_write, &con_read, NULL, NULL};
 vnode_ops nfs_ops;
 
+struct serial *serial_handle = NULL;
+
+void vfs_init(struct serial *s) {
+    serial_handle = s;
+    serial_register_handler(s, &console_cb); 
+}
+    
 vnode* vfs_open(const char* path, fmode_t mode) {
     vnode *vn = NULL;
     if (strcmp(path, "console") == 0) {         
@@ -83,16 +103,45 @@ int vfs_close(vnode *vn) {
 }
 
 int con_read(vnode *vn, const char *buf, size_t nbyte) {
+    if (vn == NULL || !(vn->fmode & FM_READ)) {
+        return VFS_ERR;
+    }
+    
     int bytes = 0;
-    /**/
+    char *cur = (char *) buf;
+    while (bytes != nbyte) {
+        while (!console_data_size); //wait for data to be entered
+        *cur++ = *console_data_start++; 
+        if (console_data_start == console_buf_end) {
+            console_data_start = console_buf;
+        } 
+        --console_data_size;
+    }
+
     return bytes;
 }
 
 int con_write(vnode *vn, const char *buf, size_t nbyte) {
-    int bytes = 0;
-    return 0;//sos_write(buf, nbyte);
+    if (vn == NULL || !(vn->fmode & FM_WRITE)) {
+        return VFS_ERR;
+    }
+
+    int bytes = serial_send(serial_handle, buf, nbyte);
+    return bytes;//sos_write(buf, nbyte);
 }
 
 int con_getdirent(int pos, const char *name, size_t nbyte) {
     return VFS_ERR_NOT_DIR;
 }
+
+void console_cb(struct serial* s, char c) {
+    if (console_data_start == console_data_end && console_data_size != 0) {
+        return; //buffer full
+    }
+    *console_data_end++ = c;
+    console_data_size++;
+    if (console_data_end == console_buf_end) {
+        console_data_end = console_buf;
+    }
+} 
+

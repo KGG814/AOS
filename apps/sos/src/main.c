@@ -36,6 +36,7 @@
 #include "ft_tests.h"
 #include "mapping.h"
 #include "file_table.h"
+#include "vfs.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -528,6 +529,8 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 	serial_handler = serial_init();
+    vfs_init(serial_handler);
+
     start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
 
     oft_init();

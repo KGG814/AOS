@@ -7,6 +7,7 @@
 
 #include <sos.h>
 #include <clock/clock.h>
+#include <serial/serial.h>
 
 typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
@@ -14,6 +15,8 @@ typedef struct _vnode_ops vnode_ops;
 /* function declarations for functions that aren't fs specific */
 vnode*  vfs_open(const char* path, fmode_t mode);
 int     vfs_close(vnode *vn);
+
+void vfs_init(struct serial *s);
 
 //store vnodes as a linked list for now
 struct _vnode {
