@@ -4,12 +4,14 @@
 #include <assert.h>
 
 #include <serial/serial.h>
+#include <cspace/cspace.h>
 
 #include "vfs.h"
 
 #define CONSOLE_READ_OPEN   1
 #define CONSOLE_READ_CLOSE  0
 
+#define READ_CB_DELAY 1000000
 #define CONSOLE_BUFFER_SIZE 4096
 
 //console stuff. possibly move this to its own file
@@ -27,10 +29,14 @@ void console_cb(struct serial* s, char c);
 //TODO change this to something sensible
 vnode* vnode_list = NULL;
 
-int con_read(vnode *vn, const char *buf, size_t nbyte);
+void con_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap);
 int con_write(vnode *vn, const char *buf, size_t nbyte);
 
-vnode_ops console_ops = {&con_write, &con_read};
+vnode_ops console_ops = 
+{
+    .vfs_write  = &con_write, 
+    .vfs_read   = &con_read
+};
 vnode_ops nfs_ops;
 
 struct serial *serial_handle = NULL;
@@ -118,29 +124,79 @@ int vfs_stat(const char *path, sos_stat_t *buf) {
     return VFS_ERR;
 }
 
-int con_read(vnode *vn, const char *buf, size_t nbyte) {
+typedef struct _con_read_args {
+    char *buf;
+    size_t nbyte;
+    seL4_CPtr reply_cap;
+} con_read_args;
+
+void read_reply_cb(seL4_Uint32 id, void *data) {
+    int bytes = 0;
+    con_read_args *args = (con_read_args *) data;
+    char* cur = args->buf;
+    size_t nbyte = args->nbyte;
+    seL4_CPtr reply_cap = args->reply_cap;
+
+    if (console_data_size) { 
+        while (bytes < nbyte && console_data_size) {
+            //assert(!"got into copy loop");
+            *cur++ = *console_data_start++; 
+            if (console_data_start == console_buf_end) {
+                console_data_start = console_buf;
+            } 
+            --console_data_size;
+            ++bytes;
+        }
+        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+        seL4_SetMR(0, bytes);
+        seL4_Send(reply_cap, reply);
+        cspace_free_slot(cur_cspace, reply_cap);
+        free(args);
+    } else {
+        register_timer(READ_CB_DELAY, &read_reply_cb, args);
+    }
+
+}
+
+void con_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
     //assert(!"trying to read!");
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
-        return VFS_ERR;
+        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+        seL4_SetMR(0, VFS_ERR);
+        seL4_Send(reply_cap, reply);
+        cspace_free_slot(cur_cspace, reply_cap);
     }
     
     int bytes = 0;
     char *cur = (char *) buf;
-    while (!console_data_size) {
+    if (console_data_size) { 
+        while (bytes < nbyte && console_data_size) {
+            //assert(!"got into copy loop");
+            *cur++ = *console_data_start++; 
+            if (console_data_start == console_buf_end) {
+                console_data_start = console_buf;
+            } 
+            --console_data_size;
+            ++bytes;
+        }
+        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+        seL4_SetMR(0, bytes);
+        seL4_Send(reply_cap, reply);
+        cspace_free_slot(cur_cspace, reply_cap);
+    } else {
+        con_read_args *args = malloc(sizeof(con_read_args));
+        if (args == NULL) {
+            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+            seL4_SetMR(0, bytes);
+            seL4_Send(reply_cap, reply);
+            cspace_free_slot(cur_cspace, reply_cap);
+        }
+        args->buf = cur;
+        args->nbyte = nbyte;
+        args->reply_cap = reply_cap;
 
+        register_timer(READ_CB_DELAY, &read_reply_cb, args);
     }
-
-    while (bytes < nbyte && console_data_size) {
-        //assert(!"got into copy loop");
-        *cur++ = *console_data_start++; 
-        if (console_data_start == console_buf_end) {
-            console_data_start = console_buf;
-        } 
-        --console_data_size;
-        ++bytes;
-    }
-
-    return bytes;
 }
 
 int con_write(vnode *vn, const char *buf, size_t nbyte) {

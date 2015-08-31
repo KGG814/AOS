@@ -106,6 +106,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     send_seL4_reply(reply_cap, fd_close(as, file));
 }
 
+
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
  * Will block when reading from console and no input is presently
@@ -125,14 +126,17 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
     dprintf(0, "Trying to read from fd %d: %d bytes into %p.\n", file, nbyte, buf);
-    int bytes_read = handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte);
-    /* Generate and send response */
+
+    handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap);
+    
+    return;
+    /* 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); 
     seL4_SetMR(0, bytes_read);
     seL4_Send(reply_cap, reply);
     cspace_free_slot(cur_cspace, reply_cap);
+    */
 }
-
 
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
