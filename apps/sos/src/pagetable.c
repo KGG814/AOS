@@ -88,7 +88,6 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, addr_space* as) {
 }
 
 void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
-    dprintf(0, "user_ptr = %p\n", user_ptr);
     seL4_Word start_page = user_ptr & PAGE_MASK;
     seL4_Word end_page = (user_ptr + nbyte) & PAGE_MASK;
     for (seL4_Word curr_page = start_page; curr_page <= end_page; curr_page += PAGE_SIZE) {
@@ -99,7 +98,6 @@ void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
             as->page_directory[pt_top][pt_bot] != 0) {
             continue;
         }
-        dprintf(0,"Buffer didn't real, %p\n", curr_page);
         map_if_valid(curr_page, as);
     }
 }
@@ -109,7 +107,6 @@ void map_if_valid(seL4_Word vaddr, addr_space* as) {
     int ft_index = frame_alloc(&page_vaddr, KMAP);
     assert(ft_index > FT_OK);
     /* Stack pages*/
-    dprintf(0, "Trying to map %p.\n", vaddr);
 
     int err = 0;
     if ((vaddr >= PROCESS_STACK_BOT && vaddr < PROCESS_STACK_TOP)) {
@@ -128,6 +125,6 @@ void map_if_valid(seL4_Word vaddr, addr_space* as) {
       frame_free(ft_index);
     }
     if (err) {
-        dprintf(0, "Something went wrong in map_if_valid %d\n", err);
+        dprintf(0, "Address %d was not in valid region\n", vaddr);
     }
 }

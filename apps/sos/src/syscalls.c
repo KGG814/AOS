@@ -35,7 +35,6 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    dprintf(0, "Opening %s with mode %d\n", (char*)k_ptr, mode);
     int fd = fh_open(as, (char*)k_ptr, mode);
     send_seL4_reply(reply_cap, fd);
 }
@@ -68,7 +67,6 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
-    dprintf(0, "Trying to read from fd %d: %d bytes into %p.\n", file, nbyte, buf);
 
     handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap);
     
@@ -85,14 +83,12 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     char* buf  =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
     /* Get the vnode using the process filetable and OFT*/
-    dprintf(0, "handle_write: file: %d, buf: %p, nbyte: %d\n", file, buf, nbyte);
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
     /* Check page boundaries and map in pages if necessary */
     user_buffer_check((seL4_Word)buf, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
-    dprintf(0, "Trying to write: %.*s\n", nbyte, k_ptr);
     /* Call the write vnode op */
     int bytes_written = handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte);  
     /* Generate and send response */
@@ -161,8 +157,8 @@ void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
-        dprintf(0, "as->brk: %p\n", as->brk);
         as->brk = newbrk;
+        dprintf(0, "as->brk: %p\n", as->brk);
     } else {
         ret = 0;
     }
