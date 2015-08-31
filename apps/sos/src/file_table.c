@@ -141,9 +141,11 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
 void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file         =  (int)          seL4_GetMR(1);
-    const char* buf  =  (char*)        seL4_GetMR(2);
+    char* buf  =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
     /* Get the vnode using the process filetable and OFT*/
+    dprintf(0, "handle_write: file: %d, buf: %p, nbyte: %d\n", file, buf, nbyte);
+    dprintf(0, "Trying to write: %.*s\n", buf, nbyte);
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
     /* Check page boundaries and map in pages if necessary */

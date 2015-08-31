@@ -131,6 +131,7 @@ int con_read(vnode *vn, const char *buf, size_t nbyte) {
             console_data_start = console_buf;
         } 
         --console_data_size;
+        ++bytes;
     }
 
     return bytes;
@@ -140,8 +141,8 @@ int con_write(vnode *vn, const char *buf, size_t nbyte) {
     if (vn == NULL || !(vn->fmode & FM_WRITE)) {
         return VFS_ERR;
     }
-
-    int bytes = serial_send(serial_handle, buf, nbyte);
+    char *c = (char *) buf;
+    int bytes = serial_send(serial_handle, c, nbyte);
     return bytes;//sos_write(buf, nbyte);
 }
 
