@@ -102,18 +102,6 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-
-    /* Get the vnode using the process filetable and OFT*/
-    int oft_index = as->file_table[pos];
-    if (oft_index == INVALID_FD) {
-        send_seL4_reply(reply_cap, oft_index);
-        return;
-    }
-    file_handle* handle = oft[oft_index];
-    if (handle == NULL) {
-        send_seL4_reply(reply_cap, FT_ERR);
-        return;
-    }
     /* Check page boundaries and map in pages if necessary */
     user_buffer_check((seL4_Word)name, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
