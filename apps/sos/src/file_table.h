@@ -18,7 +18,7 @@ typedef struct _file_handle file_handle;
 file_handle* oft[SOS_MAX_FILES]; 
 
 struct _file_handle {
-    seL4_Word offset; //offset for reads/writes
+    int offset; //offset for reads/writes
     vnode *vn;
 
     //possibly need a lock for this structure

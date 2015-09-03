@@ -67,7 +67,7 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
 
-    handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap);
+    handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap, &(handle->offset));
     
     return;
 }
@@ -89,7 +89,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the write vnode op */
-    handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte, reply_cap);  
+    handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte, reply_cap, &(handle->offset));  
 }
 
 
@@ -102,12 +102,13 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    int oft_index = 0;
     /* Check page boundaries and map in pages if necessary */
     user_buffer_check((seL4_Word)name, nbyte, as);
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
     /* Call the getdirent vnode op */
-    vfs_getdirent(oft_index, (char*)k_ptr, nbyte, reply_cap); 
+    vfs_getdirent(pos, (char*)k_ptr, nbyte, reply_cap); 
 }
 
 

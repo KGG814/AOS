@@ -8,6 +8,7 @@
 
 #include "vfs.h"
 #include "syscalls.h"
+#include "file_table.h"
 
 #define CONSOLE_READ_OPEN   1
 #define CONSOLE_READ_CLOSE  0
@@ -33,15 +34,17 @@ fhandle_t root_directory;
 
 //console specific stuff
 void serial_cb(struct serial* s, char c);
-void con_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap);
-void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap);
-void file_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap);
-void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap);
+void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
+void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
+void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
+void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
 void con_read_reply_cb(seL4_Uint32 id, void *data);
-void file_open_cb (uintptr_t token, enum nfs_stat status, fhandle_t* fh, fattr_t* fattr);
-
+void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
+void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 typedef struct _con_read_args con_read_args;
 typedef struct _file_open_args file_open_args;
+typedef struct _file_read_args file_read_args;
+
 vnode_ops console_ops = 
 {
     .vfs_write  = &con_write, 
@@ -64,6 +67,14 @@ struct _con_read_args {
 struct _file_open_args {
     vnode* vn;
     addr_space* as;
+    seL4_CPtr reply_cap;
+};
+
+struct _file_read_args {
+    vnode* vn;
+    seL4_CPtr reply_cap;
+    char* buf;
+    int* offset;
 };
 
 vnode_ops nfs_ops;
@@ -120,10 +131,9 @@ vnode* vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_
         file_open_args *args = malloc(sizeof(file_open_args));
         args->vn = vn_callback;
         args->as = as;
+        args->reply_cap = reply_cap;
         //set fields
         vn_callback->fmode = mode;
-        //Put the cap here to reply on, will be replaced by fs data once it's received 
-        vn_callback->fs_data = (void*)reply_cap;
         //insert into linked list
         vn_callback->next = vnode_list;
         vnode_list = vn_callback;
@@ -177,7 +187,7 @@ int vfs_stat(const char *path, sos_stat_t *buf, seL4_CPtr reply_cap) {
     return VFS_ERR;
 }
 
-void con_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
+void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     //assert(!"trying to read!");
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
@@ -208,7 +218,7 @@ void con_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
     }
 }
 
-void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
+void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
         return;
     }
@@ -254,20 +264,25 @@ void con_read_reply_cb(seL4_Uint32 id, void *data) {
 }
 
 
-void file_read(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
-    /* 9242_TODO Callback */
+void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
+    file_read_args* args = malloc(sizeof(file_read_args));
+    args->vn = vn;
+    args->reply_cap = reply_cap;
+    args->buf = buf;
+    args->offset = offset;
+    nfs_read(vn->fs_data, *offset, nbyte, file_read_cb, (uintptr_t)args);
 }
 
-void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap) {
+void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     /* 9242_TODO Callback */
 }
 
 // Set up vnode and filetable
-void file_open_cb (uintptr_t token, enum nfs_stat status, fhandle_t* fh, fattr_t* fattr) {
+void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr) {
     file_open_args* args = (file_open_args*) token;
     vnode* vn = args->vn;
     if (status != NFS_OK) {
-        send_seL4_reply((seL4_CPtr)vn->fs_data, -1);
+        send_seL4_reply(args->reply_cap, -1);
         return;
     }
     vn->fs_data = fh;
@@ -280,5 +295,15 @@ void file_open_cb (uintptr_t token, enum nfs_stat status, fhandle_t* fh, fattr_t
 
 }
 
-typedef void (*nfs_lookup_cb_t)(uintptr_t token, enum nfs_stat status, 
-                                fhandle_t* fh, fattr_t* fattr);
+void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
+    file_read_args* args = (file_read_args*) token;
+    vnode* vn = args->vn;
+    if (status != NFS_OK) {
+        send_seL4_reply(args->reply_cap, -1);
+        return;
+    }
+    vn->atime = fattr->atime;
+    memcpy(args->buf, data, count);
+    *(args->offset) += count;
+    send_seL4_reply((seL4_CPtr)vn->fs_data, count);
+}
