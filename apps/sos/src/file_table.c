@@ -1,10 +1,11 @@
-#include <stdlib.h>
 #include <sos.h>
 #include "file_table.h"
 #include "vfs.h"
 #include "pagetable.h"
 #include <sel4/types.h>
 #include <sys/debug.h>
+#include <stdlib.h>
+#include "syscalls.h"
 
 #define verbose 5
 
@@ -23,7 +24,7 @@ int fdt_init(addr_space *as) {
         as->file_table[i] = INVALID_FD;
     }
     //open stdin, stdout, stderr
-    if (fh_open(as, "console", O_WRONLY) != 0) {
+    /*if (fh_open(as, "console", O_WRONLY) != 0) {
         return -1;
     }
     if (fh_open(as, "console", O_WRONLY) != 1) {
@@ -34,52 +35,28 @@ int fdt_init(addr_space *as) {
         fd_close(as, 0);
         fd_close(as, 1);
         return -1;
-    }
+    }*/
     return 0;
 }
 
 
-int fh_open(addr_space *as, char *path, fmode_t mode) {
-    int fd = FT_ERR; //assume we have failed
+void fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     /* Turn the user ptr buff into a kernel ptr */
-    vnode* vn = vfs_open(path, mode);
+    vnode* vn = vfs_open(path, mode, as, reply_cap);
     if (vn == NULL) {
-        //failed      
-        return fd;
+        send_seL4_reply(reply_cap, FT_ERR);
+        return;
+    } else if (vn == (vnode*)CALLBACK) {
+        // Wait for callback
+        return;
     }
 
-    int i = 0;
-    while (oft[i] != NULL && i < SOS_MAX_FILES) {
-        ++i;
-    }
-
-    //no room in oft or fdt
-    if (i == SOS_MAX_FILES) {
+    int fd = add_fd(vn, as);
+    if (fd == -1) {
+        // Error, so delete vnode
         vfs_close(vn);
-        return FT_ERR_OFT_FULL;
     }
-
-    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
-        ++fd;
-    }  
-    if (fd == PROCESS_MAX_FILES) {
-        vfs_close(vn); 
-        return FT_ERR_FDT_FULL;
-    }
-
-    file_handle* fh = malloc(sizeof(file_handle));
-    if (fh == NULL) {
-        vfs_close(vn);
-        return FT_ERR;
-    }
-
-    oft[i] = fh;
-    as->file_table[fd] = i;
-    fh->flags = mode;
-    fh->offset = 0;
-    fh->vn = vn;
-    fh->ref_count = 0;
-    return fd;
+    send_seL4_reply(reply_cap, fd);
 } 
 
 int fd_close(addr_space* as, int file) {
@@ -109,3 +86,32 @@ int fd_close(addr_space* as, int file) {
     /* Generate and send response */
 }
 
+int add_fd(vnode* vn, addr_space* as) {
+    int i = 0;
+    while (oft[i] != NULL && i < SOS_MAX_FILES) {
+        ++i;
+    }
+
+    //no room in oft or fdt
+    if (i == SOS_MAX_FILES) {
+        return -1;
+    }
+    int fd = 0;
+    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
+        ++fd;
+    }  
+    if (fd == PROCESS_MAX_FILES) {
+        return -1;
+    }
+    
+    file_handle* fh = malloc(sizeof(file_handle));
+    if (fh == NULL) {
+        return -1;
+    }
+    oft[i] = fh;
+    as->file_table[fd] = i;
+    fh->offset = 0;
+    fh->vn = vn;
+    fh->ref_count = 0;
+    return i;
+}

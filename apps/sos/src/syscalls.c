@@ -35,8 +35,7 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    int fd = fh_open(as, (char*)k_ptr, mode);
-    send_seL4_reply(reply_cap, fd);
+    fh_open(as, (char*)k_ptr, mode, reply_cap);
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
@@ -90,9 +89,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the write vnode op */
-    int bytes_written = handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte);  
-    /* Generate and send response */
-    send_seL4_reply(reply_cap, bytes_written);
+    handle->vn->ops->vfs_write(handle->vn, (char*)k_ptr, nbyte, reply_cap);  
 }
 
 
@@ -122,10 +119,7 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
     /* Call the getdirent vnode op */
-    int err = vfs_getdirent(oft_index, (char*)k_ptr, nbyte); 
-
-    /* Generate and send response */
-    send_seL4_reply(reply_cap, err);
+    vfs_getdirent(oft_index, (char*)k_ptr, nbyte, reply_cap); 
 }
 
 
@@ -143,9 +137,8 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
     seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, as);
     seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the stat vnode op */
-    int return_val = vfs_stat((char*)k_ptr1, (char*)k_ptr2);
+    vfs_stat((char*)k_ptr1, (sos_stat_t*)k_ptr2, reply_cap);
     /* Generate and send response */
-    send_seL4_reply(reply_cap, return_val);
 }
 
 void handle_brk(seL4_CPtr reply_cap, addr_space* as) {

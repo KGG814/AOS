@@ -12,6 +12,7 @@
 #define FT_ERR              (-1)
 #define FT_NOT_INITIALISED  (-2)
 #define FT_NO_MEM           (-3)
+#define FT_CALLBACK			(-4)
 
 // Alloc options
 #define NOMAP				0
