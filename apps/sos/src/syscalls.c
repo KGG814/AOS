@@ -21,6 +21,26 @@ void handle_syscall0(seL4_CPtr reply_cap, addr_space* as) {
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
+void handle_sos_write(seL4_CPtr reply_cap, addr_space* as) {
+    /*
+    char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
+    // Go through each message and transfer the word
+    seL4_Word* currentWord = (seL4_Word*)data;
+    for (int i = 1; i <= num_args; i++) {
+        *currentWord = seL4_GetMR(i);
+        currentWord++;
+    }
+    serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
+    */
+
+    //this is now deprecated
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, -1);
+    seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
+
+}
+
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
  * A new file should be created if 'path' does not already exist.

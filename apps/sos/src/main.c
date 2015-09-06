@@ -106,22 +106,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
             handle_syscall0(reply_cap, as);
             break;
         } case SOS_WRITE: {
-            /*
-            seL4_SetMR(0, 0);
-            char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
-            // Go through each message and transfer the word
-            seL4_Word* currentWord = (seL4_Word*)data;
-            for (int i = 1; i <= num_args; i++) {
-                *currentWord = seL4_GetMR(i);
-                currentWord++;
-            }
-            serial_send(serial_handler, data, num_args*sizeof(seL4_Word));
-            seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
-            seL4_Send(reply_cap, reply2);
-            cspace_free_slot(cur_cspace, reply_cap);
-            */
-            //deprecated
-            send_seL4_reply(reply_cap, -1);
+            handle_sos_write(reply_cap, as);
             break;
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap, as);
