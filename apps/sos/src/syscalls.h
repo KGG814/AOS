@@ -2,6 +2,9 @@
 #define _SYSCALLS_H_
 #include "proc.h"
 
+//this is set to increase
+#define NUM_SYSCALLS 11
+
 
 void handle_brk(seL4_CPtr reply_cap, addr_space* as);
 

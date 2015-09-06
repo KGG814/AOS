@@ -61,7 +61,7 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
 void file_close(vnode *vn);
 
 void con_read_reply_cb(seL4_Uint32 id, void *data);
-void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
+void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 typedef struct _con_read_args con_read_args;
 typedef struct _file_open_args file_open_args;

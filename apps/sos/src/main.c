@@ -62,6 +62,21 @@ sync endpoint. The badge that we receive will
 extern char _cpio_archive[];
 const seL4_BootInfo* _boot_info;
 
+typedef void (* syscall_handler)(seL4_CPtr reply_cap, addr_space* as);
+    
+syscall_handler syscall_handlers[] = 
+{&handle_syscall0
+,&handle_sos_write
+,&handle_time_stamp
+,&handle_brk
+,&handle_usleep
+,&handle_open
+,&handle_close
+,&handle_read
+,&handle_write
+,&handle_getdirent
+,&handle_stat
+};
 struct {
 
     seL4_Word tcb_addr;
@@ -99,49 +114,12 @@ void handle_syscall(seL4_Word badge, int num_args) {
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
 
-    /* Process system call */
-    
-    switch (syscall_number) {
-        case SOS_SYSCALL0: {
-            handle_syscall0(reply_cap, as);
-            break;
-        } case SOS_WRITE: {
-            handle_sos_write(reply_cap, as);
-            break;
-        } case TIMESTAMP: {
-            handle_time_stamp(reply_cap, as);
-            break;
-        } case BRK: {
-            handle_brk(reply_cap, as);      
-            break;
-        } case USLEEP: {
-            handle_usleep(reply_cap, as);
-            break;
-        } case OPEN: {
-            handle_open(reply_cap, as);
-            break;
-        } case CLOSE: {
-            handle_close(reply_cap, as);
-            break;
-        } case READ: {
-            handle_read(reply_cap, as);
-            break;
-        } case WRITE: {
-            handle_write(reply_cap, as);
-            break;
-        } case GETDIRENT: {
-            handle_getdirent(reply_cap, as);
-            break;
-        } case STAT: {
-            handle_stat(reply_cap, as);
-            break;
-        } default: {
-            printf("Unknown syscall %d\n", syscall_number);
-            cspace_free_slot(cur_cspace, reply_cap);
-            /* we don't want to reply to an unknown syscall */
-        }
+    if (syscall_number < NUM_SYSCALLS) {
+        syscall_handlers[syscall_number](reply_cap, as);
+    } else {
+        printf("Unkwown syscall %d.\n", syscall_number);
+        cspace_free_slot(cur_cspace, reply_cap);
     }
-
 }
 
 void syscall_loop(seL4_CPtr ep) {
