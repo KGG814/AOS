@@ -56,7 +56,7 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 
 /*
  * Inject data into the given vspace.
- * TODO: Don't keep these pages mapped in
+ * 9242_TODO: Don't keep these pages mapped in
  */
 static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
                                     char *src, unsigned long segment_size,

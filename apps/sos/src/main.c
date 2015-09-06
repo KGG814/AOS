@@ -62,8 +62,6 @@ sync endpoint. The badge that we receive will
 extern char _cpio_archive[];
 const seL4_BootInfo* _boot_info;
 
-static struct serial *serial_handler;
-
 struct {
 
     seL4_Word tcb_addr;
@@ -108,6 +106,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
             handle_syscall0(reply_cap, as);
             break;
         } case SOS_WRITE: {
+            /*
             seL4_SetMR(0, 0);
             char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
             // Go through each message and transfer the word
@@ -120,6 +119,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
             seL4_MessageInfo_t reply2 = seL4_MessageInfo_new(0, 0, 0, 1);
             seL4_Send(reply_cap, reply2);
             cspace_free_slot(cur_cspace, reply_cap);
+            */
+            //deprecated
+            send_seL4_reply(reply_cap, -1);
             break;
         } case TIMESTAMP: {
             handle_time_stamp(reply_cap, as);
@@ -528,8 +530,7 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-	serial_handler = serial_init();
-    vfs_init(serial_handler);
+    vfs_init();
 
     start_timer(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
 

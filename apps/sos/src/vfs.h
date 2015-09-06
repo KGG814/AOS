@@ -1,16 +1,22 @@
 #ifndef _VFS_H_
 #define _VFS_H_ 
 
+//return codes
+#define VFS_OK              (0)
+
+//warning codes
+#define VFS_CALLBACK        (1)
+
 //error codes
 #define VFS_ERR             (-1) //generic error
 #define VFS_ERR_NOT_DIR     (-2) //given thing wasn't a directory
 
-//TODO get rid of this to actually use sos.h's conception of permissions
+//9242_TODO get rid of this to actually use sos.h's conception of permissions
 //instead of musl's
-#define O_ACCMODE 03
-#define O_RDONLY  00
-#define O_WRONLY  01
-#define O_RDWR    02
+#define O_ACCMODE (03)
+#define O_RDONLY  (00)
+#define O_WRONLY  (01)
+#define O_RDWR    (02)
 
 #define CALLBACK (-3)
 
@@ -24,12 +30,22 @@ typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
 
 /* function declarations for functions that aren't fs specific */
-vnode*  vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_cap);
-int     vfs_close(vnode *vn);
-int     vfs_getdirent(int pos, const char *name, size_t nbyte, seL4_CPtr reply_cap);
-int     vfs_stat(const char *path, sos_stat_t *buf, seL4_CPtr reply_cap); 
+vnode*  vfs_open(const char* path
+                ,fmode_t mode
+                ,addr_space *as
+                ,seL4_CPtr reply_cap
+                ,int *err);
+int     vfs_getdirent(int pos
+                     ,const char *name
+                     ,size_t nbyte
+                     ,seL4_CPtr reply_cap
+                     );
+int     vfs_stat(const char *path
+                ,sos_stat_t *buf
+                ,seL4_CPtr reply_cap
+                ); 
 
-void vfs_init(struct serial *s);
+void vfs_init(void);
 
 //store vnodes as a linked list for now
 struct _vnode {
@@ -50,12 +66,11 @@ struct _vnode {
     char name[];
 };
 
-/* 9242_TODO Change these so they take a vnode instead of a file desc */
 struct _vnode_ops {
     /* function pointers for fs specific functions */
     void (*vfs_write)(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
     void (*vfs_read)(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
-
+    int (*vfs_close)(vnode *vn);
 };
 
 #endif /* _VFS_H_ */

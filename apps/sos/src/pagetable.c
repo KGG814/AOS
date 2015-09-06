@@ -41,7 +41,7 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
 	if (as->page_directory[dir_index] == NULL) {
         index = frame_alloc(&temp, KMAP);
         as->page_directory[dir_index] = (seL4_Word*)temp;
-        assert(index > FT_OK);
+        assert(index > FRAMETABLE_OK);
 	}
 	/* Map into the sos page table 
        ft_index is the lower 20 bits */
@@ -93,7 +93,7 @@ void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
     for (seL4_Word curr_page = start_page; curr_page <= end_page; curr_page += PAGE_SIZE) {
         int pt_top = PT_TOP(curr_page);
         int pt_bot = PT_BOTTOM(curr_page);
-        //TODO: change this to check if it was swapped out as well
+        //9242_TODO: change this to check if it was swapped out as well
         if (as->page_directory[pt_top] != NULL && 
             as->page_directory[pt_top][pt_bot] != 0) {
             continue;
@@ -105,7 +105,7 @@ void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
 void map_if_valid(seL4_Word vaddr, addr_space* as) {
     seL4_Word page_vaddr;
     int ft_index = frame_alloc(&page_vaddr, KMAP);
-    assert(ft_index > FT_OK);
+    assert(ft_index > FRAMETABLE_OK);
     /* Stack pages*/
 
     int err = 0;

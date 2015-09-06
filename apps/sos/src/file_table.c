@@ -23,40 +23,44 @@ int fdt_init(addr_space *as) {
     for (int i = 0; i < PROCESS_MAX_FILES; i++) {
         as->file_table[i] = INVALID_FD;
     }
-    //open stdin, stdout, stderr
-    /*if (fh_open(as, "console", O_WRONLY) != 0) {
+
+    //open stdin as null
+    if (fh_open(as, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
         return -1;
     }
-    if (fh_open(as, "console", O_WRONLY) != 1) {
+
+    if (fh_open(as, "console", O_WRONLY, (seL4_CPtr) 0) != 1) {
         fd_close(as, 0);
         return -1;
     }
-    if (fh_open(as, "console", O_WRONLY) != 2) {
+
+    if (fh_open(as, "console", O_WRONLY, (seL4_CPtr) 0) != 2) {
         fd_close(as, 0);
         fd_close(as, 1);
         return -1;
-    }*/
+    }
     return 0;
 }
 
-
-void fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
-    /* Turn the user ptr buff into a kernel ptr */
-    vnode* vn = vfs_open(path, mode, as, reply_cap);
-    if (vn == NULL) {
-        send_seL4_reply(reply_cap, FT_ERR);
-        return;
-    } else if (vn == (vnode*)CALLBACK) {
+int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
+    
+    int err;
+    vnode* vn = vfs_open(path, mode, as, reply_cap, &err);
+    
+    if (vn == NULL || err < 0) {
+        return FILE_TABLE_ERR;
+    } else if (err == VFS_CALLBACK) {
         // Wait for callback
-        return;
+        return FILE_TABLE_CALLBACK;
     }
 
     int fd = add_fd(vn, as);
     if (fd == -1) {
         // Error, so delete vnode
-        vfs_close(vn);
+        vn->ops->vfs_close(vn);
     }
-    send_seL4_reply(reply_cap, fd);
+
+    return fd;
 } 
 
 int fd_close(addr_space* as, int file) {
@@ -66,18 +70,18 @@ int fd_close(addr_space* as, int file) {
     }
     int oft_index = as->file_table[file];
     if (oft_index == INVALID_FD) {
-        return FT_ERR;
+        return FILE_TABLE_ERR;
     }
 
     file_handle* handle = oft[oft_index];
     if (handle == NULL) {
-        return FT_ERR;
+        return FILE_TABLE_ERR;
     }
 
     handle->ref_count--;
     int err = 0;
     if (handle->ref_count == 0) {
-        err = vfs_close(handle->vn);
+        err = handle->vn->ops->vfs_close(handle->vn);
         free(handle);
     }
 
@@ -94,19 +98,19 @@ int add_fd(vnode* vn, addr_space* as) {
 
     //no room in oft or fdt
     if (i == SOS_MAX_FILES) {
-        return -1;
+        return INVALID_FD;
     }
     int fd = 0;
     while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
         ++fd;
     }  
     if (fd == PROCESS_MAX_FILES) {
-        return -1;
+        return INVALID_FD;
     }
     
     file_handle* fh = malloc(sizeof(file_handle));
     if (fh == NULL) {
-        return -1;
+        return INVALID_FD;
     }
     oft[i] = fh;
     as->file_table[fd] = i;

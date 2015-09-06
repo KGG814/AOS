@@ -30,14 +30,36 @@ char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 fhandle_t root_directory;
 //linked list for vnodes
-//TODO change this to something sensible
+//9242_TODO change this to something sensible
+
+//removes a vnode from the list
+int vnode_remove(vnode *vn);
+
+//null device stuff
+void nul_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset)
+{ 
+    send_seL4_reply(reply_cap, 0);
+}
+void nul_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset)
+{ 
+    send_seL4_reply(reply_cap, 0);
+}
+int  nul_close(vnode *vn)
+{ 
+    vnode_remove(vn);
+    return 0;
+}
 
 //console specific stuff
 void serial_cb(struct serial* s, char c);
 void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
 void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
+int con_close(vnode *vn);
+
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
+void file_close(vnode *vn);
+
 void con_read_reply_cb(seL4_Uint32 id, void *data);
 void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
@@ -48,7 +70,14 @@ typedef struct _file_read_args file_read_args;
 vnode_ops console_ops = 
 {
     .vfs_write  = &con_write, 
-    .vfs_read   = &con_read
+    .vfs_read   = &con_read,
+    .vfs_close = &con_close
+};
+
+vnode_ops nul_ops = {
+    .vfs_read = &nul_read,
+    .vfs_write = &nul_write,
+    .vfs_close = &nul_close
 };
 
 vnode_ops file_ops = 
@@ -80,17 +109,41 @@ struct _file_read_args {
 vnode_ops nfs_ops;
 
 
-void vfs_init(struct serial *s) {
-    serial_handle = s;
-    serial_register_handler(s, serial_cb); 
+void vfs_init(void) {
+    serial_handle = serial_init();
+    serial_register_handler(serial_handle, serial_cb); 
 }
-    
-vnode* vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_cap) {
+
+int vnode_remove(vnode *vn) {
+    if (vn == NULL) {
+        return -1;
+    }
+    if (vnode_list == vn) {
+        vnode_list = vnode_list->next;
+    } else {
+        vnode* cur = vnode_list;
+        while (cur->next != vn) {
+            cur = cur->next;
+        }
+        cur->next = vn->next;
+    }
+    free(vn);
+    return 0;
+}
+
+vnode* vfs_open(const char* path
+               ,fmode_t mode
+               ,addr_space *as
+               ,seL4_CPtr reply_cap
+               ,int *err
+               ) {
     vnode *vn = NULL;
     mode &= O_ACCMODE;
+    *err = VFS_OK; 
     if (strcmp(path, "console") == 0) {         
         if (mode == O_RDONLY || mode == O_RDWR) { 
             if (console_status == CONSOLE_READ_OPEN) {
+                *err = VFS_ERR;
                 return NULL;
             } 
 
@@ -101,7 +154,8 @@ vnode* vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_
         vn = malloc(sizeof(vnode) + strlen("console") + 1);
 
         if (vn == NULL) {
-            return vn;
+            *err = VFS_ERR;
+            return NULL;
         }
         //set fields
         vn->fmode = mode;
@@ -120,27 +174,48 @@ vnode* vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_
         vn->ops = &console_ops;
         //set the name of the console 
         strcpy(vn->name, "console");
-    } else {
-        vn = (vnode *)CALLBACK;
-        //console wasn't open. make a new vnode
-        vnode* vn_callback = malloc(sizeof(vnode) + strlen(path) + 1);
+    } else if (strcmp(path, "null") == 0) {
+        vn = malloc(sizeof(vnode) + strlen("null") + 1);
 
-        if (vn_callback == NULL) {
+        if (vn == NULL) {
+            *err = VFS_ERR;
+            return NULL;
+        }
+    
+        vn->fmode = mode;
+        vn->size = 0;
+        vn->ctime.seconds = 0;
+        vn->ctime.useconds = 0;
+        vn->atime.seconds = 0;
+        vn->atime.useconds = 0;
+
+        vn->fs_data = NULL;
+
+        vn->next = vnode_list;
+        vnode_list = vn;
+
+        vn->ops = &nul_ops;
+        strcpy(vn->name, "null");
+    } else {
+        vn = malloc(sizeof(vnode) + strlen(path) + 1);
+
+        if (vn == NULL) {
+            *err = VFS_ERR;
             return NULL;
         }
         file_open_args *args = malloc(sizeof(file_open_args));
-        args->vn = vn_callback;
+        args->vn = vn;
         args->as = as;
         args->reply_cap = reply_cap;
         //set fields
-        vn_callback->fmode = mode;
+        vn->fmode = mode;
         //insert into linked list
-        vn_callback->next = vnode_list;
-        vnode_list = vn_callback;
+        vn->next = vnode_list;
+        vnode_list = vn;
         // Set the ops type
-        vn_callback->ops = &file_ops;
+        vn->ops = &file_ops;
         //set the name of the file
-        strcpy(vn_callback->name, path);
+        strcpy(vn->name, path);
         //9242_TODO Do the callback
         nfs_lookup(&root_directory, path, file_open_cb, (uintptr_t)args);
     }
@@ -148,24 +223,21 @@ vnode* vfs_open(const char* path, fmode_t mode, addr_space *as, seL4_CPtr reply_
     return vn;
 }
 
-int vfs_close(vnode *vn) {
+
+
+int con_close(vnode *vn) {
     if (vn == NULL) {
         return -1;
     }
-    if (strcmp(vn->name, "console") == 0 && (vn->fmode & FM_READ)) {
+    if (vn->fmode & FM_READ) {
         console_status = CONSOLE_READ_CLOSE;
     }
-    //actually need to close the vnode 
-    if (vnode_list == vn) {
-        vnode_list = vnode_list->next;
-    } else {
-        vnode* cur = vnode_list;
-        while (cur->next != vn) {
-            cur = cur->next;
-        }
-        cur->next = vn->next;
+
+    //delete the vnode. The console doesn't currently hold any data so we can 
+    //just clean it up
+    if (vnode_remove(vn)) {
+        return -1;
     }
-    free(vn);
 
     return 0;
 }

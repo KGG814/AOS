@@ -51,7 +51,7 @@ seL4_Word index_to_vaddr(int index) {
 int frame_init(void) {
     frametable = (ft_entry *) FT_START_ADDR; 
     if (ft_initialised == 1) {
-        return FT_INITIALISED;
+        return FRAMETABLE_INITIALISED;
     }
     seL4_Word num_frames;
     ut_find_memory(&low, &high);
@@ -117,7 +117,7 @@ int frame_init(void) {
 
     ft_initialised = 1;
 
-    return FT_OK;
+    return FRAMETABLE_OK;
 }
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
@@ -126,14 +126,14 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     /* Check frame table has been initialised */
     
     if (ft_initialised != 1) {
-        return FT_NOT_INITIALISED; 
+        return FRAMETABLE_NOT_INITIALISED; 
     }
 
     int err = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
     if (pt_addr < low) { //no frames available
-        return FT_NO_MEM;
+        return FRAMETABLE_NO_MEM;
     }
 
     int index = (pt_addr - low) / PAGE_SIZE;
@@ -143,9 +143,9 @@ int frame_alloc(seL4_Word *vaddr, int map) {
                                 ,cur_cspace
                                 ,&frametable[index].frame_cap
                                 );
-    //TODO: interpret this error correctly
+    //9242_TODO: interpret this error correctly
     if (err) { 
-        return FT_ERR;
+        return FRAMETABLE_ERR;
     }
     if (map) {
         err |= map_page(frametable[index].frame_cap
@@ -156,9 +156,9 @@ int frame_alloc(seL4_Word *vaddr, int map) {
                    );
     }
     
-    //TODO: interpret this error correctly.
+    //9242_TODO: interpret this error correctly.
     if (err) { 
-        return FT_ERR;
+        return FRAMETABLE_ERR;
     }
     //set the status bits of the new frame 
 
@@ -180,12 +180,12 @@ int frame_alloc(seL4_Word *vaddr, int map) {
 int frame_free(int index) {
     if (ft_initialised != 1) {
         //this is not the correct behaviour; we should instead steal_mem or something 
-        return FT_NOT_INITIALISED; 
+        return FRAMETABLE_NOT_INITIALISED; 
     }
 
     //tried to free a free frame 
     if (!(frametable[index].frame_status & FRAME_IN_USE)) {
-        return FT_ERR;
+        return FRAMETABLE_ERR;
     } 
         
     //do any sort of untyping/retyping capping/uncapping here 
@@ -194,12 +194,12 @@ int frame_free(int index) {
     int err = cspace_revoke_cap(cur_cspace, frametable[index].frame_cap);
 
     if (err) {
-        return FT_ERR;
+        return FRAMETABLE_ERR;
     }
 
     err = cspace_delete_cap(cur_cspace, frametable[index].frame_cap); 
     if (err) {
-        return FT_ERR;
+        return FRAMETABLE_ERR;
     }
     seL4_Word pt_addr = index_to_paddr(index);
     ut_free(pt_addr, PAGE_BITS);
@@ -208,6 +208,6 @@ int frame_free(int index) {
     frametable[index].frame_status = FRAME_INVALID;
     frametable[index].frame_cap = 0;
 
-	return FT_OK;
+	return FRAMETABLE_OK;
 }
 

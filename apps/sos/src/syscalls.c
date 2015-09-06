@@ -35,7 +35,12 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    fh_open(as, (char*)k_ptr, mode, reply_cap);
+    int err = fh_open(as, (char*)k_ptr, mode, reply_cap);
+    if (err == FILE_TABLE_CALLBACK) {
+        return; //return and let process wait for callback
+    } else {
+        send_seL4_reply(reply_cap, err);
+    }
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").

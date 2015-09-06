@@ -5,14 +5,14 @@
 #include <limits.h>
 #include <sos/vmem_layout.h>
 //"warnings"
-#define FT_INITIALISED      1
-#define FT_OK               0
+#define FRAMETABLE_INITIALISED      1
+#define FRAMETABLE_OK               0
 
 //"errors"
-#define FT_ERR              (-1)
-#define FT_NOT_INITIALISED  (-2)
-#define FT_NO_MEM           (-3)
-#define FT_CALLBACK			(-4)
+#define FRAMETABLE_ERR              (-1)
+#define FRAMETABLE_NOT_INITIALISED  (-2)
+#define FRAMETABLE_NO_MEM           (-3)
+#define FRAMETABLE_CALLBACK			(-4)
 
 // Alloc options
 #define NOMAP				0
