@@ -52,6 +52,8 @@ int  nul_close(vnode *vn)
     return 0;
 }
 
+int o_to_fm[] = {FM_READ, FM_WRITE, FM_READ + FM_WRITE};
+
 //console specific stuff
 void serial_cb(struct serial* s, char c);
 void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
@@ -172,6 +174,10 @@ vnode* vfs_open(const char* path
                ) {
     vnode *vn = NULL;
     mode &= O_ACCMODE;
+    //invalid mode
+    if (mode != O_RDONLY && mode != O_WRONLY && mode != O_RDWR) {
+        return vn;
+    }
     *err = VFS_OK; 
     if (strcmp(path, "console") == 0) {         
         if (mode == O_RDONLY || mode == O_RDWR) { 
@@ -249,8 +255,14 @@ vnode* vfs_open(const char* path
         vn->ops = &file_ops;
         //set the name of the file
         strcpy(vn->name, path);
-        //9242_TODO Do the callback
-        nfs_lookup(&mnt_point, vn->name, file_open_cb, (uintptr_t)args);
+
+        //defer to the nfs
+        int status = nfs_lookup(&mnt_point, vn->name, file_open_cb, (uintptr_t)args);
+        if (status != RPC_OK) {
+            *err = VFS_ERR;
+            free(vn);
+            return NULL;
+        }
         *err = VFS_CALLBACK;
     }
     return vn;
@@ -506,24 +518,36 @@ int file_close(vnode *vn) {
     return 0;
 }
 
+
+
 // Set up vnode and filetable
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
-    if (status != NFS_OK) {
-        send_seL4_reply(args->reply_cap, -1);
-        vnode_remove(vn);
+    if (status == NFS_OK) { //file found
+        if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {//if permissions don't match
+            send_seL4_reply(args->reply_cap, -1);
+            free(args);
+            return; 
+        }
+        vn->fs_data = fh;
+        vn->size = fattr->size;
+        vn->ctime = fattr->ctime;
+        vn->atime = fattr->atime;
+        int fd = add_fd(vn, args->as);
+        /* Do filetable setup */
+        send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
         free(args);
         return;
-    }
-    vn->fs_data = fh;
-    vn->size = fattr->size;
-    vn->ctime = fattr->ctime;
-    vn->atime = fattr->atime;
-    int fd = add_fd(vn, args->as);
-    /* Do filetable setup */
-    send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
+    } else if (status == NFSERR_NOENT && vn->fmode != O_RDONLY) {
+        //open file as read/write
+    } 
+
+    send_seL4_reply(args->reply_cap, -1);
+    vnode_remove(vn);
     free(args);
+    return;
+
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
