@@ -118,7 +118,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
         syscall_handlers[syscall_number](reply_cap, as);
     } else {
         printf("Unkwown syscall %d.\n", syscall_number);
-        cspace_free_slot(cur_cspace, reply_cap);
+        send_seL4_reply(reply_cap, -1);
     }
 }
 
