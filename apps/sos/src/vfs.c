@@ -222,10 +222,9 @@ vnode* vfs_open(const char* path
         //set the name of the file
         strcpy(vn->name, path);
         //9242_TODO Do the callback
-        printf("TEST: %p\n", &mnt_point);
-        //nfs_lookup(&mnt_point, vn->name, file_open_cb, (uintptr_t)args);
+        nfs_lookup(&mnt_point, vn->name, file_open_cb, (uintptr_t)args);
+        *err = VFS_CALLBACK;
     }
-
     return vn;
 }
 
@@ -358,7 +357,6 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
 
 // Set up vnode and filetable
 void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
-    printf("Open callback\n");
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
     if (status != NFS_OK) {
@@ -371,8 +369,7 @@ void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
     /* Do filetable setup */
-    send_seL4_reply((seL4_CPtr)vn->fs_data, fd);
-
+    send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {

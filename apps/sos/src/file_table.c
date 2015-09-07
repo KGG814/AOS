@@ -46,7 +46,6 @@ int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     
     int err;
     vnode* vn = vfs_open(path, mode, as, reply_cap, &err);
-    
     if (vn == NULL || err < 0) {
         return FILE_TABLE_ERR;
     } else if (err == VFS_CALLBACK) {
