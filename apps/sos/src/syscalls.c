@@ -98,16 +98,15 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
         send_seL4_reply(reply_cap, 0);
         return;
     }
-
+    printf("Handling read\n");
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
     /* Check page boundaries and map in pages if necessary */
     /* Turn the user ptr buff into a kernel ptr */
-    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
     /* Call the read vnode op */
 
-    handle->vn->ops->vfs_read(handle->vn, (char*)k_ptr, nbyte, reply_cap, &(handle->offset), as);
+    handle->vn->ops->vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), as);
     
     return;
 }

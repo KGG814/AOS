@@ -128,7 +128,7 @@ int map_if_valid(seL4_Word vaddr, addr_space* as) {
       frame_free(ft_index);
     }
     if (err) {
-        dprintf(0, "Address %d was not in valid region\n", vaddr);
+        dprintf(0, "Address %p was not in valid region\n", vaddr);
     }
     return err;
 }

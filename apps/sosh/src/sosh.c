@@ -54,13 +54,11 @@ static int cat(int argc, char **argv) {
     printf("<%s>\n", argv[1]);
 
     fd = open(argv[1], O_RDONLY);
-    printf("Opened file %d\n", fd);
     stdout_fd = open("console", O_WRONLY);
     assert(fd >= 0);
-    while ((num_read = read(fd, buf, BUF_SIZ)) > 0)
-        printf("Read %s\n", buf);
+    while ((num_read = read(fd, buf, BUF_SIZ)) > 0) {
         num_written = write(stdout_fd, buf, num_read);
-
+    }
     close(stdout_fd);
 
     if (num_read == -1 || num_written == -1) {
