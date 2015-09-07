@@ -39,8 +39,8 @@ int     vfs_getdirent(int pos
                      ,size_t nbyte
                      ,seL4_CPtr reply_cap
                      );
-int     vfs_stat(const char *path
-                ,sos_stat_t *buf
+void    vfs_stat(const char *path
+                ,seL4_Word buf
                 ,seL4_CPtr reply_cap
                 ); 
 

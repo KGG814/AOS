@@ -67,10 +67,10 @@ int sos_getdirent(int pos, char *name, size_t nbyte) {
 }
 
 int sos_stat(const char *path, sos_stat_t *buf) {
-    printf("syscall not implemented\n");
-    return -1;
+    /*printf("syscall not implemented\n");
+    return -1;*/
     // 9242_TODO Error checking
-    /*
+
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 3);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, STAT);
@@ -78,5 +78,5 @@ int sos_stat(const char *path, sos_stat_t *buf) {
     seL4_SetMR(2, (seL4_Word)buf);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     return seL4_GetMR(0);
-    */
+    
 }
