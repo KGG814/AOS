@@ -16,7 +16,7 @@
 #define GPT1_DEVICE_PADDR 0x02098000
 #define GPT1_INTERRUPT 87
 
-#define CLOCK_DELAY_MIN 1000 //min delay is 1 milliseconds
+#define CLOCK_DELAY_MIN 500 //min delay is 0.5 milliseconds
 
 static uint64_t time_stamp_rollovers = 0; 
 seL4_CPtr timerCap;
