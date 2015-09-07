@@ -55,6 +55,7 @@ int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
 
     int fd = add_fd(vn, as);
     if (fd == -1) {
+        dprintf(0, "failed to open %s.\n", path);
         // Error, so delete vnode
         vn->ops->vfs_close(vn);
     }
