@@ -117,11 +117,7 @@ struct _file_read_args {
 
 vnode_ops nfs_ops;
 
-int i = 0;
 void nfs_timeout_wrapper(uint32_t id, void* data) {
-    if (!(i++ % 32)) {
-        dprintf(0, "nfs timeout happened\n");
-    }
     nfs_timeout();
 }
 
@@ -283,7 +279,6 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
     }
-    printf("Console read\n");
     int bytes = 0;
     if (console_data_size) { 
         while (bytes < nbyte && console_data_size) {
@@ -310,10 +305,10 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
 
 void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
+        send_seL4_reply(reply_cap, 0);
         return;
     }
     char *c = (char *) buf;
-    printf("Trying to write: %.*s\n", nbyte, buf);
     int bytes = serial_send(serial_handle, c, nbyte);
     send_seL4_reply(reply_cap, bytes);
 }
@@ -355,6 +350,7 @@ void con_read_reply_cb(seL4_Uint32 id, void *data) {
 
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+    printf("attempting a file_read\n");
     file_read_args *args = malloc(sizeof(file_read_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -370,7 +366,10 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
         args->to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
-    nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
+    int status = nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
+    if (status != RPC_OK) {
+        printf("file_read: nfs_read returned: %d\n", status);
+    }
 }
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
@@ -407,18 +406,17 @@ void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
     /* Do filetable setup */
-    printf("File callback\n");
     send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
     free(args);
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
-    printf("READ CALLBACK\n");
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
+    printf("file_read_cb: status was %d\n", status);
     addr_space* as = args->as;
     if (status != NFS_OK) {
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, 0);
         free(args);
         return;
     }
@@ -430,6 +428,7 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
     args->bytes_read += count;
     args->buf += count; //need to increment this pointer
     if (args->bytes_read == args->nbyte || count < args->to_read) {
+        printf("Sending sel4 reply\n");
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {
@@ -448,7 +447,6 @@ int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as) {
         return err;
     }
     seL4_Word kptr = user_to_kernel_ptr(dst, as);
-    printf("Trying to copy: %.*s\n", count, src);
     memcpy((void *)kptr, (void *)src , count);
     return 0;
 }
