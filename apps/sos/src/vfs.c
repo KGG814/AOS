@@ -603,6 +603,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
                 return;
             }
         } else {
+            printf("First mnt attr get!\n");
             mnt_attr = malloc(sizeof(fattr_t));
             if (mnt_attr == NULL) {
                 send_seL4_reply(args->reply_cap, -1);
@@ -617,15 +618,14 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
                 free(args);
                 return;
             }
-             
+            printf("First mnt attr get end!\n");
         }
-    } 
-
-    send_seL4_reply(args->reply_cap, -1);
-    vnode_remove(vn);
-    free(args);
-    return;
-
+    } else { 
+        send_seL4_reply(args->reply_cap, -1);
+        vnode_remove(vn);
+        free(args);
+        return;
+    }
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
