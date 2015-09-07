@@ -34,8 +34,8 @@ vnode*  vfs_open(const char* path
                 ,addr_space *as
                 ,seL4_CPtr reply_cap
                 ,int *err);
-int     vfs_getdirent(int pos
-                     ,const char *name
+void     vfs_getdirent(int pos
+                     ,char *name
                      ,size_t nbyte
                      ,seL4_CPtr reply_cap
                      );

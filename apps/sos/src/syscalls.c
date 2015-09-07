@@ -153,7 +153,7 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
-    size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    size_t nbyte     =  (size_t)       seL4_GetMR(3);
     if (check_region((seL4_Word)name, (seL4_Word)nbyte)) {
         send_seL4_reply(reply_cap, EFAULT);
         return;
