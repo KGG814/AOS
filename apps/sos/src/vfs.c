@@ -31,6 +31,7 @@ char *console_data_start = console_buf;
 char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 extern fhandle_t mnt_point;
+fattr_t *mnt_attr = NULL;
 //linked list for vnodes
 //9242_TODO change this to something sensible
 
@@ -525,7 +526,39 @@ int file_close(vnode *vn) {
     return 0;
 }
 
+void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+    file_open_args *args = (file_open_args *) token;
+    vnode* vn = args->vn;
+    if (status != NFS_OK) {
+        send_seL4_reply(args->reply_cap, -1);
+        vnode_remove(vn);
+        free(args);
+        return;
+    }
 
+    memcpy(mnt_attr, fattr, sizeof(fattr_t));
+    timestamp_t cur_time = time_stamp();
+    sattr_t sattr = {.mode = o_to_fm[vn->fmode]
+                    ,.uid = mnt_attr->uid
+                    ,.gid = mnt_attr->gid
+                    ,.size = 0
+                    ,.atime = {.seconds = cur_time/1000000
+                              ,.useconds = cur_time % 1000000 
+                              }
+                    ,.mtime = {.seconds = cur_time/1000000
+                              ,.useconds = cur_time % 1000000
+                              }            
+                    };
+    int ret = nfs_create(&mnt_point, vn->name, &sattr, &file_open_cb, (uintptr_t) args);
+    if (ret != RPC_OK) {
+        send_seL4_reply(args->reply_cap, -1);
+        vnode_remove(vn);
+        free(args);
+        return;
+    }
+
+
+}
 
 // Set up vnode and filetable
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
@@ -534,6 +567,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
     if (status == NFS_OK) { //file found
         if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {//if permissions don't match
             send_seL4_reply(args->reply_cap, -1);
+            vnode_remove(vn);
             free(args);
             return; 
         }
@@ -548,6 +582,43 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         return;
     } else if (status == NFSERR_NOENT && vn->fmode != O_RDONLY) {
         //open file as read/write
+        if (mnt_attr != NULL) {
+            timestamp_t cur_time = time_stamp();
+            sattr_t sattr = {.mode = o_to_fm[vn->fmode]
+                            ,.uid = mnt_attr->uid
+                            ,.gid = mnt_attr->gid
+                            ,.size = 0
+                            ,.atime = {.seconds = cur_time/1000000
+                                      ,.useconds = cur_time % 1000000 
+                                      }
+                            ,.mtime = {.seconds = cur_time/1000000
+                                      ,.useconds = cur_time % 1000000
+                                      }            
+                            };
+            int status = nfs_create(&mnt_point, vn->name, &sattr, &file_open_cb, (uintptr_t) args);
+            if (status != RPC_OK) {
+                send_seL4_reply(args->reply_cap, -1);
+                vnode_remove(vn);
+                free(args);
+                return;
+            }
+        } else {
+            mnt_attr = malloc(sizeof(fattr_t));
+            if (mnt_attr == NULL) {
+                send_seL4_reply(args->reply_cap, -1);
+                vnode_remove(vn);
+                free(args);
+                return;
+            }
+            int status = nfs_lookup(&mnt_point, ".", mnt_lookup_cb, (uintptr_t) args);
+            if (status != RPC_OK) {
+                send_seL4_reply(args->reply_cap, -1);
+                vnode_remove(vn);
+                free(args);
+                return;
+            }
+             
+        }
     } 
 
     send_seL4_reply(args->reply_cap, -1);
