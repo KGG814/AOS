@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#define PAGEDIR_SIZE   4096
+#define PAGE_SIZE   4096
 /* Address where memory used for DMA starts getting mapped.
  * Do not use the address range between DMA_VSTART and DMA_VEND */
 #define DMA_VSTART          (0x10000000)
@@ -30,11 +32,12 @@
 #define DEVICE_START        (0xB0000000)
 
 #define ROOT_VSTART         (0xC0000000)
-
+#define NUM_STACK_PAGES		(256 * 32)
 /* Constants for how SOS will layout the address space of any
  * processes it loads up */
 #define PROCESS_STACK_TOP   	(0xB0000000)
-#define PROCESS_STACK_BOT   	(0xA0000000) 
+#define PROCESS_STACK_BOT   	(PROCESS_STACK_TOP - NUM_STACK_PAGES * PAGE_SIZE)
+#define GUARD_PAGE			  	(PROCESS_STACK_BOT - PAGE_SIZE)
 #define PROCESS_IPC_BUFFER  	(0xB1000000)
 #define PROCESS_IPC_BUFFER_END  (0xB1004000)
 #define PROCESS_VMEM_START  	(0x50000000)
