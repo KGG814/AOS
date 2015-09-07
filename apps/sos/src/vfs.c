@@ -211,6 +211,7 @@ vnode* vfs_open(const char* path
         vn->ops = &nul_ops;
         strcpy(vn->name, "null");
     } else {
+        printf("vfs opening a file\n");
         vn = malloc(sizeof(vnode) + strlen(path) + 1);
 
         if (vn == NULL) {
@@ -275,6 +276,7 @@ int vfs_stat(const char *path, sos_stat_t *buf, seL4_CPtr reply_cap) {
 
 void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
     //assert(!"trying to read!");
+    printf("trying to do a con read\n");
     char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
@@ -394,6 +396,7 @@ int file_close(vnode *vn) {
 void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
+    printf("open: status was %d\n", status);
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, -1);
         vnode_remove(vn);
@@ -405,6 +408,7 @@ void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     vn->ctime = fattr->ctime;
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
+    printf("add fd: returning %d\n", fd);
     /* Do filetable setup */
     send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
     free(args);

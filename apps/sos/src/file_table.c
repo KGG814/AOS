@@ -82,6 +82,7 @@ int fd_close(addr_space* as, int file) {
     free(handle);
 
     as->file_table[file] = INVALID_FD;
+    oft[oft_index] = NULL;
     return err;
     /* Generate and send response */
 }
