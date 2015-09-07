@@ -16,7 +16,7 @@
 #define GPT1_DEVICE_PADDR 0x02098000
 #define GPT1_INTERRUPT 87
 
-#define CLOCK_DELAY_MIN 5000 //min delay is 5 milliseconds
+#define CLOCK_DELAY_MIN 1000 //min delay is 1 milliseconds
 
 static uint64_t time_stamp_rollovers = 0; 
 seL4_CPtr timerCap;
@@ -291,6 +291,10 @@ static inline uint32_t new_timer(uint64_t delay
                                 ,timer_callback_t callback
                                 ,void *data) {
     timestamp_t cur_time = time_stamp();
+    //kill timer if it was too short
+    if (delay < CLOCK_DELAY_MIN) {
+        return 0;
+    }
 
     struct timer* t = malloc(sizeof(struct timer));
     if (t == NULL) {
