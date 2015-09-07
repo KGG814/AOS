@@ -111,6 +111,7 @@ struct _file_read_args {
     addr_space *as;
     size_t nbyte;
     size_t bytes_read;
+    seL4_Word to_read;
 };
 
 vnode_ops nfs_ops;
@@ -311,6 +312,7 @@ void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, in
         return;
     }
     char *c = (char *) buf;
+    printf("Trying to write: %.*s\n", nbyte, buf);
     int bytes = serial_send(serial_handle, c, nbyte);
     send_seL4_reply(reply_cap, bytes);
 }
@@ -361,13 +363,13 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     args->nbyte = nbyte;
     args->bytes_read = 0;
 
-    seL4_Word to_read = nbyte;
+    args->to_read = nbyte;
     seL4_Word start_addr = (seL4_Word) buf;
-    seL4_Word end_addr = start_addr + to_read;
+    seL4_Word end_addr = start_addr + args->to_read;
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
-        to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
+        args->to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
-    nfs_read(vn->fs_data, *offset, to_read, file_read_cb, (uintptr_t)args);
+    nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
 }
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
@@ -405,20 +407,22 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
         free(args);
         return;
     }
+
     vn->atime = fattr->atime;  
     /* 9242_TODO Error check this */
     copy_page(args->buf, count, (seL4_Word) data, as);
     *(args->offset) += count;
     args->bytes_read += count;
-    if (args->bytes_read == args->nbyte) {
+    args->buf += count; //need to increment this pointer
+    if (args->bytes_read == args->nbyte || count < args->to_read) {
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {
-        seL4_Word to_read = args->nbyte - args->bytes_read;
-        if (to_read > PAGE_SIZE) {
-            to_read = PAGE_SIZE;
+        args->to_read = args->nbyte - args->bytes_read;
+        if (args->to_read > PAGE_SIZE) {
+            args->to_read = PAGE_SIZE;
         }
-        nfs_read(vn->fs_data, *(args->offset), to_read, file_read_cb, (uintptr_t)args);
+        nfs_read(vn->fs_data, *(args->offset), args->to_read, file_read_cb, (uintptr_t)args);
     } 
 }
 
@@ -429,6 +433,7 @@ int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as) {
         return err;
     }
     seL4_Word kptr = user_to_kernel_ptr(dst, as);
+    printf("Trying to copy: %.*s\n", count, src);
     memcpy((void *)kptr, (void *)src , count);
     return 0;
 }

@@ -123,6 +123,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
+        dprintf(0, "out of range fd: %d\n", file);
         send_seL4_reply(reply_cap, -1);
         return;
     } 
