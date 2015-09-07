@@ -84,6 +84,8 @@ static int cp(int argc, char **argv) {
     file2 = argv[2];
 
     fd = open(file1, O_RDONLY);
+    for (int i = 0; i < 1000000000; i++);
+
     fd_out = open(file2, O_WRONLY);
 
     assert(fd >= 0);

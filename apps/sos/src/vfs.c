@@ -642,6 +642,7 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     addr_space* as = args->as;
+    printf("file read status: %d\n", status);
     if (status != NFS_OK) {
         assert(count == 0);
         send_seL4_reply(args->reply_cap, args->bytes_read + count);
@@ -654,7 +655,7 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
     *(args->offset) += count;
     args->bytes_read += count;
     args->buf += count; //need to increment this pointer
-    if (args->bytes_read == args->nbyte) {
+    if (args->bytes_read == args->nbyte || count < args->to_read) {
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {
