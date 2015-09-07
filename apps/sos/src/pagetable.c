@@ -11,11 +11,9 @@
 #include <sos/vmem_layout.h>
 #include <assert.h>
 
-#define PAGEDIR_SIZE   4096
-#define PAGE_SIZE   4096
+
 #define PT_BOTTOM(x)  (((x) & 0x3FF000) >> 12)
 #define PT_TOP(x)  (((x) & 0xFFC00000) >> 22)
-#define PAGE_MASK   0xFFFFF000
 #define FT_INDEX_MASK 0x000FFFFF
 #define verbose 5
 
@@ -56,7 +54,9 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
         map_page_user(frame_cap, pd, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
     } else {
-        frame_cap = frametable[ft_index].frame_cap;
+        int ft_index_curr = as->page_directory[dir_index][page_index];
+        frame_cap = frametable[ft_index_curr].frame_cap;
+        frame_free(ft_index);
     }
     return frame_cap;
 }
@@ -102,17 +102,20 @@ void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
     }
 }
 
-void map_if_valid(seL4_Word vaddr, addr_space* as) {
+int map_if_valid(seL4_Word vaddr, addr_space* as) {
     seL4_Word page_vaddr;
     int ft_index = frame_alloc(&page_vaddr, KMAP);
     assert(ft_index > FRAMETABLE_OK);
-    /* Stack pages*/
-
     int err = 0;
-    if ((vaddr >= PROCESS_STACK_BOT && vaddr < PROCESS_STACK_TOP)) {
+    if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
+        /* Kill process */
+        err = 43;
+        frame_free(ft_index);
+    /* Stack pages*/
+    } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
         sos_map_page(ft_index, vaddr, as->vroot, as);
     /* IPC Pages */
-    } else if ((vaddr >= PROCESS_IPC_BUFFER && vaddr < PROCESS_IPC_BUFFER_END)) {
+    } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {
         sos_map_page(ft_index, vaddr, as->vroot, as);
     /* VMEM */
     } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < as->brk)) {
@@ -127,4 +130,5 @@ void map_if_valid(seL4_Word vaddr, addr_space* as) {
     if (err) {
         dprintf(0, "Address %d was not in valid region\n", vaddr);
     }
+    return err;
 }
