@@ -60,7 +60,7 @@ int con_close(vnode *vn);
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
-void file_close(vnode *vn);
+int file_close(vnode *vn);
 
 void con_read_reply_cb(seL4_Uint32 id, void *data);
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
@@ -90,7 +90,8 @@ vnode_ops nul_ops = {
 vnode_ops file_ops = 
 {
     .vfs_write  = &file_write, 
-    .vfs_read   = &file_read
+    .vfs_read   = &file_read,
+    .vfs_close  = &file_close
 };
 
 //arguments for the console read callback 
@@ -114,6 +115,7 @@ struct _file_read_args {
     addr_space *as;
     size_t nbyte;
     size_t bytes_read;
+    seL4_Word to_read;
 };
 
 struct _vfs_stat_args {
@@ -123,11 +125,7 @@ struct _vfs_stat_args {
 
 vnode_ops nfs_ops;
 
-int i = 0;
 void nfs_timeout_wrapper(uint32_t id, void* data) {
-    if (!(i++ % 32)) {
-        dprintf(0, "nfs timeout happened\n");
-    }
     nfs_timeout();
 }
 
@@ -221,6 +219,7 @@ vnode* vfs_open(const char* path
         vn->ops = &nul_ops;
         strcpy(vn->name, "null");
     } else {
+        printf("vfs opening a file\n");
         vn = malloc(sizeof(vnode) + strlen(path) + 1);
 
         if (vn == NULL) {
@@ -269,6 +268,7 @@ int con_close(vnode *vn) {
 
 void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
     //assert(!"trying to read!");
+    printf("trying to do a con read\n");
     char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
@@ -299,6 +299,7 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
 
 void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
+        send_seL4_reply(reply_cap, 0);
         return;
     }
     char *c = (char *) buf;
@@ -355,6 +356,7 @@ void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
 
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+    printf("attempting a file_read\n");
     file_read_args *args = malloc(sizeof(file_read_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -364,23 +366,41 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     args->nbyte = nbyte;
     args->bytes_read = 0;
 
-    seL4_Word to_read = nbyte;
+    args->to_read = nbyte;
     seL4_Word start_addr = (seL4_Word) buf;
-    seL4_Word end_addr = start_addr + to_read;
+    seL4_Word end_addr = start_addr + args->to_read;
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
-        to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
+        args->to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
-    nfs_read(vn->fs_data, *offset, to_read, file_read_cb, (uintptr_t)args);
+    int status = nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
+    if (status != RPC_OK) {
+        printf("file_read: nfs_read returned: %d\n", status);
+    }
 }
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     /* 9242_TODO Callback */
 }
 
+int file_close(vnode *vn) {
+    if (vn == NULL) {
+        return -1;
+    }
+
+    //delete the vnode. The console doesn't currently hold any data so we can 
+    //just clean it up
+    if (vnode_remove(vn)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 // Set up vnode and filetable
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
+    printf("open: status was %d\n", status);
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, -1);
         vnode_remove(vn);
@@ -392,6 +412,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
     vn->ctime = fattr->ctime;
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
+    printf("add fd: returning %d\n", fd);
     /* Do filetable setup */
     send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
     free(args);
@@ -400,26 +421,30 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
+    printf("file_read_cb: status was %d\n", status);
     addr_space* as = args->as;
     if (status != NFS_OK) {
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, 0);
         free(args);
         return;
     }
+
     vn->atime = fattr->atime;  
     /* 9242_TODO Error check this */
     copy_page(args->buf, count, (seL4_Word) data, as);
     *(args->offset) += count;
     args->bytes_read += count;
-    if (args->bytes_read == args->nbyte) {
+    args->buf += count; //need to increment this pointer
+    if (args->bytes_read == args->nbyte || count < args->to_read) {
+        printf("Sending sel4 reply\n");
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {
-        seL4_Word to_read = args->nbyte - args->bytes_read;
-        if (to_read > PAGE_SIZE) {
-            to_read = PAGE_SIZE;
+        args->to_read = args->nbyte - args->bytes_read;
+        if (args->to_read > PAGE_SIZE) {
+            args->to_read = PAGE_SIZE;
         }
-        nfs_read(vn->fs_data, *(args->offset), to_read, file_read_cb, (uintptr_t)args);
+        nfs_read(vn->fs_data, *(args->offset), args->to_read, file_read_cb, (uintptr_t)args);
     } 
 }
 

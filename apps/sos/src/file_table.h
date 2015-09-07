@@ -21,9 +21,6 @@ file_handle* oft[SOS_MAX_FILES];
 struct _file_handle {
     int offset; //offset for reads/writes
     vnode *vn;
-
-    //possibly need a lock for this structure
-    uint32_t ref_count;
 };
 
 int fdt_init(addr_space *as);
