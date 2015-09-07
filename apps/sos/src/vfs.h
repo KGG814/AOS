@@ -67,8 +67,20 @@ struct _vnode {
 
 struct _vnode_ops {
     /* function pointers for fs specific functions */
-    void (*vfs_write)(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
-    void (*vfs_read)(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
+    void (*vfs_write)(vnode *vn
+                     ,const char *buf
+                     ,size_t nbyte
+                     ,seL4_CPtr reply_cap
+                     ,int *offset
+                     ,addr_space *as
+                     );
+    void (*vfs_read)(vnode *vn
+                    ,char *buf
+                    ,size_t nbyte
+                    ,seL4_CPtr reply_cap
+                    ,int *offset
+                    ,addr_space *as
+                    );
     int (*vfs_close)(vnode *vn);
 };
 
