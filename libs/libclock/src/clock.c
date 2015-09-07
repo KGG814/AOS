@@ -16,7 +16,7 @@
 #define GPT1_DEVICE_PADDR 0x02098000
 #define GPT1_INTERRUPT 87
 
-#define TS_THRES 10000 //10 ms rollover threshold
+#define CLOCK_DELAY_MIN 500 //min delay is 0.5 milliseconds
 
 static uint64_t time_stamp_rollovers = 0; 
 seL4_CPtr timerCap;
@@ -256,10 +256,14 @@ int stop_timer(void) {
  * Returns a negative value if failure.
  */
 timestamp_t time_stamp(void) {
-    //this assumes that the rollover handling won't happen in the middle of this 
-    //function
     uint64_t hi = time_stamp_rollovers;
     uint64_t lo = gpt->gptcnt; 
+    //fix for a possible race between the rollover interrupt being generated 
+    //between the above assignments
+    if (gpt->gptsr & BIT(ROV)) {
+        ++hi;
+        lo = gpt->gptcnt;
+    } 
     return TO_64(hi, lo);
 }
 
@@ -287,6 +291,10 @@ static inline uint32_t new_timer(uint64_t delay
                                 ,timer_callback_t callback
                                 ,void *data) {
     timestamp_t cur_time = time_stamp();
+    //kill timer if it was too short
+    if (delay < CLOCK_DELAY_MIN) {
+        return 0;
+    }
 
     struct timer* t = malloc(sizeof(struct timer));
     if (t == NULL) {

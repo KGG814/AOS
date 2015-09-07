@@ -8,12 +8,6 @@
 #define verbose 5
 #include <sys/debug.h>
 
-void wake_process(uint32_t id, void* data) {
-    //(void *) data;
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send((seL4_CPtr)data, reply);
-}
-
 void handle_syscall0(seL4_CPtr reply_cap, addr_space* as) {
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
@@ -54,6 +48,11 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
+    if (path == NULL) {
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
     int err = fh_open(as, (char*)k_ptr, mode, reply_cap);
     if (err == FILE_TABLE_CALLBACK) {
@@ -68,6 +67,11 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     /* Get syscall arguments */
     int file =  (int) seL4_GetMR(1);
+
+    if (file < 0 || file >= PROCESS_MAX_FILES) {
+        send_seL4_reply(reply_cap, -1);
+    }
+
     /* Get the vnode using the process filetable and OFT*/
     send_seL4_reply(reply_cap, fd_close(as, file));
 }
@@ -83,6 +87,18 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf        =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    
+    //check filehandle is actually in range
+    if (file < 0 || file >= PROCESS_MAX_FILES) {
+        send_seL4_reply(reply_cap, -1);
+        return;
+    } 
+
+    if (buf == NULL) {
+        send_seL4_reply(reply_cap, 0);
+        return;
+    }
+
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
@@ -105,9 +121,22 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf  =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
+    
+    //check filehandle is actually in range
+    if (file < 0 || file >= PROCESS_MAX_FILES) {
+        send_seL4_reply(reply_cap, -1);
+        return;
+    } 
+
+    if (buf == NULL) {
+        send_seL4_reply(reply_cap, 0);
+        return;
+    }
+
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = as->file_table[file];
     file_handle* handle = oft[oft_index];
+
     /* Check page boundaries and map in pages if necessary */;
     /* Turn the user ptr buff into a kernel ptr */
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)buf, as);
@@ -217,12 +246,23 @@ void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as) {
 }
 
 
+//timer callback for usleep
+void wake_process(uint32_t id, void* data) {
+    //(void *) data;
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_Send((seL4_CPtr)data, reply);
+}
+
 /* Sleeps for the specified number of milliseconds.
  */
 void handle_usleep(seL4_CPtr reply_cap, addr_space* as) {
     int usec = seL4_GetMR(1) * 1000;
-    register_timer(usec, &wake_process, (void *)reply_cap);
-    printf("Timestamp registered\n");
+    int ret = register_timer(usec, &wake_process, (void *)reply_cap);
+    if (ret == 0) { //handle error
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+    printf("sleep timer registered\n");
 }
 
 
