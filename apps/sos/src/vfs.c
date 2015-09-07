@@ -115,14 +115,19 @@ struct _file_read_args {
 
 vnode_ops nfs_ops;
 
+int i = 0;
 void nfs_timeout_wrapper(uint32_t id, void* data) {
+    if (!(i++ % 32)) {
+        dprintf(0, "nfs timeout happened\n");
+    }
     nfs_timeout();
 }
 
 void vfs_init(void) {
     serial_handle = serial_init();
     serial_register_handler(serial_handle, serial_cb); 
-    register_tic(100000, &nfs_timeout_wrapper, NULL);
+    dprintf(0, "registering timer. \n"); 
+    assert(register_tic(100000, &nfs_timeout_wrapper, NULL));
 }
 
 int vnode_remove(vnode *vn) {

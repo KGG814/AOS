@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 #include <clock/clock.h>
 #include <bits/limits.h>
 #include "../../../apps/sos/src/sys/panic.h"
@@ -292,7 +293,7 @@ static inline uint32_t new_timer(uint64_t delay
                                 ,void *data) {
     timestamp_t cur_time = time_stamp();
     //kill timer if it was too short
-    if (delay < CLOCK_DELAY_MIN) {
+    if (delay + duration < CLOCK_DELAY_MIN) {
         return 0;
     }
 
