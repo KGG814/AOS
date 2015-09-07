@@ -538,7 +538,7 @@ void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
 
     memcpy(mnt_attr, fattr, sizeof(fattr_t));
     timestamp_t cur_time = time_stamp();
-    sattr_t sattr = {.mode = o_to_fm[vn->fmode]
+    sattr_t sattr = {.mode = 0666
                     ,.uid = mnt_attr->uid
                     ,.gid = mnt_attr->gid
                     ,.size = 0
@@ -584,7 +584,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         //open file as read/write
         if (mnt_attr != NULL) {
             timestamp_t cur_time = time_stamp();
-            sattr_t sattr = {.mode = o_to_fm[vn->fmode]
+            sattr_t sattr = {.mode = 0666
                             ,.uid = mnt_attr->uid
                             ,.gid = mnt_attr->gid
                             ,.size = 0
