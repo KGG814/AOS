@@ -8,10 +8,12 @@
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
+#include <sos.h>
 
 int main(void) {
-    int fd = sos_sys_open("console", O_WRONLY);
-    sos_sys_write(fd, "test\n", 5);
+    char text[] = "test\n";
+    int fd = sos_sys_open("b", O_WRONLY);
+    sos_sys_write(fd, text, strlen(text) + 1);
     
     return EXIT_SUCCESS;
 }

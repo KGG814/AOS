@@ -419,8 +419,8 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     file_write_args *args = (file_write_args*) token;
     vnode *vn = args->vn;
     addr_space *as = args->as;
+    printf("write: got status from nfs: %d\n", status);
     if (status != NFS_OK) {
-        assert(count == 0);
         send_seL4_reply(args->reply_cap, args->bytes_written + count);
         free(args);
         return;
@@ -433,6 +433,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     args->buf += count; //need to increment this pointer
     
     if (args->bytes_written == args->nbyte) {
+        printf("file write done\n");
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
@@ -495,6 +496,7 @@ void file_write(vnode *vn
    
     int err = map_if_valid(args->buf & PAGE_MASK, as);
     if (err) {
+        printf("couldn't map buffer\n");
         free(args);
         send_seL4_reply(reply_cap, 0);
         return;
@@ -513,7 +515,9 @@ void file_write(vnode *vn
     if (status != RPC_OK) {
         send_seL4_reply(reply_cap, -1);
         free(args);
+        return;
     }
+    printf("write callback set up\n");
 }
 
 int file_close(vnode *vn) {
@@ -574,7 +578,8 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
             free(args);
             return; 
         }
-        vn->fs_data = fh;
+        vn->fs_data = malloc(sizeof(fhandle_t));
+        memcpy(vn->fs_data, fh, sizeof(fhandle_t));
         vn->size = fattr->size;
         vn->ctime = fattr->ctime;
         vn->atime = fattr->atime;
