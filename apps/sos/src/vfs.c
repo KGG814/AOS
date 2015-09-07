@@ -330,13 +330,14 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
 }
 
 void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+    printf("Con write\n");
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
         send_seL4_reply(reply_cap, 0);
         return;
     }
     
     //9242_TODO make this page by page
-    char *c = user_to_kernel_ptr(buf, as);
+    char *c = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
     int bytes = serial_send(serial_handle, c, nbyte);
     send_seL4_reply(reply_cap, bytes);
 }
@@ -400,7 +401,6 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     args->as = as;
     args->nbyte = nbyte;
     args->bytes_read = 0;
-
     args->to_read = nbyte;
     seL4_Word start_addr = (seL4_Word) buf;
     seL4_Word end_addr = start_addr + args->to_read;
@@ -415,6 +415,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
 }
 
 void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
+
     file_write_args *args = (file_write_args*) token;
     vnode *vn = args->vn;
     addr_space *as = args->as;
@@ -431,7 +432,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     args->bytes_written += count;
     args->buf += count; //need to increment this pointer
     
-    if (args->bytes_written == args->nbyte || count < args->to_write) {
+    if (args->bytes_written == args->nbyte) {
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
@@ -451,7 +452,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
         int status = nfs_write(vn->fs_data
                               ,*args->offset
                               ,args->to_write
-                              ,kptr
+                              ,(const void*)kptr
                               ,&file_write_cb
                               ,(uintptr_t) token
                               );
@@ -474,6 +475,8 @@ void file_write(vnode *vn
         send_seL4_reply(reply_cap, 0);
         return;
     }
+
+    printf("File Write called \n");
     file_write_args *args = malloc(sizeof(file_write_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -502,8 +505,8 @@ void file_write(vnode *vn
     int status = nfs_write(vn->fs_data
                           ,*offset
                           ,args->to_write
-                          ,kptr
-                          ,&file_write_cb
+                          ,(const void*)kptr
+                          ,file_write_cb
                           ,(uintptr_t)args
                           );
 
@@ -638,14 +641,13 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
         free(args);
         return;
     }
-
     vn->atime = fattr->atime;  
     /* 9242_TODO Error check this */
     copy_page(args->buf, count, (seL4_Word) data, as);
     *(args->offset) += count;
     args->bytes_read += count;
     args->buf += count; //need to increment this pointer
-    if (args->bytes_read == args->nbyte || count < args->to_read) {
+    if (args->bytes_read == args->nbyte) {
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {

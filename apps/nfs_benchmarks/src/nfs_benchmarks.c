@@ -12,6 +12,6 @@
 int main(void) {
     int fd = sos_sys_open("console", O_WRONLY);
     sos_sys_write(fd, "test\n", 5);
-
+    
     return EXIT_SUCCESS;
 }
