@@ -342,6 +342,7 @@ void con_read_reply_cb(seL4_Uint32 id, void *data) {
 
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+    printf("Opening file for read\n");
     file_read_args *args = malloc(sizeof(file_read_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -369,10 +370,13 @@ void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
     /* Do filetable setup */
+    printf("File callback\n");
     send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
+    free(args);
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
+    printf("Read callback\n");
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     addr_space* as = args->as;
