@@ -68,12 +68,14 @@ void con_read_reply_cb(seL4_Uint32 id, void *data);
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *file_names[], nfscookie_t nfscookie);
 
 typedef struct _con_read_args con_read_args;
 typedef struct _file_open_args file_open_args;
 typedef struct _file_read_args file_read_args;
 typedef struct _file_write_args file_write_args;
 typedef struct _vfs_stat_args vfs_stat_args;
+typedef struct _getdirent_args getdirent_args;
 
 int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as);
 
@@ -135,6 +137,14 @@ struct _file_write_args {
 struct _vfs_stat_args {
     seL4_CPtr reply_cap;
     seL4_Word buf;
+};
+
+struct _getdirent_args {
+    seL4_CPtr reply_cap;
+    seL4_Word get_ent;
+    seL4_Word ent_received;
+    char *name;
+    size_t nbyte;
 };
 
 vnode_ops nfs_ops;
@@ -365,10 +375,7 @@ void con_read_reply_cb(seL4_Uint32 id, void *data) {
 
 }
 
-int vfs_getdirent(int pos, const char *name, size_t nbyte, seL4_CPtr reply_cap) {
-    send_seL4_reply(reply_cap, 1);
-    return VFS_ERR_NOT_DIR;
-}
+
 
 void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
     vfs_stat_args *args = malloc(sizeof(vfs_stat_args));
@@ -612,7 +619,38 @@ void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fat
 
 }
 
-/* 9242_TODO */
+void vfs_getdirent(int pos, char *name, size_t nbyte, seL4_CPtr reply_cap) {
+    getdirent_args *args = malloc(sizeof(getdirent_args));
+    args->reply_cap = reply_cap;
+    args->get_ent = pos;
+    args->ent_received = 0;
+    args->name = name;
+    args->nbyte = nbyte;
+    nfs_readdir(&mnt_point, 0, vfs_getdirent_cb, (uintptr_t)args);
+}
+
+void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *file_names[], nfscookie_t nfscookie) {
+    getdirent_args *args = (getdirent_args *)token;
+    if (status != NFS_OK) {
+        send_seL4_reply(args->reply_cap, -1);
+    } else if (num_files == 0) {
+        // If the entry requested is equal to the next free entry, return 0
+        if (args->get_ent == args->ent_received) {
+            send_seL4_reply(args->reply_cap, 0);
+        } else {
+            send_seL4_reply(args->reply_cap, -1);
+        }
+    } else if (args->ent_received + num_files > args->get_ent) {
+        int index = args->get_ent - args->ent_received;
+        args->ent_received += num_files;
+        strncpy(args->name, file_names[index], args->nbyte);
+        send_seL4_reply(args->reply_cap, strlen(args->name) + 1);
+    } else {
+        args->ent_received += num_files;
+        nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);
+    }
+}
+
 int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as) {
     int err = map_if_valid(dst & PAGE_MASK, as);
     if (err) {
