@@ -65,9 +65,12 @@ void file_close(vnode *vn);
 void con_read_reply_cb(seL4_Uint32 id, void *data);
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+
 typedef struct _con_read_args con_read_args;
 typedef struct _file_open_args file_open_args;
 typedef struct _file_read_args file_read_args;
+typedef struct _vfs_stat_args vfs_stat_args;
 
 int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as);
 
@@ -111,6 +114,11 @@ struct _file_read_args {
     addr_space *as;
     size_t nbyte;
     size_t bytes_read;
+};
+
+struct _vfs_stat_args {
+    seL4_CPtr reply_cap;
+    seL4_Word buf;
 };
 
 vnode_ops nfs_ops;
@@ -259,29 +267,12 @@ int con_close(vnode *vn) {
 }
 
 
-int vfs_getdirent(int pos, const char *name, size_t nbyte, seL4_CPtr reply_cap) {
-    send_seL4_reply(reply_cap, 1);
-    return VFS_ERR_NOT_DIR;
-}
-
-int vfs_stat(const char *path, sos_stat_t *buf, seL4_CPtr reply_cap) {
-    /*if (strcmp(path, "console") == 0) {
-        buf->st_type = ST_SPECIAL;
-        buf->st_mode = FM_WRITE | FM_READ;
-        buf->st_size = 0;
-        buf->st_ctime
-    }*/
-    send_seL4_reply(reply_cap, 1);
-    return VFS_ERR;
-}
-
 void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
     //assert(!"trying to read!");
     char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
     }
-    printf("Console read\n");
     int bytes = 0;
     if (console_data_size) { 
         while (bytes < nbyte && console_data_size) {
@@ -350,6 +341,18 @@ void con_read_reply_cb(seL4_Uint32 id, void *data) {
 
 }
 
+int vfs_getdirent(int pos, const char *name, size_t nbyte, seL4_CPtr reply_cap) {
+    send_seL4_reply(reply_cap, 1);
+    return VFS_ERR_NOT_DIR;
+}
+
+void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
+    vfs_stat_args *args = malloc(sizeof(vfs_stat_args));
+    args->reply_cap = reply_cap;
+    args->buf = buf;
+    nfs_lookup(&mnt_point, path, vfs_stat_cb, (uintptr_t)args);
+}
+
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
     file_read_args *args = malloc(sizeof(file_read_args));
@@ -375,7 +378,7 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
 }
 
 // Set up vnode and filetable
-void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
     if (status != NFS_OK) {
@@ -390,13 +393,11 @@ void file_open_cb (uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     vn->atime = fattr->atime;
     int fd = add_fd(vn, args->as);
     /* Do filetable setup */
-    printf("File callback\n");
     send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
     free(args);
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
-    printf("READ CALLBACK\n");
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     addr_space* as = args->as;
@@ -420,6 +421,30 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
         }
         nfs_read(vn->fs_data, *(args->offset), to_read, file_read_cb, (uintptr_t)args);
     } 
+}
+
+void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+    vfs_stat_args *args = (vfs_stat_args*) token;
+    seL4_Word f_status = args->buf;
+    sos_stat_t *stat = (sos_stat_t *)f_status;
+    if (status != NFS_OK) {
+        send_seL4_reply(args->reply_cap, 1);
+        return;
+    }
+    
+    if (fattr->type == NFREG) {
+        
+        stat->st_type = ST_FILE;
+    } else {
+        stat->st_type = ST_SPECIAL;
+    }
+    
+    stat->st_fmode = fattr->mode;
+    stat->st_size = fattr->size;
+    stat->st_ctime = fattr->ctime.seconds * 1000 + fattr->ctime.useconds / 1000;
+    stat->st_atime = fattr->atime.seconds * 1000 + fattr->atime.useconds / 1000;
+    send_seL4_reply(args->reply_cap, 0);
+
 }
 
 /* 9242_TODO */

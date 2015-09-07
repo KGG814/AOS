@@ -70,7 +70,10 @@ void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as)
     dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     /* Get the page of the fault address*/
-    map_if_valid(fault_vaddr, as);
+    int err = map_if_valid(fault_vaddr, as);
+    if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
+        // 9242_TODO Kill process
+    }
     /* Reply */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
@@ -87,7 +90,7 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, addr_space* as) {
     return index_to_vaddr(frame_index) + (user_ptr & ~(PAGE_MASK)); 
 }
 
-void user_buffer_check(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
+void user_buffer_map(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
     seL4_Word start_page = user_ptr & PAGE_MASK;
     seL4_Word end_page = (user_ptr + nbyte) & PAGE_MASK;
     for (seL4_Word curr_page = start_page; curr_page <= end_page; curr_page += PAGE_SIZE) {
@@ -109,7 +112,10 @@ int map_if_valid(seL4_Word vaddr, addr_space* as) {
     int err = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
         /* Kill process */
-        err = 43;
+        err = GUARD_PAGE_FAULT;
+        frame_free(ft_index);
+    } else if ((vaddr & PAGE_MASK) == 0) {
+        err = NULL_DEREF;
         frame_free(ft_index);
     /* Stack pages*/
     } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
@@ -124,11 +130,26 @@ int map_if_valid(seL4_Word vaddr, addr_space* as) {
     } else if((vaddr >= PROCESS_SCRATCH)) {
         sos_map_page(ft_index, vaddr, as->vroot, as);   
     } else {
-      err = 42;
+      err = UNKNOWN_REGION;
       frame_free(ft_index);
     }
     if (err) {
         dprintf(0, "Address %p was not in valid region\n", vaddr);
     }
     return err;
+}
+
+int check_region(seL4_Word start, seL4_Word size) {
+    for (seL4_Word curr = start; curr < start + size; curr += PAGE_SIZE) {
+        if ((curr & PAGE_MASK) == GUARD_PAGE) {
+            return EFAULT;
+        } else if ((curr & PAGE_MASK) == 0) {
+            return EFAULT;
+        } else if ((curr >= PROCESS_STACK_TOP) && (curr < PROCESS_IPC_BUFFER)) {
+            return EFAULT;
+        } else if((curr >= PROCESS_IPC_BUFFER_END) && (curr < PROCESS_SCRATCH)) {
+            return EFAULT;
+        }
+    }
+    return 0;
 }
