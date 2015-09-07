@@ -524,7 +524,9 @@ int file_close(vnode *vn) {
     if (vn == NULL) {
         return -1;
     }
-
+    if (vn->fs_data != NULL) {
+        free(vn->fs_data);
+    }
     //delete the vnode. The console doesn't currently hold any data so we can 
     //just clean it up
     if (vnode_remove(vn)) {
