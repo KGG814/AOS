@@ -78,12 +78,8 @@ int fd_close(addr_space* as, int file) {
         return FILE_TABLE_ERR;
     }
 
-    handle->ref_count--;
-    int err = 0;
-    if (handle->ref_count == 0) {
-        err = handle->vn->ops->vfs_close(handle->vn);
-        free(handle);
-    }
+    int err = handle->vn->ops->vfs_close(handle->vn);
+    free(handle);
 
     as->file_table[file] = INVALID_FD;
     return err;
@@ -116,6 +112,5 @@ int add_fd(vnode* vn, addr_space* as) {
     as->file_table[fd] = i;
     fh->offset = 0;
     fh->vn = vn;
-    fh->ref_count = 0;
     return i;
 }

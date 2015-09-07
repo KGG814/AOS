@@ -60,7 +60,7 @@ int con_close(vnode *vn);
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset);
-void file_close(vnode *vn);
+int file_close(vnode *vn);
 
 void con_read_reply_cb(seL4_Uint32 id, void *data);
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
@@ -87,7 +87,8 @@ vnode_ops nul_ops = {
 vnode_ops file_ops = 
 {
     .vfs_write  = &file_write, 
-    .vfs_read   = &file_read
+    .vfs_read   = &file_read,
+    .vfs_close  = &file_close
 };
 
 //arguments for the console read callback 
@@ -374,6 +375,20 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset) {
     /* 9242_TODO Callback */
+}
+
+int file_close(vnode *vn) {
+    if (vn == NULL) {
+        return -1;
+    }
+
+    //delete the vnode. The console doesn't currently hold any data so we can 
+    //just clean it up
+    if (vnode_remove(vn)) {
+        return -1;
+    }
+
+    return 0;
 }
 
 // Set up vnode and filetable
