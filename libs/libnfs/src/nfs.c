@@ -215,7 +215,6 @@ nfs_lookup(const fhandle_t *cwd, const char *name,
 {
     struct pbuf *pbuf;
     int pos;
-
     /* now the user data struct is setup, do some call stuff! */
     pbuf = rpcpbuf_init(NFS_NUMBER, NFS_VERSION, NFSPROC_LOOKUP, &pos);
     if(pbuf == NULL){

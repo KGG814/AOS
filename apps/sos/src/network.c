@@ -61,7 +61,7 @@ static struct net_irq {
 } _net_irqs[1];
 
 static seL4_CPtr _irq_ep;
-
+ 
 fhandle_t mnt_point = { { 0 } };
 
 lwip_iface_t *lwip_iface;
@@ -224,6 +224,7 @@ network_init(seL4_CPtr interrupt_ep) {
             }else{
                 printf("\nSuccessfully mounted '%s'\n", SOS_NFS_DIR);
             }
+
         }
         if(err){
             WARN("Failed to initialise NFS\n");

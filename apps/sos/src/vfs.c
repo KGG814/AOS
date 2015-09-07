@@ -29,7 +29,7 @@ int console_data_size = 0;
 char *console_data_start = console_buf;
 char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
-fhandle_t root_directory;
+extern fhandle_t mnt_point;
 //linked list for vnodes
 //9242_TODO change this to something sensible
 
@@ -116,6 +116,7 @@ vnode_ops nfs_ops;
 void vfs_init(void) {
     serial_handle = serial_init();
     serial_register_handler(serial_handle, serial_cb); 
+
 }
 
 int vnode_remove(vnode *vn) {
@@ -221,8 +222,8 @@ vnode* vfs_open(const char* path
         //set the name of the file
         strcpy(vn->name, path);
         //9242_TODO Do the callback
-        printf("Open nfs\n");
-        nfs_lookup(&root_directory, path, file_open_cb, (uintptr_t)args);
+        printf("TEST: %p\n", &mnt_point);
+        //nfs_lookup(&mnt_point, vn->name, file_open_cb, (uintptr_t)args);
     }
 
     return vn;

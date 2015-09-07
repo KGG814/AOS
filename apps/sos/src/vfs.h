@@ -25,7 +25,6 @@
 #include <serial/serial.h>
 #include <nfs/nfs.h>
 #include "proc.h"
-
 typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
 
