@@ -116,7 +116,7 @@ vnode_ops nfs_ops;
 void vfs_init(void) {
     serial_handle = serial_init();
     serial_register_handler(serial_handle, serial_cb); 
-
+    register_tic(100000, &nfs_timeout, NULL);
 }
 
 int vnode_remove(vnode *vn) {
