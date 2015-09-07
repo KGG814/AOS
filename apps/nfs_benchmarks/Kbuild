@@ -8,7 +8,7 @@
 # @TAG(NICTA_BSD)
 #
 
-components-$(CONFIG_APP_TTY_TEST) += nfs_benchmarks
+components-$(CONFIG_APP_NFS_BENCHMARKS) += nfs_benchmarks
 
 nfs_benchmarks: $(libc) libsel4 libsos
 

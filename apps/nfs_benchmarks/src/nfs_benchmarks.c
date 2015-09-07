@@ -1,9 +1,13 @@
 #include <assert.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sel4/sel4.h>
+#include <inttypes.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <time.h>
-#include <sos.h>
+#include <sys/time.h>
+#include <utils/time.h>
 
 int main(void) {
     int fd = sos_sys_open("console", O_WRONLY);

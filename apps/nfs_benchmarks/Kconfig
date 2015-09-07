@@ -9,7 +9,7 @@
 #
 
 config APP_NFS_BENCHMARKS
-    bool "TTY test"
+    bool "NFS benchmarks"
     depends on LIB_SEL4 && HAVE_LIBC && LIB_SOS
     default y
     select HAVE_SEL4_APPS
