@@ -118,7 +118,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf  =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
+    //printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
         dprintf(0, "out of range fd: %d\n", file);

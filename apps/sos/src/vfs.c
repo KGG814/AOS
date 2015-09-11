@@ -330,7 +330,7 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
 }
 
 void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
-    printf("Con write\n");
+    ////printf("Con write\n");
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -419,7 +419,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     file_write_args *args = (file_write_args*) token;
     vnode *vn = args->vn;
     addr_space *as = args->as;
-    printf("write: got status from nfs: %d\n", status);
+    //printf("write: got status from nfs: %d\n", status);
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, args->bytes_written + count);
         free(args);
@@ -433,7 +433,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     args->buf += count; //need to increment this pointer
     
     if (args->bytes_written == args->nbyte) {
-        printf("file write done\n");
+        //printf("file write done\n");
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
@@ -477,7 +477,7 @@ void file_write(vnode *vn
         return;
     }
 
-    printf("File Write called \n");
+    //printf("File Write called \n");
     file_write_args *args = malloc(sizeof(file_write_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -496,7 +496,7 @@ void file_write(vnode *vn
    
     int err = map_if_valid(args->buf & PAGE_MASK, as);
     if (err) {
-        printf("couldn't map buffer\n");
+        //printf("couldn't map buffer\n");
         free(args);
         send_seL4_reply(reply_cap, 0);
         return;
@@ -517,7 +517,7 @@ void file_write(vnode *vn
         free(args);
         return;
     }
-    printf("write callback set up\n");
+    //printf("write callback set up\n");
 }
 
 int file_close(vnode *vn) {
@@ -613,7 +613,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
                 return;
             }
         } else {
-            printf("First mnt attr get!\n");
+            //printf("First mnt attr get!\n");
             mnt_attr = malloc(sizeof(fattr_t));
             if (mnt_attr == NULL) {
                 send_seL4_reply(args->reply_cap, -1);
@@ -628,7 +628,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
                 free(args);
                 return;
             }
-            printf("First mnt attr get end!\n");
+            //printf("First mnt attr get end!\n");
         }
     } else { 
         send_seL4_reply(args->reply_cap, -1);
@@ -642,7 +642,7 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     addr_space* as = args->as;
-    printf("file read status: %d\n", status);
+    //printf("file read status: %d\n", status);
     if (status != NFS_OK) {
         assert(count == 0);
         send_seL4_reply(args->reply_cap, args->bytes_read + count);
