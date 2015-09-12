@@ -15,6 +15,8 @@
 #define PT_BOTTOM(x)  (((x) & 0x3FF000) >> 12)
 #define PT_TOP(x)  (((x) & 0xFFC00000) >> 22)
 #define FT_INDEX_MASK 0x000FFFFF
+#define PROCESS_MASK  0x7FF00000
+#define SWAPPED       0x80000000
 #define verbose 5
 
 
@@ -62,14 +64,20 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
 }
 
 void handle_vm_fault(seL4_Word badge, seL4_ARM_PageDirectory pd, addr_space* as) {
-    /* 9242_TODO Kill process if invalid memory */
-    /* 9242_TODO Instruction faults? */
+    // 9242_TODO Kill process if invalid memory 
+    // 9242_TODO Instruction faults?
     seL4_CPtr reply_cap;
     seL4_Word fault_vaddr = seL4_GetMR(1);
     fault_vaddr &= PAGE_MASK;
     dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
-    /* Get the page of the fault address*/
+    // 9242_TODO 
+    // Check if the page has been swapped out
+
+    // 9242 TODO
+    // If it has been swapped out, get swap file offset from page table entry and swap it back in. Make sure to handle case of if we need to swap something out again.
+
+    // Get the page of the fault address
     int err = map_if_valid(fault_vaddr, as);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
         // 9242_TODO Kill process

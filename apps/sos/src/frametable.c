@@ -134,15 +134,25 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
     if (pt_addr < low) { //no frames available
         return FRAMETABLE_NO_MEM;
-    }
-
-    int index = (pt_addr - low) / PAGE_SIZE;
-    err |= cspace_ut_retype_addr(pt_addr
+        // 9242_TODO Change this to do swapping instead
+        // Get the next frame index from the swap buffer
+        // Read the free swap slot to get the next free swap slot
+        // Save the next free swap slot as the current free swap slot
+        // Write frame to current free swap slot
+        // Unmap from seL4 page directory and set addr_space page directory entry to swapped, and put the swap slot in the entry
+        // Clear the frame
+        // Return the index and continue
+    } else {
+        int index = (pt_addr - low) / PAGE_SIZE;
+        err |= cspace_ut_retype_addr(pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
                                 ,cur_cspace
                                 ,&frametable[index].frame_cap
-                                );
+                                ); 
+    }
+
+    
     //9242_TODO: interpret this error correctly
     if (err) { 
         return FRAMETABLE_ERR;
@@ -171,6 +181,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
         }
     }  
 
+    //9242_TODO
     return index;
 
 }
