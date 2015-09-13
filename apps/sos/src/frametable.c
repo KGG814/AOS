@@ -34,8 +34,6 @@ int ft_initialised = 0;
 static seL4_Word low;
 static seL4_Word high;
 
-
-
 static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
 }
@@ -49,7 +47,7 @@ seL4_Word index_to_vaddr(int index) {
 }
 
 int frame_init(void) {
-    frametable = (ft_entry *) FT_START_ADDR; 
+    frametable = (ft_entry *) FT_START_ADDR;
     if (ft_initialised == 1) {
         return FRAMETABLE_INITIALISED;
     }
@@ -132,18 +130,22 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     int err = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
+    int index = 0;
     if (pt_addr < low) { //no frames available
         return FRAMETABLE_NO_MEM;
+        // 9242_TODO Put mapping in frame table entry status
         // 9242_TODO Change this to do swapping instead
         // Get the next frame index from the swap buffer
-        // Read the free swap slot to get the next free swap slot
+        // Set the head of the swap buffer to next thing
+        // Get next free swap slot from swap table
         // Save the next free swap slot as the current free swap slot
         // Write frame to current free swap slot
+        // Get process mapping from frame
         // Unmap from seL4 page directory and set addr_space page directory entry to swapped, and put the swap slot in the entry
         // Clear the frame
         // Return the index and continue
     } else {
-        int index = (pt_addr - low) / PAGE_SIZE;
+        index = (pt_addr - low) / PAGE_SIZE;
         err |= cspace_ut_retype_addr(pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
@@ -180,10 +182,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
             tmp[i] = 0;
         }
     }  
-
-    //9242_TODO
     return index;
-
 }
 
 //frame_free: the physical memory is no longer mapped in the window, the frame 

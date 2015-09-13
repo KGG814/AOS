@@ -8,14 +8,14 @@
 #define verbose 5
 #include <sys/debug.h>
 
-void handle_syscall0(seL4_CPtr reply_cap, addr_space* as) {
+void handle_syscall0(seL4_CPtr reply_cap, int pid) {
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
     seL4_Send(reply_cap, reply);
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
-void handle_sos_write(seL4_CPtr reply_cap, addr_space* as) {
+void handle_sos_write(seL4_CPtr reply_cap, int pid) {
     /*
     char data[sizeof(seL4_Word)*seL4_MsgMaxLength];
     // Go through each message and transfer the word
@@ -43,7 +43,7 @@ void handle_sos_write(seL4_CPtr reply_cap, addr_space* as) {
  * for the console.res
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
-void handle_open(seL4_CPtr reply_cap, addr_space* as) {
+void handle_open(seL4_CPtr reply_cap, int pid) {
 
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
@@ -53,8 +53,8 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
         return;
     }
 
-    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
-    int err = fh_open(as, (char*)k_ptr, mode, reply_cap);
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, pid);
+    int err = fh_open(pid, (char*)k_ptr, mode, reply_cap);
     if (err == FILE_TABLE_CALLBACK) {
         return; //return and let process wait for callback
     } else {
@@ -64,7 +64,7 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
 */
-void handle_close(seL4_CPtr reply_cap, addr_space* as) {
+void handle_close(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     int file =  (int) seL4_GetMR(1);
 
@@ -73,7 +73,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
     }
 
     /* Get the vnode using the process filetable and OFT*/
-    send_seL4_reply(reply_cap, fd_close(as, file));
+    send_seL4_reply(reply_cap, fd_close(pid, file));
 }
 
 
@@ -82,7 +82,7 @@ void handle_close(seL4_CPtr reply_cap, addr_space* as) {
  * Will block when reading from console and no input is presently
  * available. Returns -1 on error (invalid file).
  */
-void handle_read(seL4_CPtr reply_cap, addr_space* as) {
+void handle_read(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     int file         =  (int)          seL4_GetMR(1);
     char* buf        =  (char*)        seL4_GetMR(2);
@@ -99,13 +99,13 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
         return;
     }
     /* Get the vnode using the process filetable and OFT*/
-    int oft_index = as->file_table[file];
+    int oft_index = proc_table[pid]->file_table[file];
     file_handle* handle = oft[oft_index];
     /* Check page boundaries and map in pages if necessary */
     /* Turn the user ptr buff into a kernel ptr */
     /* Call the read vnode op */
 
-    handle->vn->ops->vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), as);
+    handle->vn->ops->vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
     return;
 }
 
@@ -113,10 +113,10 @@ void handle_read(seL4_CPtr reply_cap, addr_space* as) {
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
-void handle_write(seL4_CPtr reply_cap, addr_space* as) {
+void handle_write(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     int file         =  (int)          seL4_GetMR(1);
-    char* buf  =  (char*)        seL4_GetMR(2);
+    char* buf        =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
     //printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
     //check filehandle is actually in range
@@ -132,13 +132,13 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
     }
 
     /* Get the vnode using the process filetable and OFT*/
-    int oft_index = as->file_table[file];
+    int oft_index = proc_table[pid]->file_table[file];
     file_handle* handle = oft[oft_index];
 
     /* Check page boundaries and map in pages if necessary */;
     /* Turn the user ptr buff into a kernel ptr */
     /* Call the write vnode op */
-    handle->vn->ops->vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), as);  
+    handle->vn->ops->vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);  
 }
 
 
@@ -146,7 +146,7 @@ void handle_write(seL4_CPtr reply_cap, addr_space* as) {
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
-void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
+void handle_getdirent(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
@@ -156,9 +156,9 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
         return;
     }
     /* Check page boundaries and map in pages if necessary */
-    user_buffer_map((seL4_Word)name, nbyte, as);
+    user_buffer_map((seL4_Word)name, nbyte, pid);
     /* Turn the user ptr buff into a kernel ptr */
-    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, as);
+    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, pid);
     /* Call the getdirent vnode op */
     vfs_getdirent(pos, (char*)k_ptr, nbyte, reply_cap); 
 }
@@ -167,7 +167,7 @@ void handle_getdirent(seL4_CPtr reply_cap, addr_space* as) {
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
-void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
+void handle_stat(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     const char* path =  (char*)        seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
@@ -177,17 +177,17 @@ void handle_stat(seL4_CPtr reply_cap, addr_space* as) {
         send_seL4_reply(reply_cap, EFAULT);
         return;
     }
-    user_buffer_map((seL4_Word)path, 256, as);  
-    user_buffer_map((seL4_Word)buf, sizeof(sos_stat_t), as);  
+    user_buffer_map((seL4_Word)path, 256, pid);  
+    user_buffer_map((seL4_Word)buf, sizeof(sos_stat_t), pid);  
     /* Turn the user ptrs path and buf into kernel ptrs*/
-    seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, as);
-    seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, as);
+    seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, pid);
+    seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, pid);
     /* Call stat */
     dprintf(0, "kptr: %p\n", k_ptr1);
     vfs_stat((char*)k_ptr1, k_ptr2, reply_cap);
 }
 
-void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
+void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
@@ -196,8 +196,8 @@ void handle_brk(seL4_CPtr reply_cap, addr_space* as) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
-        as->brk = newbrk;
-        dprintf(0, "as->brk: %p\n", as->brk);
+        proc_table[pid]->brk = newbrk;
+        dprintf(0, "proc_table[pid]->brk: %p\n", proc_table[pid]->brk);
     } else {
         ret = 0;
     }
@@ -242,7 +242,7 @@ void handle_process_wait(void) {
 
 /* Returns time in microseconds since booting.
  */
-void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as) {
+void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
 	seL4_SetMR(1, (seL4_Word)(LOWER_32(timestamp)));
@@ -261,7 +261,7 @@ void wake_process(uint32_t id, void* data) {
 
 /* Sleeps for the specified number of milliseconds.
  */
-void handle_usleep(seL4_CPtr reply_cap, addr_space* as) {
+void handle_usleep(seL4_CPtr reply_cap, int pid) {
     int usec = seL4_GetMR(1) * 1000;
     int ret = register_timer(usec, &wake_process, (void *)reply_cap);
     if (ret == 0) { //handle error

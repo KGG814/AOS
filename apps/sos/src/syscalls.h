@@ -6,11 +6,11 @@
 #define NUM_SYSCALLS 11
 
 
-void handle_brk(seL4_CPtr reply_cap, addr_space* as);
+void handle_brk(seL4_CPtr reply_cap, int pid);
 
-void handle_syscall0(seL4_CPtr reply_cap, addr_space* as);
+void handle_syscall0(seL4_CPtr reply_cap, int pid);
 
-void handle_sos_write(seL4_CPtr reply_cap, addr_space* as);
+void handle_sos_write(seL4_CPtr reply_cap, int pid);
 
 /* Open file and return file descriptor, -1 if unsuccessful
  * (too many open files, console already open for reading).
@@ -20,38 +20,38 @@ void handle_sos_write(seL4_CPtr reply_cap, addr_space* as);
  * for the console.
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
-void handle_open(seL4_CPtr reply_cap, addr_space* as);
+void handle_open(seL4_CPtr reply_cap, int pid);
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
-void handle_close(seL4_CPtr reply_cap, addr_space* as);
+void handle_close(seL4_CPtr reply_cap, int pid);
 
 /* Read from an open file, into "buf", max "nbyte" bytes.
  * Returns the number of bytes read.
  * Will block when reading from console and no input is presently
  * available. Returns -1 on error (invalid file).
  */
-void handle_read(seL4_CPtr reply_cap, addr_space* as);
+void handle_read(seL4_CPtr reply_cap, int pid);
 
 
 /* Write to an open file, from "buf", max "nbyte" bytes.
  * Returns the number of bytes written. <nbyte disk is full.
  * Returns -1 on error (invalid file).
  */
-void handle_write(seL4_CPtr reply_cap, addr_space* as);
+void handle_write(seL4_CPtr reply_cap, int pid);
 
 
 /* Reads name of entry "pos" in directory into "name", max "nbyte" bytes.
  * Returns number of bytes returned, zero if "pos" is next free entry,
  * -1 if error (non-existent entry).
  */
-void handle_getdirent(seL4_CPtr reply_cap, addr_space* as);
+void handle_getdirent(seL4_CPtr reply_cap, int pid);
 
 
 /* Returns information about file "path" through "buf".
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
-void handle_stat(seL4_CPtr reply_cap, addr_space* as);
+void handle_stat(seL4_CPtr reply_cap, int pid);
 
 
 /* Create a new process running the executable image "path".
@@ -85,12 +85,12 @@ void handle_process_wait(void);
 
 /* Returns time in microseconds since booting.
  */
-void handle_time_stamp(seL4_CPtr reply_cap, addr_space* as);
+void handle_time_stamp(seL4_CPtr reply_cap, int pid);
 
 
 /* Sleeps for the specified number of milliseconds.
  */
-void handle_usleep(seL4_CPtr reply_cap, addr_space* as);
+void handle_usleep(seL4_CPtr reply_cap, int pid);
 
 //convenience functino for sending replies
 void send_seL4_reply(seL4_CPtr reply_cap, int ret);
