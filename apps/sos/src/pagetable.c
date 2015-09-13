@@ -49,7 +49,7 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     seL4_CPtr frame_cap;
     if (as->page_directory[dir_index][page_index] == 0) {
     	as->page_directory[dir_index][page_index] = ft_index;
-
+        // 9242_TODO Change this to take in process id as well, and set in page table
         /* Map into the given process page directory */
 
         frame_cap = cspace_copy_cap(cur_cspace, cur_cspace, frametable[ft_index].frame_cap, seL4_AllRights);
