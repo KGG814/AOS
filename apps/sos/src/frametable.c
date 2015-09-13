@@ -140,6 +140,9 @@ int frame_alloc(seL4_Word *vaddr, int map) {
         // Get next free swap slot from swap table
         // Save the next free swap slot as the current free swap slot
         // Write frame to current free swap slot
+
+        //write_to_swap_slot
+
         // Get process mapping from frame
         // Unmap from seL4 page directory and set addr_space page directory entry to swapped, and put the swap slot in the entry
         // Clear the frame
@@ -221,3 +224,16 @@ int frame_free(int index) {
 	return FRAMETABLE_OK;
 }
 
+/*void write_to_swap_slot(seL4_Word index) {
+    int slot = get_next_free_slot();
+    file_write_args *args = malloc(sizeof(file_write_args));
+    args->vn = oft[SWAP_FD]->vn;
+    args->reply_cap = reply_cap;
+    args->buf = index_to_vaddr(index);
+    args->offset = slot * PAGE_SIZE;
+    args->pid = pid;
+    args->nbyte = PAGE_SIZE;
+    args->to_write = PAGE_SIZE;
+    args->bytes_written = 0;
+    nfs_write(vn->fs_data,*args->offset,args->to_write,(const void*)kptr ,&file_write_cb ,(uintptr_t) token);
+}*/

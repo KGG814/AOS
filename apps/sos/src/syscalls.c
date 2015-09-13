@@ -136,7 +136,6 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
     file_handle* handle = oft[oft_index];
 
     /* Check page boundaries and map in pages if necessary */;
-    /* Turn the user ptr buff into a kernel ptr */
     /* Call the write vnode op */
     handle->vn->ops->vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);  
 }
