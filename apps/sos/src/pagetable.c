@@ -12,8 +12,6 @@
 #include <assert.h>
 
 
-#define PT_BOTTOM(x)        (((x) & 0x3FF000) >> 12)
-#define PT_TOP(x)           (((x) & 0xFFC00000) >> 22)
 #define FT_INDEX_MASK       0x000FFFFF
 #define verbose 5
 
@@ -21,12 +19,15 @@ int handle_swap(seL4_Word vaddr, int pid);
 
 int page_init(int pid) {
     seL4_Word vaddr;
-    frame_alloc(&vaddr, KMAP, 0);
+    int index = frame_alloc(&vaddr, KMAP, 0);
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
+    frametable[index].vaddr = vaddr;
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
         frame_alloc(&vaddr,KMAP, 0);
         proc_table[pid]->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
+        frametable[index].vaddr = vaddr;
     }
+
     return 0;
 }
 
@@ -48,16 +49,21 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     seL4_CPtr frame_cap;
     if (as->page_directory[dir_index][page_index] == 0) {
     	as->page_directory[dir_index][page_index] = ft_index;
-        // 9242_TODO Change this to take in process id as well, and set in page table
         /* Map into the given process page directory */
 
         frame_cap = cspace_copy_cap(cur_cspace, cur_cspace, frametable[ft_index].frame_cap, seL4_AllRights);
         map_page_user(frame_cap, as->vroot, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+        frametable[index].vaddr = vaddr;
     } else {
-        int ft_index_curr = as->page_directory[dir_index][page_index];
-        frame_cap = frametable[ft_index_curr].frame_cap;
-        frame_free(ft_index);
+        if ((as->page_directory[dir_index][page_index] | SWAPPED) == SWAPPED) {
+            int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
+            frametable[index].vaddr = vaddr;
+        } else {
+            int ft_index_curr = as->page_directory[dir_index][page_index];
+            frame_cap = frametable[ft_index_curr].frame_cap;
+            frame_free(ft_index);
+        }
     }
     return frame_cap;
 }

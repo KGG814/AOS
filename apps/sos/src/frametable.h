@@ -15,9 +15,9 @@
 #define FRAMETABLE_CALLBACK			(-4)
 
 #define PROCESS_MASK        0x0FF00000
-#define SWAPPED             0x80000000
-#define SWAP_SLOT_MASK      0x7FFFFFFF
-
+#define SWAP_BUFFER_MASK	0x000FFFFF
+#define STATUS_MASK			0xF0000000
+#define PROCESS_BIT_SHIFT   20
 /* Mask to obtain frame index */
 #define FRAME_INDEX_MASK	0x000FFFFF
 
@@ -29,7 +29,7 @@
 typedef struct _ft_entry {
     seL4_Word frame_status;
     seL4_CPtr frame_cap;
-    seL4_Word next_swap_frame;
+    seL4_Word vaddr;
 } ft_entry;
 
 //sos vspace addr of ft
