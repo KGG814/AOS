@@ -11,9 +11,8 @@
 #include <sos.h>
 
 int main(void) {
-    char text[] = "test\n";
     int fd = sos_sys_open("b", O_WRONLY);
-    sos_sys_write(fd, text, strlen(text) + 1);
+    sos_sys_write(fd, "helloo", strlen("hello") + 1);
     
     return EXIT_SUCCESS;
 }
