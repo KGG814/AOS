@@ -132,6 +132,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     int err = 0;
 
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
+    int index = (pt_addr - low) / PAGE_SIZE;
     if (pt_addr < low) { //no frames available
         return FRAMETABLE_NO_MEM;
         // 9242_TODO Change this to do swapping instead
@@ -143,7 +144,6 @@ int frame_alloc(seL4_Word *vaddr, int map) {
         // Clear the frame
         // Return the index and continue
     } else {
-        int index = (pt_addr - low) / PAGE_SIZE;
         err |= cspace_ut_retype_addr(pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
