@@ -15,19 +15,16 @@
 #define PT_BOTTOM(x)        (((x) & 0x3FF000) >> 12)
 #define PT_TOP(x)           (((x) & 0xFFC00000) >> 22)
 #define FT_INDEX_MASK       0x000FFFFF
-#define PROCESS_MASK        0x0FF00000
-#define SWAPPED             0x80000000
-#define SWAP_SLOT_MASK      0x7FFFFFFF
 #define verbose 5
 
 int handle_swap(seL4_Word vaddr, int pid);
 
 int page_init(int pid) {
     seL4_Word vaddr;
-    frame_alloc(&vaddr, KMAP);
+    frame_alloc(&vaddr, KMAP, 0);
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        frame_alloc(&vaddr,KMAP);
+        frame_alloc(&vaddr,KMAP, 0);
         proc_table[pid]->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
     }
     return 0;
@@ -41,7 +38,7 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     int index = 0;
     seL4_Word temp;
 	if (as->page_directory[dir_index] == NULL) {
-        index = frame_alloc(&temp, KMAP);
+        index = frame_alloc(&temp, KMAP, 0);
         as->page_directory[dir_index] = (seL4_Word*)temp;
         assert(index > FRAMETABLE_OK);
 	}
@@ -112,7 +109,7 @@ void user_buffer_map(seL4_Word user_ptr, size_t nbyte, int pid) {
 
 int map_if_valid(seL4_Word vaddr, int pid) {
     seL4_Word page_vaddr;
-    int ft_index = frame_alloc(&page_vaddr, KMAP);
+    int ft_index = frame_alloc(&page_vaddr, KMAP, 0);
     assert(ft_index > FRAMETABLE_OK);
     int err = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {

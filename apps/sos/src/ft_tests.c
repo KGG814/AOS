@@ -7,7 +7,7 @@
 int basic_test(void) { 
     for (int i = 0; i < 10; i++) {
         seL4_Word vaddr;
-        frame_alloc(&vaddr, KMAP);
+        frame_alloc(&vaddr, KMAP, 0);
         assert(vaddr);
 
         *((seL4_Word *) vaddr) = 0x37;
@@ -42,7 +42,7 @@ int free_test(void) {
     int index = 0; 
     int err = 0;
     for (int i = 0; i < MAX_CYCLES; i++) {
-        index = frame_alloc(&vaddr, KMAP);
+        index = frame_alloc(&vaddr, KMAP, 0);
         assert(vaddr);
         *((seL4_Word *) vaddr) = 0x37;
         assert(*((seL4_Word *) vaddr) == 0x37);

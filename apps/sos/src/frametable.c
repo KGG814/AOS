@@ -15,14 +15,13 @@
 
 #define CEIL_DIV(num, den) ((num)/(den) + ((num) % (den) == 0 ? 0 : 1))
 
-/* Mask to obtain frame index */
-#define FRAME_INDEX_MASK	0x000FFFFF
+
 
 /* Frame status bits */
 #define FRAME_INVALID    	(1 << 31) //not managed by our frame table 
 #define FRAME_IN_USE        (1 << 30) //frame is in use and managed by us
 #define FRAME_DONT_SWAP     (1 << 29) //frame is not to be swapped
-
+#define PROCESS_BIT_SHIFT   20
 //this bit is 1 if the frame should be swapped on the next pass of the clock
 #define FRAME_SWAP_MARKED   (1 << 28)
 #define verbose 5
@@ -33,6 +32,10 @@ int ft_initialised = 0;
 
 static seL4_Word low;
 static seL4_Word high;
+
+seL4_Word buffer_head = -1;
+seL4_Word buffer_tail = -1;
+
 
 static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
@@ -120,7 +123,7 @@ int frame_init(void) {
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-int frame_alloc(seL4_Word *vaddr, int map) {
+int frame_alloc(seL4_Word *vaddr, int map, int pid) {
     /* Check frame table has been initialised */
     
     if (ft_initialised != 1) {
@@ -133,16 +136,15 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     int index = 0;
     if (pt_addr < low) { //no frames available
         return FRAMETABLE_NO_MEM;
-        // 9242_TODO Put mapping in frame table entry status
         // 9242_TODO Change this to do swapping instead
         // Get the next frame index from the swap buffer
+        int swap_frame = buffer_head;
         // Set the head of the swap buffer to next thing
+        buffer_head = frametable[buffer_head].next_swap_frame;
         // Get next free swap slot from swap table
         // Save the next free swap slot as the current free swap slot
         // Write frame to current free swap slot
-
-        //write_to_swap_slot
-
+        // write_to_swap_slot
         // Get process mapping from frame
         // Unmap from seL4 page directory and set addr_space page directory entry to swapped, and put the swap slot in the entry
         // Clear the frame
@@ -162,6 +164,7 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     if (err) { 
         return FRAMETABLE_ERR;
     }
+
     if (map) {
         err |= map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
@@ -178,6 +181,14 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     //set the status bits of the new frame 
 
     frametable[index].frame_status = FRAME_IN_USE;
+    frametable[index].frame_status |= pid << PROCESS_BIT_SHIFT;
+    if (buffer_head == -1) {
+        buffer_head = index;
+    }
+    // Modify the swap buffer
+    frametable[index].next_swap_frame = buffer_head;
+    frametable[buffer_tail].next_swap_frame = index;
+    buffer_tail = index;
     *vaddr = paddr_to_vaddr(pt_addr);
     if (map) {
         seL4_Word *tmp = (seL4_Word *) *vaddr;
@@ -187,7 +198,6 @@ int frame_alloc(seL4_Word *vaddr, int map) {
     }  
     return index;
 }
-
 //frame_free: the physical memory is no longer mapped in the window, the frame 
 //object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index) {

@@ -29,6 +29,7 @@
 /* From this address onwards is where any devices will get mapped in
  * by the map_device function. You should not use any addresses beyond
  * here without first modifying map_device */
+#define SWAP_TABLE_START	(0xA0000000)
 #define DEVICE_START        (0xB0000000)
 
 #define ROOT_VSTART         (0xC0000000)

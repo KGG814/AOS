@@ -253,7 +253,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     assert(as->croot != NULL);
     
     /* Create an IPC buffer */
-    index = frame_alloc(&temp, NOMAP);
+    index = frame_alloc(&temp, NOMAP, 0);
     as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/
@@ -501,9 +501,9 @@ int main(void) {
 
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
-    proc_table[0] = malloc(sizeof(addr_space));
-    page_init(0);
-    fdt_init(0);
+    proc_table[1] = malloc(sizeof(addr_space));
+    page_init(1);
+    fdt_init(1);
 
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);;
     /* Wait on synchronous endpoint for IPC */
