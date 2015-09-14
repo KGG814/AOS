@@ -115,36 +115,30 @@ void user_buffer_map(seL4_Word user_ptr, size_t nbyte, addr_space* as) {
 
 int map_if_valid(seL4_Word vaddr, addr_space* as) {
     seL4_Word page_vaddr;
-    int ft_index = frame_alloc(&page_vaddr, KMAP);
-    assert(ft_index > FRAMETABLE_OK);
-    int err = 0;
+    
+    //check we aren't trying to map NULL or into a guard page
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
         /* Kill process */
-        err = GUARD_PAGE_FAULT;
-        frame_free(ft_index);
+        return GUARD_PAGE_FAULT;
     } else if ((vaddr & PAGE_MASK) == 0) {
-        err = NULL_DEREF;
-        frame_free(ft_index);
-    /* Stack pages*/
-    } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
-        sos_map_page(ft_index, vaddr, as->vroot, as);
-    /* IPC Pages */
-    } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {
-        sos_map_page(ft_index, vaddr, as->vroot, as);
-    /* VMEM */
-    } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < as->brk)) {
-        sos_map_page(ft_index, vaddr, as->vroot, as);
-    /* Scratch */
-    } else if((vaddr >= PROCESS_SCRATCH)) {
-        sos_map_page(ft_index, vaddr, as->vroot, as);   
-    } else {
-      err = UNKNOWN_REGION;
-      frame_free(ft_index);
+        return NULL_DEREF;
     }
-    if (err) {
+
+    //check we are in a valid region
+    if (
+    !( ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP))    //Stack pages
+    || ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) //IPC Pages
+    || ((vaddr >= PROCESS_VMEM_START) && (vaddr < as->brk))                //VMEM
+    || ((vaddr >= PROCESS_SCRATCH)))
+    )                                       //SCRATCH
+    {
         dprintf(0, "Address %p was not in valid region\n", vaddr);
+        return UNKNOWN_REGION;
     }
-    return err;
+    int ft_index = frame_alloc(&page_vaddr, KMAP);
+    assert(ft_index > FRAMETABLE_OK);
+    sos_map_page(ft_index, vaddr, as->vroot, as);
+    return 0;
 }
 
 int check_region(seL4_Word start, seL4_Word size) {

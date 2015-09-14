@@ -56,6 +56,7 @@ void handle_open(seL4_CPtr reply_cap, addr_space* as) {
     seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, as);
     int err = fh_open(as, (char*)k_ptr, mode, reply_cap);
     if (err == FILE_TABLE_CALLBACK) {
+        printf("couldn't open file.\n");
         return; //return and let process wait for callback
     } else {
         send_seL4_reply(reply_cap, err);
