@@ -113,5 +113,5 @@ int add_fd(vnode* vn, int pid) {
     proc_table[pid]->file_table[fd] = i;
     fh->offset = 0;
     fh->vn = vn;
-    return i;
+    return fd;
 }

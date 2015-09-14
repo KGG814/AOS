@@ -114,8 +114,7 @@ int map_if_valid(seL4_Word vaddr, int pid) {
     int err = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
         /* Kill process */
-        err = GUARD_PAGE_FAULT;
-        frame_free(ft_index);
+        return GUARD_PAGE_FAULT;
     } else if ((vaddr & PAGE_MASK) == 0) {
         err = NULL_DEREF;
         frame_free(ft_index);
@@ -137,6 +136,7 @@ int map_if_valid(seL4_Word vaddr, int pid) {
     }
     if (err) {
         dprintf(0, "Address %p was not in valid region\n", vaddr);
+        return UNKNOWN_REGION;
     }
     return err;
 }
