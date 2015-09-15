@@ -1,6 +1,7 @@
 #include <sos.h>
 #include "file_table.h"
 #include "vfs.h"
+#include "proc.h"
 #include "pagetable.h"
 #include <sel4/types.h>
 #include <sys/debug.h>
@@ -19,33 +20,33 @@ int oft_init(void) {
     return 0;
 } 
 
-int fdt_init(addr_space *as) {
+int fdt_init(int pid) {
     for (int i = 0; i < PROCESS_MAX_FILES; i++) {
-        as->file_table[i] = INVALID_FD;
+        proc_table[pid]->file_table[i] = INVALID_FD;
     }
 
     //open stdin as null
-    if (fh_open(as, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
+    if (fh_open(pid, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
         return -1;
     }
 
-    if (fh_open(as, "console", O_WRONLY, (seL4_CPtr) 0) != 1) {
-        fd_close(as, 0);
+    if (fh_open(pid, "console", O_WRONLY, (seL4_CPtr) 0) != 1) {
+        fd_close(pid, 0);
         return -1;
     }
 
-    if (fh_open(as, "console", O_WRONLY, (seL4_CPtr) 0) != 2) {
-        fd_close(as, 0);
-        fd_close(as, 1);
+    if (fh_open(pid, "console", O_WRONLY, (seL4_CPtr) 0) != 2) {
+        fd_close(pid, 0);
+        fd_close(pid, 1);
         return -1;
     }
     return 0;
 }
 
-int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
+int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     
     int err;
-    vnode* vn = vfs_open(path, mode, as, reply_cap, &err);
+    vnode* vn = vfs_open(path, mode, pid, reply_cap, &err);
     if (vn == NULL || err < 0) {
         return FILE_TABLE_ERR;
     } else if (err == VFS_CALLBACK) {
@@ -53,7 +54,7 @@ int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
         return FILE_TABLE_CALLBACK;
     }
 
-    int fd = add_fd(vn, as);
+    int fd = add_fd(vn, pid);
     if (fd == -1) {
         dprintf(0, "failed to open %s.\n", path);
         // Error, so delete vnode
@@ -63,12 +64,12 @@ int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     return fd;
 } 
 
-int fd_close(addr_space* as, int file) {
+int fd_close(int pid, int file) {
     //assert(0);
     if (file < 0 || file >= PROCESS_MAX_FILES) {
         return -1;
     }
-    int oft_index = as->file_table[file];
+    int oft_index = proc_table[pid]->file_table[file];
     if (oft_index == INVALID_FD) {
         return FILE_TABLE_ERR;
     }
@@ -81,13 +82,12 @@ int fd_close(addr_space* as, int file) {
     int err = handle->vn->ops->vfs_close(handle->vn);
     free(handle);
 
-    as->file_table[file] = INVALID_FD;
+    proc_table[pid]->file_table[file] = INVALID_FD;
     oft[oft_index] = NULL;
     return err;
-    /* Generate and send response */
 }
 
-int add_fd(vnode* vn, addr_space* as) {
+int add_fd(vnode* vn, int pid) {
     int i = 0;
     while (oft[i] != NULL && i < SOS_MAX_FILES) {
         ++i;
@@ -98,7 +98,7 @@ int add_fd(vnode* vn, addr_space* as) {
         return INVALID_FD;
     }
     int fd = 0;
-    while (as->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
+    while (proc_table[pid]->file_table[fd] != INVALID_FD && fd < PROCESS_MAX_FILES) {
         ++fd;
     }  
     if (fd == PROCESS_MAX_FILES) {
@@ -110,7 +110,7 @@ int add_fd(vnode* vn, addr_space* as) {
         return INVALID_FD;
     }
     oft[i] = fh;
-    as->file_table[fd] = i;
+    proc_table[pid]->file_table[fd] = i;
     fh->offset = 0;
     fh->vn = vn;
     return fd;

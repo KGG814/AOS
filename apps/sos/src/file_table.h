@@ -23,11 +23,11 @@ struct _file_handle {
     vnode *vn;
 };
 
-int fdt_init(addr_space *as);
+int fdt_init(int pid);
 int oft_init(void);
 
-int fh_open(addr_space *as, char *path, fmode_t mode, seL4_CPtr reply_cap);
-int fd_close(addr_space* as, int file);
-int add_fd(vnode* vn, addr_space* as);
+int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap);
+int fd_close(int pid, int file);
+int add_fd(vnode* vn, int pid);
 
 #endif /*_FILE_TABLE_H_*/

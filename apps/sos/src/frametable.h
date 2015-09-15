@@ -14,6 +14,13 @@
 #define FRAMETABLE_NO_MEM           (-3)
 #define FRAMETABLE_CALLBACK			(-4)
 
+#define PROCESS_MASK        0x0FF00000
+#define SWAP_BUFFER_MASK	0x000FFFFF
+#define STATUS_MASK			0xF0000000
+#define PROCESS_BIT_SHIFT   20
+/* Mask to obtain frame index */
+#define FRAME_INDEX_MASK	0x000FFFFF
+
 // Alloc options
 #define NOMAP				0
 #define KMAP				1
@@ -22,21 +29,17 @@
 typedef struct _ft_entry {
     seL4_Word frame_status;
     seL4_CPtr frame_cap;
+    seL4_Word vaddr;
 } ft_entry;
 
 //sos vspace addr of ft
 ft_entry* frametable;
 
-/*
- * This frametable allows for 256 pages (256*1024 entries) of frames.
- * This allows mapping for up to 1 GB of physical memory. However this is entirely dependent on how much untyped memory is available.
- */
-
 int frame_init(void);
 
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
 //and the frame is mapped into the SOS window at a fixed offset of the physical address.
-int frame_alloc(seL4_Word *vaddr, int map);
+int frame_alloc(seL4_Word *vaddr, int map, int pid);
 
 //frame_free: the physical memory is no longer mapped in the window, the frame object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index);

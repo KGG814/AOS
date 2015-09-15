@@ -10,6 +10,7 @@
 #include "syscalls.h"
 #include "file_table.h"
 #include "pagetable.h"
+#include "proc.h"
 
 #define CONSOLE_READ_OPEN   1
 #define CONSOLE_READ_CLOSE  0
@@ -32,18 +33,16 @@ char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 extern fhandle_t mnt_point;
 fattr_t *mnt_attr = NULL;
-//linked list for vnodes
-//9242_TODO change this to something sensible
 
 //removes a vnode from the list
 int vnode_remove(vnode *vn);
 
 //null device stuff
-void nul_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as)
+void nul_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid)
 { 
     send_seL4_reply(reply_cap, 0);
 }
-void nul_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as)
+void nul_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid)
 { 
     send_seL4_reply(reply_cap, 0);
 }
@@ -57,12 +56,12 @@ int o_to_fm[] = {FM_READ, FM_WRITE, FM_READ + FM_WRITE};
 
 //console specific stuff
 void serial_cb(struct serial* s, char c);
-void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
-void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
+void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
+void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
 int con_close(vnode *vn);
 
-void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
-void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as);
+void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
+void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
 int file_close(vnode *vn);
 
 void con_read_reply_cb(seL4_Uint32 id, void *data);
@@ -78,7 +77,7 @@ typedef struct _file_write_args file_write_args;
 typedef struct _vfs_stat_args vfs_stat_args;
 typedef struct _getdirent_args getdirent_args;
 
-int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as);
+int copy_page (seL4_Word dst, int count, seL4_Word src, int pid);
 
 vnode_ops console_ops = 
 {
@@ -109,7 +108,7 @@ struct _con_read_args {
 
 struct _file_open_args {
     vnode* vn;
-    addr_space* as;
+    int pid;
     seL4_CPtr reply_cap;
 };
 
@@ -118,7 +117,7 @@ struct _file_read_args {
     seL4_CPtr reply_cap;
     seL4_Word buf;
     int *offset;
-    addr_space *as;
+    int pid;
     size_t nbyte;
     size_t bytes_read;
     seL4_Word to_read;
@@ -129,7 +128,7 @@ struct _file_write_args {
     seL4_CPtr reply_cap;
     seL4_Word buf;
     int *offset;
-    addr_space *as;
+    int pid;
     size_t nbyte;
     size_t bytes_written;
     seL4_Word to_write;
@@ -177,12 +176,7 @@ int vnode_remove(vnode *vn) {
     return 0;
 }
 
-vnode* vfs_open(const char* path
-               ,fmode_t mode
-               ,addr_space *as
-               ,seL4_CPtr reply_cap
-               ,int *err
-               ) {
+vnode* vfs_open(const char* path, fmode_t mode, int pid, seL4_CPtr reply_cap, int *err) {
     vnode *vn = NULL;
     mode &= O_ACCMODE;
     //invalid mode
@@ -255,7 +249,7 @@ vnode* vfs_open(const char* path
         }
         file_open_args *args = malloc(sizeof(file_open_args));
         args->vn = vn;
-        args->as = as;
+        args->pid = pid;
         args->reply_cap = reply_cap;
         //set fields
         vn->fmode = mode;
@@ -299,9 +293,9 @@ int con_close(vnode *vn) {
 }
 
 
-void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
     //assert(!"trying to read!");
-    char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
+    char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, pid);
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
         send_seL4_reply(reply_cap, VFS_ERR);
     }
@@ -329,7 +323,7 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
     }
 }
 
-void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
     ////printf("Con write\n");
     if (vn == NULL || (vn->fmode == O_RDONLY)) {
         send_seL4_reply(reply_cap, 0);
@@ -337,7 +331,7 @@ void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, in
     }
     
     //9242_TODO make this page by page
-    char *c = (char *)user_to_kernel_ptr((seL4_Word)buf, as);
+    char *c = (char *)user_to_kernel_ptr((seL4_Word)buf, pid);
     int bytes = serial_send(serial_handle, c, nbyte);
     send_seL4_reply(reply_cap, bytes);
 }
@@ -387,7 +381,7 @@ void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
 }
 
 /* Takes a user pointer */
-void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, addr_space *as) {
+void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
     if (vn->fmode == O_WRONLY) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -398,7 +392,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     args->reply_cap = reply_cap;
     args->buf = (seL4_Word) buf;
     args->offset = offset;
-    args->as = as;
+    args->pid = pid;
     args->nbyte = nbyte;
     args->bytes_read = 0;
     args->to_read = nbyte;
@@ -418,7 +412,6 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
 
     file_write_args *args = (file_write_args*) token;
     vnode *vn = args->vn;
-    addr_space *as = args->as;
     //printf("write: got status from nfs: %d\n", status);
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, args->bytes_written + count);
@@ -437,14 +430,14 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
-        int err = map_if_valid(args->buf & PAGE_MASK, as);
+        int err = map_if_valid(args->buf & PAGE_MASK, args->pid);
         if (err) {
             send_seL4_reply(args->reply_cap, args->bytes_written);
             free(args);
             return;
         }
 
-        seL4_Word kptr = user_to_kernel_ptr(args->buf, as);
+        seL4_Word kptr = user_to_kernel_ptr(args->buf, args->pid);
 
         args->to_write = args->nbyte - args->bytes_written;
         if (args->to_write > PAGE_SIZE) {
@@ -465,13 +458,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
 
 }
 
-void file_write(vnode *vn
-               ,const char *buf
-               ,size_t nbyte
-               ,seL4_CPtr reply_cap
-               ,int *offset
-               ,addr_space *as 
-               ) {
+void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
     if (vn->fmode == O_RDONLY) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -483,7 +470,7 @@ void file_write(vnode *vn
     args->reply_cap = reply_cap;
     args->buf = (seL4_Word) buf;
     args->offset = offset;
-    args->as = as;
+    args->pid = pid;
     args->nbyte = nbyte;
     args->bytes_written = 0;
 
@@ -494,7 +481,7 @@ void file_write(vnode *vn
         args->to_write = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
    
-    int err = map_if_valid(args->buf & PAGE_MASK, as);
+    int err = map_if_valid(args->buf & PAGE_MASK, pid);
     if (err) {
         //printf("couldn't map buffer\n");
         free(args);
@@ -502,7 +489,7 @@ void file_write(vnode *vn
         return;
     }
 
-    seL4_Word kptr = user_to_kernel_ptr(args->buf, as);
+    seL4_Word kptr = user_to_kernel_ptr(args->buf, pid);
 
     int status = nfs_write(vn->fs_data
                           ,*offset
@@ -585,7 +572,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         vn->size = fattr->size;
         vn->ctime = fattr->ctime;
         vn->atime = fattr->atime;
-        int fd = add_fd(vn, args->as);
+        int fd = add_fd(vn, args->pid);
         /* Do filetable setup */
         send_seL4_reply((seL4_CPtr)args->reply_cap, fd);
         free(args);
@@ -639,10 +626,8 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
-    
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
-    addr_space* as = args->as;
     
     if (status != NFS_OK) {
         assert(count == 0);
@@ -651,8 +636,7 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
         return;
     }
     vn->atime = fattr->atime;  
-
-    copy_page(args->buf, count, (seL4_Word) data, as);
+    copy_page(args->buf, count, (seL4_Word) data, args->pid);
     *(args->offset) += count;
     args->bytes_read += count;
     args->buf += count; //need to increment this pointer
@@ -734,12 +718,12 @@ void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *f
     }
 }
 
-int copy_page (seL4_Word dst, int count, seL4_Word src, addr_space *as) {
-    int err = map_if_valid(dst & PAGE_MASK, as);
+int copy_page (seL4_Word dst, int count, seL4_Word src, int pid) {
+    int err = map_if_valid(dst & PAGE_MASK, pid);
     if (err) {
         return err;
     }
-    seL4_Word kptr = user_to_kernel_ptr(dst, as);
+    seL4_Word kptr = user_to_kernel_ptr(dst, pid);
     memcpy((void *)kptr, (void *)src , count);
     return 0;
 }

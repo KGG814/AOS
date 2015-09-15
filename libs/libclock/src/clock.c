@@ -58,7 +58,6 @@ static inline uint32_t new_timer(uint64_t delay
  */
 int start_timer(seL4_CPtr interrupt_ep) {
     //no need to error check; map_device panics on error.
-    //9242_TODO: always make sure this is the case
     if (initialised == NOT_INITIALISED) {
         gpt = (struct gpt_map *) map_device((void*)GPT1_DEVICE_PADDR, PAGE_SIZE);
     }

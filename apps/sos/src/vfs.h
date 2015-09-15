@@ -31,7 +31,7 @@ typedef struct _vnode_ops vnode_ops;
 /* function declarations for functions that aren't fs specific */
 vnode*  vfs_open(const char* path
                 ,fmode_t mode
-                ,addr_space *as
+                ,int pid
                 ,seL4_CPtr reply_cap
                 ,int *err);
 void     vfs_getdirent(int pos
@@ -72,14 +72,14 @@ struct _vnode_ops {
                      ,size_t nbyte
                      ,seL4_CPtr reply_cap
                      ,int *offset
-                     ,addr_space *as
+                     ,int pid
                      );
     void (*vfs_read)(vnode *vn
                     ,char *buf
                     ,size_t nbyte
                     ,seL4_CPtr reply_cap
                     ,int *offset
-                    ,addr_space *as
+                    ,int pid
                     );
     int (*vfs_close)(vnode *vn);
 };
