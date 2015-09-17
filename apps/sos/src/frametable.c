@@ -143,19 +143,10 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         // Set the head of the swap buffer to next thing
         buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
         // Write frame to current free swap slot
-        seL4_Word slot = write_to_swap_slot();
-        if (slot == -1) {
-            // Out of swap memory, what do?
-        }
-        // Get process mapping from frame
-        int pid = (frametable[index].frame_status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
-        // Store the slot for retrieval, mark the frame as swapped
-        seL4_Word dir_index = PT_TOP(frametable[index].vaddr);
-        seL4_Word page_index = PT_BOTTOM(frametable[index].vaddr);
-        proc_table[pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
-        // Unmap from seL4 page directory and set addr_space page directory entry to swapped, and put the swap slot in the entry
-        seL4_ARM_Page_Unmap(frametable[index].frame_cap);
-        // Clear the frame
+        // 9242_TODO Might need to do another setjmp / lngjmp around this, since frame_alloc is called in multiple places
+        write_to_swap_slot(index);
+        
+        
     } else {
         index = (pt_addr - low) / PAGE_SIZE;
         err |= cspace_ut_retype_addr(pt_addr
