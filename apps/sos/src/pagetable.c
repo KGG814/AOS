@@ -19,13 +19,12 @@ int handle_swap(seL4_Word vaddr, int pid);
 
 int page_init(int pid) {
     seL4_Word vaddr;
-    int index = frame_alloc(&vaddr, KMAP, 0);
+    int index = frame_alloc(&vaddr, KMAP, pid);
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
-    frametable[index].vaddr = vaddr;
+    // 9242_TODO Set to no swap
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        frame_alloc(&vaddr,KMAP, 0);
+        frame_alloc(&vaddr, KMAP, pid);
         proc_table[pid]->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
-        frametable[index].vaddr = vaddr;
     }
 
     return 0;
@@ -39,9 +38,10 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     int index = 0;
     seL4_Word temp;
 	if (as->page_directory[dir_index] == NULL) {
-        index = frame_alloc(&temp, KMAP, 0);
+        index = frame_alloc(&temp, KMAP, pid);
         as->page_directory[dir_index] = (seL4_Word*)temp;
         assert(index > FRAMETABLE_OK);
+        //9242_TODO Set to no swap
 	}
 	/* Map into the sos page table 
        ft_index is the lower 20 bits */
@@ -115,7 +115,7 @@ void user_buffer_map(seL4_Word user_ptr, size_t nbyte, int pid) {
 
 int map_if_valid(seL4_Word vaddr, int pid) {
     seL4_Word page_vaddr;
-    int ft_index = frame_alloc(&page_vaddr, KMAP, 0);
+    int ft_index = frame_alloc(&page_vaddr, KMAP, pid);
     assert(ft_index > FRAMETABLE_OK);
     int err = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
@@ -144,7 +144,8 @@ int map_if_valid(seL4_Word vaddr, int pid) {
         dprintf(0, "Address %p was not in valid region\n", vaddr);
         return UNKNOWN_REGION;
     }
-    return err;
+    frametable[ft_index].vaddr = vaddr;
+    return 0;
 }
 
 int check_region(seL4_Word start, seL4_Word size) {
@@ -170,7 +171,7 @@ int handle_swap(seL4_Word vaddr, int pid) {
     if ((proc_table[pid]->page_directory[dir_index] != NULL) && (proc_table[pid]->page_directory[dir_index][page_index] & SWAPPED)) {       
         // If it has been swapped out, get swap file offset from page table entry and swap it back in. 
         int swap_offset = (proc_table[pid]->page_directory[dir_index][page_index] & SWAP_SLOT_MASK) * PAGE_SIZE;
-        // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_aloc
+        // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_alloc
         int err = map_if_valid(vaddr, pid);      
         if (err) {
             return err;
