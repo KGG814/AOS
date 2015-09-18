@@ -11,7 +11,8 @@
 
 seL4_Word swap_table[SWAP_SLOTS];
 seL4_Word swap_head = -1;
-fhandle_t *swap_handle;
+fhandle_t *swap_handle = NULL;
+
 
 typedef struct _swap_args {
     int index;
@@ -19,54 +20,54 @@ typedef struct _swap_args {
     // jmp buffer
 } swap_args;
 
-void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+typedef struct _swap_init_args {
+	swap_args *args;
+	int offset;
+} swap_init_args;
 
-int swap_init(void) {
-	swap_head = 0;
-	// 9242_TODO Open the swap file	
-	// Spinlock on semaphore
-	/*
-	// Initialise  and wait on semaphore
-	sync_sem_t swap_init_sem = sync_create_sem(0);
-	int status = nfs_lookup(&mnt_point, "swap", swap_init_cb, &swap_init_sem);
+
+void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
+
+seL4_Word write_to_swap_slot (int index) {
+	seL4_Word slot = swap_head;
+	// We have reached the end of the swap table
+	if (slot == SWAP_SLOTS) {
+		// What do here?
+	}
+	// Get the next free swap slot
+	swap_head = swap_table[slot];
+	swap_table[slot] |= IN_USE;
+	// Do the write to the slot at the offset
+	int offset = slot * PAGE_SIZE;
+	
+	// 9242_TODO Rewrite when longjmp is used
+	// This will probably longjmp back to frame_alloc, which will longjmp to whatever it was passed
+	swap_args *args = malloc(sizeof(swap_args));
+	args->index = index;
+	args->slot = slot;
+	int status = 0;
+	if (swap_handle == NULL) {
+		swap_init_args *init_args = malloc(sizeof(swap_init_args));
+		init_args->args = args;
+		init_args->offset = offset;
+		//status = nfs_lookup(&mnt_point, "swap", swap_init_cb, (uintptr_t)init_args);
+	} else {
+		//status = nfs_write(swap_handle, offset, PAGE_SIZE, index_to_vaddr(index), swap_cb, (uintptr_t)args);
+	}
+	// Check if RPC succeeded
     if (status != RPC_OK) {
-        return 1;
+ 		// Jmp back with error code?
     }
-    // Wait for swap filehandle to be set
-    sync_wait(swap_init_sem);
-    return 0;
-    */
 }
 
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
 	swap_handle = fh;
-	// Signal semaphore
-	// sync_signal(*token);
-}
-
-seL4_Word write_to_swap_slot (int index) {
-	seL4_Word new_slot = swap_head;
-	// We have reached the end of the swap table
-	if (new_slot == SWAP_SLOTS) {
-		return -1;
-	}
-	// Get the next free swap slot
-	swap_head = swap_table[new_slot];
-	swap_table[new_slot] |= IN_USE;
-	// Do the write to the slot at the offset
-	int offset = new_slot * PAGE_SIZE;
-	/*
-	// 9242_TODO Rewrite when longjmp is used
-	// This will probably longjmp back to frame_alloc, which will logngjmp to whatever it was passed
-	swap_args *args = malloc(sizeof(swap_args))
-	args->index = index;
-	args->slot = slot;
-	int status = nfs_write(swap_handle, offset, PAGE_SIZE, index_to_vaddr(index), swap_cb, args);
-
-    if (status != RPC_OK) {
+	swap_init_args *init_args = (swap_init_args *) token;
+	status = nfs_write(swap_handle, init_args->offset, PAGE_SIZE, index_to_vaddr(init_args->args->index), swap_cb, (uintptr_t)init_args->args);
+	if (status != RPC_OK) {
  		// Jmp back with error code?
-    }*/
-	return new_slot;
+    }
 }
 
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
