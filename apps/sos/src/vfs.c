@@ -81,9 +81,10 @@ struct _vfs_stat_args {
 
 struct _getdirent_args {
     seL4_CPtr reply_cap;
-    seL4_Word get_ent;
-    seL4_Word ent_received;
-    char *name;
+    seL4_Word to_get;
+    seL4_Word entries_received;
+    seL4_Word buf;
+    int pid;
     size_t nbyte;
 };
 
@@ -484,13 +485,14 @@ void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fat
 
 }
 
-void vfs_getdirent(int pos, char *name, size_t nbyte, seL4_CPtr reply_cap) {
+void vfs_getdirent(int pos, char *buf, size_t nbyte, seL4_CPtr reply_cap, int pid) {
     getdirent_args *args = malloc(sizeof(getdirent_args));
     args->reply_cap = reply_cap;
-    args->get_ent = pos;
-    args->ent_received = 0;
-    args->name = name;
+    args->to_get = pos;
+    args->entries_received = 0;
+    args->buf = (seL4_Word) buf;
     args->nbyte = nbyte;
+    args->pid = pid;
     nfs_readdir(&mnt_point, 0, vfs_getdirent_cb, (uintptr_t)args);
 }
 
@@ -500,18 +502,34 @@ void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *f
         send_seL4_reply(args->reply_cap, -1);
     } else if (num_files == 0) {
         // If the entry requested is equal to the next free entry, return 0
-        if (args->get_ent == args->ent_received) {
+        if (args->to_get == args->entries_received) {
             send_seL4_reply(args->reply_cap, 0);
         } else {
             send_seL4_reply(args->reply_cap, -1);
         }
-    } else if (args->ent_received + num_files > args->get_ent) {
-        int index = args->get_ent - args->ent_received;
-        args->ent_received += num_files;
-        strncpy(args->name, file_names[index], args->nbyte);
-        send_seL4_reply(args->reply_cap, strlen(args->name) + 1);
+    } else if (args->entries_received + num_files > args->to_get) {
+        int index = args->to_get - args->entries_received;
+        args->entries_received += num_files;
+
+        int len = strlen(file_names[index]) + 1;
+        if (args->nbyte > len) {
+            args->nbyte = len;
+        }
+
+        int count = 0;
+        while (count < args->nbyte) {
+            int to_copy = args->nbyte - count;
+            if (to_copy + (args->buf & ~(PAGE_MASK)) > PAGE_SIZE) {
+                to_copy = PAGE_SIZE - (args->buf & ~(PAGE_MASK));
+            }
+            copy_page(args->buf, to_copy, file_names[index], args->pid);
+            count += to_copy;
+            args->buf += to_copy;
+        }
+
+        send_seL4_reply(args->reply_cap, args->nbyte);
     } else {
-        args->ent_received += num_files;
+        args->entries_received += num_files;
         nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);
     }
 }

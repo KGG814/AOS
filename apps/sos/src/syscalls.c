@@ -155,12 +155,8 @@ void handle_getdirent(seL4_CPtr reply_cap, int pid) {
         send_seL4_reply(reply_cap, EFAULT);
         return;
     }
-    /* Check page boundaries and map in pages if necessary */
-    user_buffer_map((seL4_Word)name, nbyte, pid);
-    /* Turn the user ptr buff into a kernel ptr */
-    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)name, pid);
     /* Call the getdirent vnode op */
-    vfs_getdirent(pos, (char*)k_ptr, nbyte, reply_cap); 
+    vfs_getdirent(pos, name, nbyte, reply_cap, pid); 
 }
 
 

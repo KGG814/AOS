@@ -82,6 +82,7 @@ void     vfs_getdirent(int pos
                      ,char *name
                      ,size_t nbyte
                      ,seL4_CPtr reply_cap
+                     ,int pid
                      );
 void    vfs_stat(const char *path
                 ,seL4_Word buf
