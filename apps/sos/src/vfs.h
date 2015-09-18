@@ -22,29 +22,11 @@
 
 #include <sos.h>
 #include <clock/clock.h>
-#include <serial/serial.h>
 #include <nfs/nfs.h>
 #include "proc.h"
+
 typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
-
-/* function declarations for functions that aren't fs specific */
-vnode*  vfs_open(const char* path
-                ,fmode_t mode
-                ,int pid
-                ,seL4_CPtr reply_cap
-                ,int *err);
-void     vfs_getdirent(int pos
-                     ,char *name
-                     ,size_t nbyte
-                     ,seL4_CPtr reply_cap
-                     );
-void    vfs_stat(const char *path
-                ,seL4_Word buf
-                ,seL4_CPtr reply_cap
-                ); 
-
-void vfs_init(void);
 
 //store vnodes as a linked list for now
 struct _vnode {
@@ -83,5 +65,28 @@ struct _vnode_ops {
                     );
     int (*vfs_close)(vnode *vn);
 };
+
+void vfs_init(void);
+void vnode_insert(vnode *vn);
+
+//removes a vnode from the list
+int vnode_remove(vnode *vn);
+
+/* function declarations for functions that aren't fs specific */
+vnode*  vfs_open(const char* path
+                ,fmode_t mode
+                ,int pid
+                ,seL4_CPtr reply_cap
+                ,int *err);
+void     vfs_getdirent(int pos
+                     ,char *name
+                     ,size_t nbyte
+                     ,seL4_CPtr reply_cap
+                     );
+void    vfs_stat(const char *path
+                ,seL4_Word buf
+                ,seL4_CPtr reply_cap
+                ); 
+
 
 #endif /* _VFS_H_ */

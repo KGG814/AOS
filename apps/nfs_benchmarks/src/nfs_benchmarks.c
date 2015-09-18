@@ -11,16 +11,16 @@
 #include <sos.h>
 
 #define BUF_SIZ (4096 * 20)
-#define N_SIZES (15) 
+#define N_SIZES (13) 
 #define N_RUNS (20)
 
-int buf_sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 10240, 16384, 20480, 40960, 81920};
+int buf_sizes[] = {64, 128, 256, 512, 1024, 2048, 4096, 8192, 10240, 16384, 20480, 40960, 81920};
 
 void write_test(int no) {
     char buf[BUF_SIZ] = {};
     char out[256] = {};
     char bm_name[256] = {};
-    sprintf(bm_name, "write_bm%2d", no);
+    sprintf(bm_name, "write_bm%02d", no);
     char out_name[256] = {};
     for (int i = 0; i < BUF_SIZ/128; i++) {
         strcpy(buf + 128*i
@@ -52,6 +52,8 @@ XXX_this string should be exactly 128 characters long, starting from initial XXX
         sos_sys_write(write_bm_out, out, strlen(out));
         sos_sys_close(fd);
     }
+
+    sos_sys_close(write_bm_out);
 }
 
 void read_test(int no) {
@@ -59,7 +61,7 @@ void read_test(int no) {
     char out[256] = {};
     char out_name[256] = {};
     char bm_name[256] = {};
-    sprintf(bm_name, "read_bm%2d", no);
+    sprintf(bm_name, "read_bm%02d", no);
 
     int read_bm_out = sos_sys_open(bm_name, O_WRONLY);
     
@@ -80,6 +82,8 @@ void read_test(int no) {
         sos_sys_write(read_bm_out, out, strlen(out));
         sos_sys_close(fd);
     }
+
+    sos_sys_close(read_bm_out);
 }
 
 int main() {
