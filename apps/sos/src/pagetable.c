@@ -76,7 +76,7 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     seL4_Word fault_vaddr = seL4_GetMR(1);
     // Get the page of the fault address
     fault_vaddr &= PAGE_MASK;
-    dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
+    //dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     handle_swap(fault_vaddr, pid);
     int err = map_if_valid(fault_vaddr, pid);

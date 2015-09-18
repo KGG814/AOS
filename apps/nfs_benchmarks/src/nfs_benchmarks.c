@@ -10,17 +10,16 @@
 #include <utils/time.h>
 #include <sos.h>
 
-#define BUF_SIZ (4096 * 400)
+#define BUF_SIZ (4096 * 20)
 #define N_SIZES (15) 
 
 int buf_sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 10240, 16384, 20480, 40960, 81920};
 
 void write_test(void) {
-    int buf_siz = BUF_SIZ/20;
-    char buf[BUF_SIZ/20] = {};
+    char buf[BUF_SIZ] = {};
     char out[256] = {};
     char out_name[256] = {};
-    for (int i = 0; i < buf_siz/128; i++) {
+    for (int i = 0; i < BUF_SIZ/128; i++) {
         strcpy(buf + 128*i
               ,
 "\
@@ -32,14 +31,15 @@ XXX_this string should be exactly 128 characters long, starting from initial XXX
     //buflen, t_start, t_end
     int write_bm_out = sos_sys_open("write_bm", O_WRONLY);
     
-    for (int i = 0; i < N_SIZES; i++) {
+    for (int i = 5; i < N_SIZES; i++) {
         int sz = buf_sizes[i];
         printf("doing write test with buflen %d\n", sz);
         sprintf(out_name, "test_%d", sz);
         int fd = sos_sys_open(out_name, O_WRONLY);
-        int n_loops = buf_siz / sz;
+        int n_loops = BUF_SIZ / sz;
         uint64_t start = sos_sys_time_stamp(); 
         for (int j = 0; j < n_loops; j++) {
+            printf("currently writing to %p\n", buf + sz*j);
             int bytes = sos_sys_write(fd, buf + sz*j, sz);
             assert(bytes);
         }
@@ -57,17 +57,23 @@ void read_test(void) {
 
     int read_bm_out = sos_sys_open("read_bm", O_WRONLY);
     
-    for (int i = 0; i < N_SIZES; i++) {
+    for (int i = 5; i < N_SIZES; i++) {
         int sz = buf_sizes[i];
+        int read = 0;
+        int zero_count = 0;
         printf("doing read test with buflen %d\n", sz);
         sprintf(out_name, "test_%d", sz);
-        int fd = sos_sys_open(out_name, O_WRONLY);
+        int fd = sos_sys_open(out_name, O_RDONLY);
         int n_loops = BUF_SIZ/sz;
         uint64_t start = sos_sys_time_stamp(); 
         for (int j = 0; j < n_loops; j++) {
-            int bytes = sos_sys_read(fd, buf + sz*j, sz);
-            assert(bytes);
+            read += sos_sys_read(fd, buf + sz*j, sz);
+            if (read ==0) {
+                zero_count++;
+            }
         }
+        printf("Wanted to read %d, actually read %d, read zero %d tiems\n", BUF_SIZ, read, zero_count);
+        assert(read == BUF_SIZ);
         uint64_t end = sos_sys_time_stamp();
         sprintf(out, "%d, %llu, %llu\n", i, start, end);
         sos_sys_write(read_bm_out, out, strlen(out));
@@ -76,6 +82,6 @@ void read_test(void) {
 }
 
 int main() {
-    write_test();
+    //write_test();
     read_test();
 }

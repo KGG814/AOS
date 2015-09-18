@@ -383,10 +383,11 @@ void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
     if (vn->fmode == O_WRONLY) {
+        printf("couldn't open file in read due to permissions.\n");
         send_seL4_reply(reply_cap, 0);
         return;
     }
-
+    
     file_read_args *args = malloc(sizeof(file_read_args));
     args->vn = vn;
     args->reply_cap = reply_cap;
@@ -399,11 +400,12 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     seL4_Word start_addr = (seL4_Word) buf;
     seL4_Word end_addr = start_addr + args->to_read;
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
-        args->to_read = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
+        args->to_read = PAGE_SIZE - (start_addr & ~PAGE_MASK);
     }
     int status = nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
     if (status != RPC_OK) {
         free(args);
+        printf("couldn't open file in read\n");
         send_seL4_reply(reply_cap, -1);
     }
 }
@@ -426,7 +428,6 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     args->buf += count; //need to increment this pointer
     
     if (args->bytes_written == args->nbyte) {
-        //printf("file write done\n");
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
@@ -440,8 +441,8 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
         seL4_Word kptr = user_to_kernel_ptr(args->buf, args->pid);
 
         args->to_write = args->nbyte - args->bytes_written;
-        if (args->to_write > PAGE_SIZE) {
-            args->to_write = PAGE_SIZE;
+        if ((kptr & ~PAGE_MASK) + args->to_write > PAGE_SIZE) {
+            args->to_write = PAGE_SIZE - (kptr & ~(PAGE_MASK));
         }
         int status = nfs_write(vn->fs_data
                               ,*args->offset
@@ -628,10 +629,10 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
+    //printf("Read cb: usr ptr %p, read: %d\n", args->buf, count);
     
     if (status != NFS_OK) {
-        assert(count == 0);
-        send_seL4_reply(args->reply_cap, args->bytes_read + count);
+        send_seL4_reply(args->reply_cap, args->bytes_read);
         free(args);
         return;
     }
@@ -642,13 +643,15 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
     args->buf += count; //need to increment this pointer
     
     if (args->bytes_read == args->nbyte || count < args->to_read) {
+        //printf("read done, bytes_read = %d\n", args->bytes_read);
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
     } else {
         args->to_read = args->nbyte - args->bytes_read;
-        if (args->to_read > PAGE_SIZE) {
-            args->to_read = PAGE_SIZE;
+        if ((args->buf & ~PAGE_MASK) + args->to_read  > PAGE_SIZE) {
+            args->to_read = PAGE_SIZE - (args->buf & ~PAGE_MASK);
         }
+        //printf("starting up new cb. ");
         int status = nfs_read(vn->fs_data
                              ,*(args->offset)
                              ,args->to_read
