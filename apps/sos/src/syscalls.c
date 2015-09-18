@@ -175,7 +175,9 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     }
     user_buffer_map((seL4_Word)path, 256, pid);  
     /* Turn the user ptrs path and buf into kernel ptrs*/
+
     seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, pid);
+    printf("Handle stat %p, %p\n", path, buf);
     /* Call stat */
     vfs_stat((char*)k_ptr1, buf, reply_cap, pid);
 }

@@ -153,6 +153,7 @@ int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
         flags = elf_getProgramHeaderFlags(elf_file, i);
 
         /* Copy it across into the vspace. */
+        printf("ADDR: %p\n", vaddr);
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
         err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
                                        get_sel4_rights_from_elf(flags) & seL4_AllRights, as);

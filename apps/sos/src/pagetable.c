@@ -119,6 +119,12 @@ int map_if_valid(seL4_Word vaddr, int pid) {
     int ft_index = frame_alloc(&page_vaddr, KMAP, pid);
     assert(ft_index > FRAMETABLE_OK);
     int err = 0;
+    int dir_index = PT_TOP(vaddr);
+    int page_index = PT_BOTTOM(vaddr);
+    if (proc_table[pid]->page_directory[dir_index] != NULL && 
+        proc_table[pid]->page_directory[dir_index][page_index] != 0) {
+        return 0;
+    }
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
         /* Kill process */
         return GUARD_PAGE_FAULT;
@@ -135,8 +141,9 @@ int map_if_valid(seL4_Word vaddr, int pid) {
     } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < proc_table[pid]->brk)) {
         sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* Scratch */
-    } else if((vaddr >= PROCESS_SCRATCH)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);   
+    } else if ((vaddr >= PROCESS_SCRATCH)) {
+        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid); 
+    //} else if ((vaddr)) 
     } else {
       err = UNKNOWN_REGION;
       frame_free(ft_index);
