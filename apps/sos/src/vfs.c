@@ -409,7 +409,6 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
 }
 
 void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
-    timestamp_t time = time_stamp();
 
     file_write_args *args = (file_write_args*) token;
     vnode *vn = args->vn;
@@ -435,8 +434,6 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
         if (err) {
             send_seL4_reply(args->reply_cap, args->bytes_written);
             free(args);
-    time = time_stamp() - time;
-    printf("read cb took %llu us\n", time); 
             return;
         }
 
@@ -458,8 +455,6 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
             free(args);
         }
     } 
-    time = time_stamp() - time;
-    printf("write cb took %llu us\n", time); 
 
 }
 
@@ -631,10 +626,9 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 }
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
-    timestamp_t time = time_stamp();
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
-    //printf("file read status: %d\n", status);
+    
     if (status != NFS_OK) {
         assert(count == 0);
         send_seL4_reply(args->reply_cap, args->bytes_read + count);
@@ -642,11 +636,11 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
         return;
     }
     vn->atime = fattr->atime;  
-    /* 9242_TODO Error check this */
     copy_page(args->buf, count, (seL4_Word) data, args->pid);
     *(args->offset) += count;
     args->bytes_read += count;
     args->buf += count; //need to increment this pointer
+    
     if (args->bytes_read == args->nbyte || count < args->to_read) {
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_read);
         free(args); 
@@ -666,8 +660,6 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
             free(args);  
         }
     }
-    time = time_stamp() - time;
-    printf("read cb took %llu us\n", time); 
 }
 
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {

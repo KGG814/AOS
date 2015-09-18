@@ -19,7 +19,7 @@ int handle_swap(seL4_Word vaddr, int pid);
 
 int page_init(int pid) {
     seL4_Word vaddr;
-    int index = frame_alloc(&vaddr, KMAP, pid);
+    frame_alloc(&vaddr, KMAP, pid);
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
     // 9242_TODO Set to no swap
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
@@ -30,7 +30,7 @@ int page_init(int pid) {
     return 0;
 }
 
-seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd, addr_space* as) {
+seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd, addr_space* as, int pid) {
 	seL4_Word dir_index = PT_TOP(vaddr);
 	seL4_Word page_index = PT_BOTTOM(vaddr);
 	/* Check that the page table exists */
@@ -57,6 +57,7 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
         frametable[index].vaddr = vaddr;
     } else {
         if ((as->page_directory[dir_index][page_index] | SWAPPED) == SWAPPED) {
+            // 9242_TODO Swap things in
             int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
             frametable[index].vaddr = vaddr;
         } else {
@@ -126,16 +127,16 @@ int map_if_valid(seL4_Word vaddr, int pid) {
         frame_free(ft_index);
     /* Stack pages*/
     } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid]);
+        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* IPC Pages */
     } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid]);
+        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* VMEM */
     } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < proc_table[pid]->brk)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid]);
+        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* Scratch */
     } else if((vaddr >= PROCESS_SCRATCH)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid]);   
+        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);   
     } else {
       err = UNKNOWN_REGION;
       frame_free(ft_index);

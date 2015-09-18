@@ -105,10 +105,10 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         vpage  = PAGE_ALIGN(dst);
         kvpage = PAGE_ALIGN(kdst);
         /* First we need to create a frame */    
-        ft_index = frame_alloc(&vaddr, KMAP, 0);
-        sos_map_page(ft_index, vpage, dest_as, as);
+        ft_index = frame_alloc(&vaddr, KMAP, 1);
+        sos_map_page(ft_index, vpage, dest_as, as, 1);
         //conditional_panic(err, "Failed to map to tty address space");
-        sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as);
+        sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as, 1);
         //conditional_panic(err, "Failed to map sos address space");
 
         /* Now copy our data into the destination vspace. */
