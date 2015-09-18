@@ -114,7 +114,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     if (syscall_number < NUM_SYSCALLS) {
-        syscall_handlers[syscall_number](reply_cap, 0);
+        syscall_handlers[syscall_number](reply_cap, 1);
     } else {
         printf("Unkwown syscall %d.\n", syscall_number);
         send_seL4_reply(reply_cap, -1);
@@ -149,7 +149,7 @@ void syscall_loop(seL4_CPtr ep) {
             //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
             //seL4_GetMR(0),
             //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(badge, 0);
+            handle_vm_fault(badge, 1);
             //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
             /* System call */
@@ -229,7 +229,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     seL4_CPtr user_ep_cap;
     seL4_Word temp;
     int index;
-    addr_space* as = proc_table[0];
+    addr_space* as = proc_table[1];
     /* These required for setting up the TCB */
     seL4_UserContext context;
 
@@ -250,10 +250,9 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
 
     /* Create a simple 1 level CSpace */
     as->croot = cspace_create(1);
-    assert(as->croot != NULL);
-    
+    assert(as->croot != NULL);   
     /* Create an IPC buffer */
-    index = frame_alloc(&temp, NOMAP, 0);
+    index = frame_alloc(&temp, NOMAP, 1);
     as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/
@@ -270,7 +269,6 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     /* should be the first slot in the space, hack I know */
     assert(user_ep_cap == 1);
     assert(user_ep_cap == USER_EP_CAP);
-
     /* Create a new TCB object */
     as->tcb_addr = ut_alloc(seL4_TCBBits);
     conditional_panic(!as->tcb_addr, "No memory for new TCB");
@@ -293,7 +291,6 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     dprintf(1, "\nStarting \"%s\"...\n", app_name);
     elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
     conditional_panic(!elf_base, "Unable to locate cpio header");
-
     /* load the elf image */
     err = elf_load(as->vroot, elf_base, as);
     conditional_panic(err, "Failed to load elf image");
@@ -498,18 +495,16 @@ int main(void) {
 
     vfs_init();
     oft_init();
-
     //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
     /* Start the user application */
+    proc_table[0] = malloc(sizeof(addr_space));
     proc_table[1] = malloc(sizeof(addr_space));
     page_init(1);
     fdt_init(1);
-
-    start_first_process(TTY_NAME, _sos_ipc_ep_cap);;
+    start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     //int index = frame_alloc();
-    
     //sos_map_page(index, 0x50000000);
     syscall_loop(_sos_ipc_ep_cap);
     /* Not reached */

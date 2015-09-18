@@ -16,7 +16,7 @@
 #define verbose 5
 
 
-#define CEIL_DIV(num, den) ((num)/(den) + ((num) % (den) == 0 ? 0 : 1))
+#define CEIL_DIV(num, den) ((num - 1)/(den) + 1)
 
 
 
@@ -156,8 +156,6 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
                                 ,&frametable[index].frame_cap
                                 ); 
     }
-
-    
     //9242_TODO: interpret this error correctly
     if (err) { 
         return FRAMETABLE_ERR;
@@ -181,10 +179,11 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
     
     if (buffer_head == -1) {
         buffer_head = index;
+    } else {
+        frametable[buffer_tail].frame_status &= STATUS_MASK;
+        frametable[buffer_tail].frame_status |= index;
     }
     frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
-    frametable[buffer_tail].frame_status &= STATUS_MASK;
-    frametable[buffer_tail].frame_status |= index;
     buffer_tail = index;
     *vaddr = paddr_to_vaddr(pt_addr);
     if (map) {

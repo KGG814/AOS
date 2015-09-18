@@ -50,9 +50,9 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     if (as->page_directory[dir_index][page_index] == 0) {
     	as->page_directory[dir_index][page_index] = ft_index;
         /* Map into the given process page directory */
-
         frame_cap = cspace_copy_cap(cur_cspace, cur_cspace, frametable[ft_index].frame_cap, seL4_AllRights);
-        map_page_user(frame_cap, as->vroot, vaddr, 
+
+        map_page_user(frame_cap, pd, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
         frametable[index].vaddr = vaddr;
     } else {

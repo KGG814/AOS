@@ -104,18 +104,17 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         kdst   = dst + PROCESS_SCRATCH;
         vpage  = PAGE_ALIGN(dst);
         kvpage = PAGE_ALIGN(kdst);
-        /* First we need to create a frame */    
+        /* First we need to create a frame */
         ft_index = frame_alloc(&vaddr, KMAP, 1);
         sos_map_page(ft_index, vpage, dest_as, as, 1);
         //conditional_panic(err, "Failed to map to tty address space");
         sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as, 1);
         //conditional_panic(err, "Failed to map sos address space");
-
         /* Now copy our data into the destination vspace. */
         nbytes = PAGESIZE - (dst & PAGEMASK);
-        if (pos < file_size){
+        if (pos < file_size){        
             memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos));
-        }
+        }    
         /* Not observable to I-cache yet so flush the frame */
         seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
 
@@ -137,7 +136,6 @@ int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
     if (elf_checkFile(elf_file)){
         return seL4_InvalidArgument;
     }
-
     num_headers = elf_getNumProgramHeaders(elf_file);
     for (i = 0; i < num_headers; i++) {
         char *source_addr;
