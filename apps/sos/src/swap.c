@@ -1,8 +1,10 @@
 #include <sos/vmem_layout.h>
 #include <mapping.h>
 #include <nfs/nfs.h>
+#include <setjmp.h>
 #include "swap.h"
 #include "frametable.h"
+#include "pagetable.h"
 
 #define SWAP_SLOTS 	(256 * 512)
 #define IN_USE 		(1 << 31) 
@@ -13,6 +15,7 @@ fhandle_t *swap_handle;
 
 typedef struct _swap_args {
     int index;
+    int slot;
     // jmp buffer
 } swap_args;
 
@@ -56,6 +59,8 @@ seL4_Word write_to_swap_slot (int index) {
 	// 9242_TODO Rewrite when longjmp is used
 	// This will probably longjmp back to frame_alloc, which will logngjmp to whatever it was passed
 	swap_args *args = malloc(sizeof(swap_args))
+	args->index = index;
+	args->slot = slot;
 	int status = nfs_write(swap_handle, offset, PAGE_SIZE, index_to_vaddr(index), swap_cb, args);
 
     if (status != RPC_OK) {
@@ -65,8 +70,9 @@ seL4_Word write_to_swap_slot (int index) {
 }
 
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
-	args = (swap_args) token;
+	swap_args* args = (swap_args*) token;
 	int index = args->index;
+	int slot = args->slot;
 	// Get process mapping from frame
     int pid = (frametable[index].frame_status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
     // Store the slot for retrieval, mark the frame as swapped
