@@ -77,6 +77,7 @@ struct _file_write_args {
 struct _vfs_stat_args {
     seL4_CPtr reply_cap;
     seL4_Word buf;
+    int pid;
 };
 
 struct _getdirent_args {
@@ -169,10 +170,11 @@ vnode* vfs_open(const char* path, fmode_t mode, int pid, seL4_CPtr reply_cap, in
     return vn;
 }
 
-void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap) {
+void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
     vfs_stat_args *args = malloc(sizeof(vfs_stat_args));
     args->reply_cap = reply_cap;
     args->buf = buf;
+    args->pid = pid;
     nfs_lookup(&mnt_point, path, vfs_stat_cb, (uintptr_t)args);
 }
 
@@ -464,25 +466,41 @@ void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count,
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     vfs_stat_args *args = (vfs_stat_args*) token;
     seL4_Word f_status = args->buf;
-    sos_stat_t *stat = (sos_stat_t *)f_status;
+
     if (status != NFS_OK) {
-        send_seL4_reply(args->reply_cap, 1);
+        send_seL4_reply(args->reply_cap, -1);
+        free(args);
         return;
     }
 
+    sos_stat_t temp = 
+        {.st_type = 0
+        ,.st_fmode = fattr->mode
+        ,.st_size = fattr->size
+        ,.st_ctime = fattr->ctime.seconds * 1000 + fattr->ctime.useconds / 1000
+        ,.st_atime = fattr->atime.seconds * 1000 + fattr->atime.useconds / 1000
+        };
+
     if (fattr->type == NFREG) {
 
-        stat->st_type = ST_FILE;
+        temp.st_type = ST_FILE;
     } else {
-        stat->st_type = ST_SPECIAL;
+        temp.st_type = ST_SPECIAL;
     }
 
-    stat->st_fmode = fattr->mode;
-    stat->st_size = fattr->size;
-    stat->st_ctime = fattr->ctime.seconds * 1000 + fattr->ctime.useconds / 1000;
-    stat->st_atime = fattr->atime.seconds * 1000 + fattr->atime.useconds / 1000;
-    send_seL4_reply(args->reply_cap, 0);
+    int count = 0;
+    while (count < sizeof(sos_stat_t)) {
+        int to_copy = sizeof(sos_stat_t) - count;
+        if (to_copy + (args->buf & ~(PAGE_MASK)) > PAGE_SIZE) {
+            to_copy = PAGE_SIZE - (args->buf & ~(PAGE_MASK));
+        }
+        copy_page(args->buf, to_copy, (seL4_Word) &temp, args->pid);
+        count += to_copy;
+        args->buf += to_copy;
+    }
 
+    send_seL4_reply(args->reply_cap, 0);
+    free(args);
 }
 
 void vfs_getdirent(int pos, char *buf, size_t nbyte, seL4_CPtr reply_cap, int pid) {
@@ -500,12 +518,15 @@ void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *f
     getdirent_args *args = (getdirent_args *)token;
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, -1);
+        free(args);
     } else if (num_files == 0) {
         // If the entry requested is equal to the next free entry, return 0
         if (args->to_get == args->entries_received) {
             send_seL4_reply(args->reply_cap, 0);
+            free(args);
         } else {
             send_seL4_reply(args->reply_cap, -1);
+            free(args);
         }
     } else if (args->entries_received + num_files > args->to_get) {
         int index = args->to_get - args->entries_received;
@@ -528,6 +549,7 @@ void vfs_getdirent_cb(uintptr_t token, nfs_stat_t status, int num_files, char *f
         }
 
         send_seL4_reply(args->reply_cap, args->nbyte);
+        free(args);
     } else {
         args->entries_received += num_files;
         nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);

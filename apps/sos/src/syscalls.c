@@ -174,13 +174,10 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
         return;
     }
     user_buffer_map((seL4_Word)path, 256, pid);  
-    user_buffer_map((seL4_Word)buf, sizeof(sos_stat_t), pid);  
     /* Turn the user ptrs path and buf into kernel ptrs*/
     seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, pid);
-    seL4_Word k_ptr2 = user_to_kernel_ptr((seL4_Word)buf, pid);
     /* Call stat */
-    dprintf(0, "kptr: %p\n", k_ptr1);
-    vfs_stat((char*)k_ptr1, k_ptr2, reply_cap);
+    vfs_stat((char*)k_ptr1, buf, reply_cap, pid);
 }
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {
