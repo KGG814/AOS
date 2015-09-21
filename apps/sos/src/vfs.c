@@ -102,7 +102,7 @@ void vfs_init(void) {
 }
 
 void vnode_insert(vnode *vn) {
-    if (vn == NULL) {
+    if (vn != NULL) {
         vn->next = vnode_list;
         vnode_list = vn;
     }

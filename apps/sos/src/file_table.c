@@ -73,6 +73,7 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
 
 int fd_close(int pid, int file) {
     //assert(0);
+    printf("starting close\n");
     if (file < 0 || file >= PROCESS_MAX_FILES) {
         return -1;
     }
@@ -91,6 +92,7 @@ int fd_close(int pid, int file) {
 
     proc_table[pid]->file_table[file] = INVALID_FD;
     oft[oft_index] = NULL;
+    printf("close done\n");
     return err;
 }
 
