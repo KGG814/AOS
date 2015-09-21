@@ -24,6 +24,7 @@ typedef struct _addr_space {
     cspace_t *croot;
     seL4_Word brk;
     int file_table[PROCESS_MAX_FILES];
+    int n_files_open;
 } addr_space; 
 
 addr_space* proc_table[MAX_PROCESSES];

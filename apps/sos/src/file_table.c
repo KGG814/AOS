@@ -24,6 +24,7 @@ int fdt_init(int pid) {
     for (int i = 0; i < PROCESS_MAX_FILES; i++) {
         proc_table[pid]->file_table[i] = INVALID_FD;
     }
+    proc_table[pid]->n_files_open = 0;
 
     //open stdin as null
     if (fh_open(pid, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
@@ -46,6 +47,10 @@ int fdt_init(int pid) {
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     
     int err;
+    if (proc_table[pid]->n_files_open == PROCESS_MAX_FILES) {
+        return -1;
+    }
+
     vnode* vn = vfs_open(path, mode, pid, reply_cap, &err);
     if (vn == NULL || err < 0) {
         return FILE_TABLE_ERR;
@@ -60,6 +65,8 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
         // Error, so delete vnode
         vn->ops->vfs_close(vn);
     }
+
+    proc_table[pid]->n_files_open++;
 
     return fd;
 } 
