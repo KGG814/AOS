@@ -30,7 +30,13 @@ int page_init(int pid) {
     return 0;
 }
 
-seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd, addr_space* as, int pid) {
+seL4_CPtr sos_map_page(int ft_index
+                      ,seL4_Word vaddr
+                      ,seL4_ARM_PageDirectory pd
+                      ,addr_space* as
+                      ,int pid
+                      ) 
+{
 	seL4_Word dir_index = PT_TOP(vaddr);
 	seL4_Word page_index = PT_BOTTOM(vaddr);
 	/* Check that the page table exists */
@@ -50,7 +56,11 @@ seL4_CPtr sos_map_page (int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
     if (as->page_directory[dir_index][page_index] == 0) {
     	as->page_directory[dir_index][page_index] = ft_index;
         /* Map into the given process page directory */
-        frame_cap = cspace_copy_cap(cur_cspace, cur_cspace, frametable[ft_index].frame_cap, seL4_AllRights);
+        frame_cap = cspace_copy_cap(cur_cspace
+                                   ,cur_cspace
+                                   ,frametable[ft_index].frame_cap
+                                   ,seL4_AllRights
+                                   );
 
         map_page_user(frame_cap, pd, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
@@ -176,7 +186,8 @@ int handle_swap(seL4_Word vaddr, int pid) {
     seL4_Word page_index = PT_BOTTOM(vaddr);
     // If the page table does not exist, then it can't have been swapped out
     // also check if it has been swapped out
-    if ((proc_table[pid]->page_directory[dir_index] != NULL) && (proc_table[pid]->page_directory[dir_index][page_index] & SWAPPED)) {       
+    if ((proc_table[pid]->page_directory[dir_index] != NULL) 
+    && (proc_table[pid]->page_directory[dir_index][page_index] & SWAPPED)) {       
         // If it has been swapped out, get swap file offset from page table entry and swap it back in. 
         int swap_offset = (proc_table[pid]->page_directory[dir_index][page_index] & SWAP_SLOT_MASK) * PAGE_SIZE;
         // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_alloc
@@ -194,4 +205,42 @@ int handle_swap(seL4_Word vaddr, int pid) {
         return 0;
     }
     
+}
+
+//copy from kernel ptr to usr ptr 
+int copy_in(seL4_Word usr_ptr
+           ,seL4_Word src
+           ,int nbyte
+           ,int pid 
+           )
+{
+    int count = 0; 
+    while (count != nbyte) {
+        int to_copy = nbyte - count;
+        if ((usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+            to_copy = PAGE_SIZE - (usr_ptr & ~PAGE_MASK);
+        } 
+        if (!copy_page(usr_ptr, to_copy, src, pid)) {
+            return count;
+        }
+        count += to_copy;
+        usr_ptr += to_copy;
+        src += to_copy;
+    } 
+    return count;
+} 
+
+int copy_page(seL4_Word dst
+             ,int count
+             ,seL4_Word src
+             ,int pid
+             ) 
+{
+    int err = map_if_valid(dst & PAGE_MASK, pid);
+    if (err) {
+        return err;
+    }
+    seL4_Word kptr = user_to_kernel_ptr(dst, pid);
+    memcpy((void *)kptr, (void *)src , count);
+    return 0;
 }
