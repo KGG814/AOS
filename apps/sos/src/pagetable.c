@@ -191,7 +191,7 @@ int handle_swap(seL4_Word vaddr, int pid) {
         // If it has been swapped out, get swap file offset from page table entry and swap it back in. 
         int swap_offset = (proc_table[pid]->page_directory[dir_index][page_index] & SWAP_SLOT_MASK) * PAGE_SIZE;
         // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_alloc
-        int err = map_if_valid(vaddr, pid);      
+        int err = map_if_valid(vaddr, pid);
         if (err) {
             return err;
         }

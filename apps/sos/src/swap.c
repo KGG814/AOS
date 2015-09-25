@@ -48,16 +48,20 @@ seL4_Word write_to_swap_slot (int index) {
 	args->slot = slot;
 	int status = 0;
 	if (swap_handle == NULL) {
+		swap_handle = -1;
 		swap_init_args *init_args = malloc(sizeof(swap_init_args));
 		init_args->args = args;
 		init_args->offset = offset;
 		//status = nfs_lookup(&mnt_point, "swap", swap_init_cb, (uintptr_t)init_args);
+	// Currently being initialised
+	} else if (swap_handle == -1) {
+		// Timer callback to write_to_swap_slot?
 	} else {
 		//status = nfs_write(swap_handle, offset, PAGE_SIZE, index_to_vaddr(index), swap_cb, (uintptr_t)args);
 	}
 	// Check if RPC succeeded
     if (status != RPC_OK) {
- 		// Jmp back with error code?
+
     }
 }
 
