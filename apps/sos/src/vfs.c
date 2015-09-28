@@ -514,17 +514,7 @@ void vfs_stat_cb(uintptr_t token
         temp.st_type = ST_SPECIAL;
     }
 
-    int count = 0;
-    while (count < sizeof(sos_stat_t)) {
-        int to_copy = sizeof(sos_stat_t) - count;
-        if (to_copy + (args->buf & ~(PAGE_MASK)) > PAGE_SIZE) {
-            to_copy = PAGE_SIZE - (args->buf & ~(PAGE_MASK));
-        }
-        copy_page(args->buf, to_copy, (seL4_Word) &temp, args->pid);
-        count += to_copy;
-        args->buf += to_copy;
-    }
-
+    copy_out(args->buf, (seL4_Word) &temp, sizeof(sos_stat_t), args->pid);
     send_seL4_reply(args->reply_cap, 0);
     free(args);
 }
@@ -575,16 +565,7 @@ void vfs_getdirent_cb(uintptr_t token
             args->nbyte = len;
         }
 
-        int count = 0;
-        while (count < args->nbyte) {
-            int to_copy = args->nbyte - count;
-            if (to_copy + (args->buf & ~(PAGE_MASK)) > PAGE_SIZE) {
-                to_copy = PAGE_SIZE - (args->buf & ~(PAGE_MASK));
-            }
-            copy_page(args->buf, to_copy, (seL4_Word) file_names[index], args->pid);
-            count += to_copy;
-            args->buf += to_copy;
-        }
+        copy_out(args->buf, (seL4_Word) file_names[index], args->nbyte, args->pid);
 
         send_seL4_reply(args->reply_cap, args->nbyte);
         free(args);

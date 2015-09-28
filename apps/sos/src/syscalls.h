@@ -1,6 +1,7 @@
 #ifndef _SYSCALLS_H_
 #define _SYSCALLS_H_
 #include "proc.h"
+#include <sos.h>
 
 //this is set to increase
 #define NUM_SYSCALLS 11
@@ -93,8 +94,12 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid);
 void handle_usleep(seL4_CPtr reply_cap, int pid);
 
 //convenience functino for sending replies
-void send_seL4_reply(seL4_CPtr reply_cap, int ret);
-
+static inline void send_seL4_reply(seL4_CPtr reply_cap, int ret) {
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, ret);
+    seL4_Send(reply_cap, reply);
+    cspace_free_slot(cur_cspace, reply_cap);
+}
 
 /*************************************************************************/
 /*                                   */

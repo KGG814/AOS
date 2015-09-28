@@ -10,6 +10,7 @@
 #include "proc.h"
 #include <sos/vmem_layout.h>
 #include <assert.h>
+#include <string.h>
 
 
 #define FT_INDEX_MASK       0x000FFFFF
@@ -56,6 +57,8 @@ seL4_CPtr sos_map_page(int ft_index
     seL4_CPtr frame_cap;
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         // 9242_TODO Swap things in
+		// 9242_TODO get frame cap of swapped in page, preserve frame cap of
+        // swapped out page
         //int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
         frametable[index].vaddr = vaddr;
     } else {
@@ -213,15 +216,41 @@ int handle_swap(seL4_Word vaddr, int pid) {
         // Get the kernel mapping for that frame
         //seL4_Word k_vaddr = index_to_vaddr(index);
         // 9242_TODO Do a NFS read from the swap file to the addr
-    } else {
-        // No swapping to be done, continue as normal
-        return 0;
-    }
+    } 
     
+    // No swapping to be done, continue as normal
+    return 0;
+}
+
+int copy_in(seL4_Word usr_ptr
+           ,seL4_Word k_ptr
+           ,int nbyte
+           ,int pid 
+           ) {
+    int count = 0;
+    while (count != nbyte) {
+        int to_copy = nbyte - count;
+        if ((usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+            to_copy = PAGE_SIZE - (usr_ptr & ~PAGE_MASK);
+        } 
+        int err = map_if_valid(usr_ptr & PAGE_MASK, pid);
+        if (err) {
+            return count;
+        }
+        //9242_TODO pin the page
+        seL4_Word src = user_to_kernel_ptr(usr_ptr, pid);
+        memcpy((void *) k_ptr, (void *) src, to_copy);
+
+        count += to_copy;
+        usr_ptr += to_copy;
+        k_ptr += to_copy;
+    } 
+    return count;
+
 }
 
 //copy from kernel ptr to usr ptr 
-int copy_in(seL4_Word usr_ptr
+int copy_out(seL4_Word usr_ptr
            ,seL4_Word src
            ,int nbyte
            ,int pid 
@@ -251,10 +280,12 @@ int copy_page(seL4_Word dst
 {
     printf("copy_page calling map_if_valid\n");
     int err = map_if_valid(dst & PAGE_MASK, pid, NULL, NULL, 0);
+	//9242_TODO pin the page
     if (err) {
         return err;
     }
     seL4_Word kptr = user_to_kernel_ptr(dst, pid);
     memcpy((void *)kptr, (void *)src , count);
+    //9242_TODO unpin the page
     return 0;
 }

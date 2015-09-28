@@ -28,6 +28,16 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 void user_buffer_map(seL4_Word user_ptr, size_t nbyte, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
+int copy_in(seL4_Word usr_ptr
+           ,seL4_Word k_ptr
+           ,int nbyte
+           ,int pid 
+           );
+int copy_out(seL4_Word usr_ptr
+           ,seL4_Word src
+           ,int nbyte
+           ,int pid 
+           );
 int copy_page (seL4_Word dst
               ,int count
               ,seL4_Word src
