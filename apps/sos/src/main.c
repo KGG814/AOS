@@ -484,7 +484,7 @@ void clock_test(seL4_CPtr interrupt_ep) {
  */
 int main(void) {
 
-    dprintf(0, "\nIt Work Starting...\n");
+    dprintf(0, "\nSpaghetti OS Starting...\n");
 
     _sos_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
 

@@ -54,9 +54,14 @@ seL4_CPtr sos_map_page(int ft_index
        ft_index is the lower 20 bits */
     assert(as->page_directory[dir_index] != NULL);
     seL4_CPtr frame_cap;
-    if (as->page_directory[dir_index][page_index] == 0) {
-    	as->page_directory[dir_index][page_index] = ft_index;
-        /* Map into the given process page directory */
+    if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
+        // 9242_TODO Swap things in
+        int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
+        frametable[index].vaddr = vaddr;
+    } else {
+        as->page_directory[dir_index][page_index] = ft_index;
+        as->page_directory[dir_index][page_index] |= pid << PROCESS_BIT_SHIFT;
+        // Map into the given process page directory //
         frame_cap = cspace_copy_cap(cur_cspace
                                    ,cur_cspace
                                    ,frametable[ft_index].frame_cap
@@ -66,16 +71,6 @@ seL4_CPtr sos_map_page(int ft_index
         map_page_user(frame_cap, pd, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
         frametable[index].vaddr = vaddr;
-    } else {
-        if ((as->page_directory[dir_index][page_index] | SWAPPED) == SWAPPED) {
-            // 9242_TODO Swap things in
-            int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
-            frametable[index].vaddr = vaddr;
-        } else {
-            int ft_index_curr = as->page_directory[dir_index][page_index];
-            frame_cap = frametable[ft_index_curr].frame_cap;
-            frame_free(ft_index);
-        }
     }
     return frame_cap;
 }
@@ -192,7 +187,7 @@ int handle_swap(seL4_Word vaddr, int pid) {
         // If it has been swapped out, get swap file offset from page table entry and swap it back in. 
         int swap_offset = (proc_table[pid]->page_directory[dir_index][page_index] & SWAP_SLOT_MASK) * PAGE_SIZE;
         // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_alloc
-        int err = map_if_valid(vaddr, pid);      
+        int err = map_if_valid(vaddr, pid);
         if (err) {
             return err;
         }
