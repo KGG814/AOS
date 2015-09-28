@@ -48,14 +48,21 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
+ 
+    if (check_region((seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
+        send_seL4_reply(reply_cap, EFAULT);
+        return;
+    } 
 
     if (path == NULL) {
         send_seL4_reply(reply_cap, -1);
         return;
     }
-
-    char kpath[MAXNAMLEN + 1] = {};
-    kpath[MAXNAMLEN] = '\0';
+    char *kpath = malloc(MAXNAMLEN + 1);
+    if (kpath == NULL) {
+        send_seL4_reply(reply_cap, -1); 
+    }
+    memset(kpath, 0, MAXNAMLEN + 1);
 
     copy_in((seL4_Word) path, (seL4_Word) kpath, MAXNAMLEN, pid);
 
