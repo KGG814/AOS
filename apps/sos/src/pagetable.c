@@ -44,6 +44,7 @@ seL4_CPtr sos_map_page(int ft_index
     int index = 0;
     seL4_Word temp;
 	if (as->page_directory[dir_index] == NULL) {
+        printf("sos_map_page calling frame_alloc\n");
         index = frame_alloc(&temp, KMAP, pid);
         as->page_directory[dir_index] = (seL4_Word*)temp;
         assert(index > FRAMETABLE_OK);
@@ -55,7 +56,7 @@ seL4_CPtr sos_map_page(int ft_index
     seL4_CPtr frame_cap;
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         // 9242_TODO Swap things in
-        int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
+        //int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
         frametable[index].vaddr = vaddr;
     } else {
         as->page_directory[dir_index][page_index] = ft_index;
@@ -84,16 +85,21 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     //dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
     handle_swap(fault_vaddr, pid);
-    int err = map_if_valid(fault_vaddr, pid);
+    printf("handle_vm_fault calling map_if_valid\n");
+    int err = map_if_valid(fault_vaddr, pid, handle_vm_fault_cb, NULL, reply_cap);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
         // 9242_TODO Kill process
     }
+}
+
+void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args) {
     /* Reply */
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    seL4_Send(cap, reply);
+    cspace_free_slot(cur_cspace, cap);
 }
+
 
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid) {
     // 9242_TODO error check instead
@@ -115,12 +121,14 @@ void user_buffer_map(seL4_Word user_ptr, size_t nbyte, int pid) {
             proc_table[pid]->page_directory[pt_top][pt_bot] != 0) {
             continue;
         }
-        map_if_valid(curr_page, pid);
+        printf("user_buffer_map calling map_if_valid\n");
+        map_if_valid(curr_page, pid, NULL, NULL, 0);
     }
 }
 
-int map_if_valid(seL4_Word vaddr, int pid) {
+int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap) {
     seL4_Word page_vaddr;
+    printf("map_if_valid calling frame_alloc\n");
     int ft_index = frame_alloc(&page_vaddr, KMAP, pid);
     assert(ft_index > FRAMETABLE_OK);
     int err = 0;
@@ -128,6 +136,8 @@ int map_if_valid(seL4_Word vaddr, int pid) {
     int page_index = PT_BOTTOM(vaddr);
     if (proc_table[pid]->page_directory[dir_index] != NULL && 
         proc_table[pid]->page_directory[dir_index][page_index] != 0) {
+        printf("map_if_valid calling frame_free\n");
+        frame_free(ft_index);
         return 0;
     }
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
@@ -138,15 +148,19 @@ int map_if_valid(seL4_Word vaddr, int pid) {
         frame_free(ft_index);
     /* Stack pages*/
     } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
+        printf("map_if_valid calling sos_map_page\n");
         sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* IPC Pages */
     } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {
+        printf("map_if_valid calling sos_map_page\n");
         sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* VMEM */
     } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < proc_table[pid]->brk)) {
+        printf("map_if_valid calling sos_map_page\n");
         sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* Scratch */
     } else if ((vaddr >= PROCESS_SCRATCH)) {
+        printf("map_if_valid calling sos_map_page\n");
         sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid); 
     //} else if ((vaddr)) 
     } else {
@@ -158,6 +172,9 @@ int map_if_valid(seL4_Word vaddr, int pid) {
         return UNKNOWN_REGION;
     }
     frametable[ft_index].vaddr = vaddr;
+    if (cb != NULL) {
+        cb(pid, reply_cap, args);
+    }
     return 0;
 }
 
@@ -186,14 +203,15 @@ int handle_swap(seL4_Word vaddr, int pid) {
         // If it has been swapped out, get swap file offset from page table entry and swap it back in. 
         int swap_offset = (proc_table[pid]->page_directory[dir_index][page_index] & SWAP_SLOT_MASK) * PAGE_SIZE;
         // Map the page in. If it is necessary, a frame will be swapped out to make space by frame_alloc
-        int err = map_if_valid(vaddr, pid);
+        printf("handle_swap calling map_if_valid\n");
+        int err = map_if_valid(vaddr, pid, NULL, NULL, 0);
         if (err) {
             return err;
         }
         // Get the frame for the page that was mapped in
-        int index = proc_table[pid]->page_directory[dir_index][page_index] & FT_INDEX_MASK;
+        //int index = proc_table[pid]->page_directory[dir_index][page_index] & FT_INDEX_MASK;
         // Get the kernel mapping for that frame
-        seL4_Word k_vaddr = index_to_vaddr(index);
+        //seL4_Word k_vaddr = index_to_vaddr(index);
         // 9242_TODO Do a NFS read from the swap file to the addr
     } else {
         // No swapping to be done, continue as normal
@@ -231,7 +249,8 @@ int copy_page(seL4_Word dst
              ,int pid
              ) 
 {
-    int err = map_if_valid(dst & PAGE_MASK, pid);
+    printf("copy_page calling map_if_valid\n");
+    int err = map_if_valid(dst & PAGE_MASK, pid, NULL, NULL, 0);
     if (err) {
         return err;
     }

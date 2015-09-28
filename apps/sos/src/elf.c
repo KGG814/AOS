@@ -95,30 +95,34 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
     /* We work a page at a time in the destination vspace. */
     pos = 0;
     while(pos < segment_size) {
-        seL4_CPtr sos_cap;
+        
+        
+        int ft_index;
+        seL4_Word vaddr;
+        
+        
+        /* First we need to create a frame */
+        ft_index = frame_alloc(&vaddr, KMAP, 1);
         seL4_Word vpage, kvpage;
         unsigned long kdst;
         int nbytes;
-        int ft_index;
-        seL4_Word vaddr;
-        kdst   = dst + PROCESS_SCRATCH;
         vpage  = PAGE_ALIGN(dst);
-        kvpage = PAGE_ALIGN(kdst);
-        /* First we need to create a frame */
-        ft_index = frame_alloc(&vaddr, KMAP, 1);
-        // The frame was just mapped in, so this will not block
+        kvpage = PAGE_ALIGN(dst + PROCESS_SCRATCH);
+        nbytes = PAGESIZE - (dst & PAGEMASK);
+        kdst   = dst + PROCESS_SCRATCH;
+        seL4_CPtr sos_cap;
         sos_map_page(ft_index, vpage, dest_as, as, 1);
         // Need to change frame table vaddr association to the on the user will fault on
         frametable[ft_index].vaddr = vpage;
         //conditional_panic(err, "Failed to map to tty address space");
         sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as, 1);
         //conditional_panic(err, "Failed to map sos address space");
-        /* Now copy our data into the destination vspace. */
-        nbytes = PAGESIZE - (dst & PAGEMASK);
+        // Now copy our data into the destination vspace. 
+        
         if (pos < file_size){        
             memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos));
         }    
-        /* Not observable to I-cache yet so flush the frame */
+        // Not observable to I-cache yet so flush the frame 
         seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
 
         pos += nbytes;
@@ -128,6 +132,7 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 
     return 0;
 }
+
 
 int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
 
@@ -156,7 +161,6 @@ int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
         flags = elf_getProgramHeaderFlags(elf_file, i);
 
         /* Copy it across into the vspace. */
-        printf("ADDR: %p\n", vaddr);
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
         err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
                                        get_sel4_rights_from_elf(flags) & seL4_AllRights, as);

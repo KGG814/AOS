@@ -29,7 +29,7 @@
 #define verbose 5
 #define PAGE_BITS           12
 int ft_initialised = 0;
-
+int frame_num = 0;
 //frametable is essentially a list stack of free frames 
 
 static seL4_Word low;
@@ -123,10 +123,84 @@ int frame_init(void) {
 
     return FRAMETABLE_OK;
 }
+
+int frame_alloc(seL4_Word *vaddr, int map, int pid) {
+    /* Check frame table has been initialised */
+    
+    if (ft_initialised != 1) {
+        return FRAMETABLE_NOT_INITIALISED; 
+    }
+
+    int err = 0;
+
+    seL4_Word pt_addr = ut_alloc(seL4_PageBits);
+    int index = 0;
+    if (pt_addr < low) { //no frames available
+        // 9242_TODO Change this to do swapping instead
+        // Get the next frame index from the swap buffer
+        index = buffer_head;
+        // Set the head of the swap buffer to next thing
+        buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
+        // Write frame to current free swap slot
+        // 9242_TODO Might need to do another setjmp / lngjmp around this, since frame_alloc is called in multiple places
+        write_to_swap_slot(index);
+        
+        
+    } else {
+        index = (pt_addr - low) / PAGE_SIZE;
+        err |= cspace_ut_retype_addr(pt_addr
+                                ,seL4_ARM_SmallPageObject
+                                ,seL4_PageBits
+                                ,cur_cspace
+                                ,&frametable[index].frame_cap
+                                ); 
+    }
+    //9242_TODO: interpret this error correctly
+    if (err) { 
+        return FRAMETABLE_ERR;
+    }
+
+    if (map) {
+        err |= map_page(frametable[index].frame_cap
+                   ,seL4_CapInitThreadPD
+                   ,paddr_to_vaddr(pt_addr)
+                   ,seL4_AllRights
+                   ,seL4_ARM_Default_VMAttributes
+                   );
+    }
+    
+    //9242_TODO: interpret this error correctly.
+    if (err) { 
+        return FRAMETABLE_ERR;
+    }
+    //set the status bits of the new frame 
+
+    
+    if (buffer_head == -1) {
+        buffer_head = index;
+    } else {
+        frametable[buffer_tail].frame_status &= STATUS_MASK;
+        frametable[buffer_tail].frame_status |= index;
+    }
+    frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
+    buffer_tail = index;
+    *vaddr = paddr_to_vaddr(pt_addr);
+    if (map) {
+        seL4_Word *tmp = (seL4_Word *) *vaddr;
+        for (int i = 0; i < 1024; i++) {
+            tmp[i] = 0;
+        }
+    }  
+    frame_num++;
+    printf("Allocated frame %d at index %d\n\n", frame_num, index);
+    return index;
+}
+
+
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-int frame_alloc(seL4_Word *vaddr, int map, int pid) {
+int frame_alloc_swap(seL4_Word *vaddr, int map, int pid) {
     /* Check frame table has been initialised */
     
     if (ft_initialised != 1) {
@@ -174,10 +248,8 @@ int frame_alloc_cb(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int 
                    ,seL4_ARM_Default_VMAttributes
                    );
     }
-    
-    //9242_TODO: interpret this error correctly.
-    if (err) { 
-        return FRAMETABLE_ERR;
+    if (err) {
+        return err;
     }
 
     if (buffer_head == -1) {
@@ -231,6 +303,6 @@ int frame_free(int index) {
     frametable[index].frame_status &= ~STATUS_MASK;
     frametable[index].frame_status |= FRAME_INVALID;
     frametable[index].frame_cap = 0;
-
+    frame_num--;
 	return FRAMETABLE_OK;
 }

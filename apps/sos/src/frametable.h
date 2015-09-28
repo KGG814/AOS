@@ -40,6 +40,7 @@ int frame_init(void);
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
 //and the frame is mapped into the SOS window at a fixed offset of the physical address.
 int frame_alloc(seL4_Word *vaddr, int map, int pid);
+int frame_alloc_swap(seL4_Word *vaddr, int map, int pid);
 
 //frame_free: the physical memory is no longer mapped in the window, the frame object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index);

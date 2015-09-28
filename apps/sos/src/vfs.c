@@ -400,8 +400,8 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
         args->to_write = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
-
-    int err = map_if_valid(args->buf & PAGE_MASK, pid);
+    printf("file_write calling map_if_valid\n");
+    int err = map_if_valid(args->buf & PAGE_MASK, pid, NULL, NULL, reply_cap);
     if (err) {
         //printf("couldn't map buffer\n");
         free(args);
@@ -448,7 +448,8 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
-        int err = map_if_valid(args->buf & PAGE_MASK, args->pid);
+        printf("file_write_cb calling map_if_valid\n");
+        int err = map_if_valid(args->buf & PAGE_MASK, args->pid, NULL, NULL, 0);
         if (err) {
             send_seL4_reply(args->reply_cap, args->bytes_written);
             free(args);
@@ -491,7 +492,6 @@ void vfs_stat_cb(uintptr_t token
                 ) 
 {
     vfs_stat_args *args = (vfs_stat_args*) token;
-    seL4_Word f_status = args->buf;
 
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, -1);
@@ -581,7 +581,7 @@ void vfs_getdirent_cb(uintptr_t token
             if (to_copy + (args->buf & ~(PAGE_MASK)) > PAGE_SIZE) {
                 to_copy = PAGE_SIZE - (args->buf & ~(PAGE_MASK));
             }
-            copy_page(args->buf, to_copy, file_names[index], args->pid);
+            copy_page(args->buf, to_copy, (seL4_Word) file_names[index], args->pid);
             count += to_copy;
             args->buf += to_copy;
         }
