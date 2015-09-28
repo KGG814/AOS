@@ -233,7 +233,7 @@ int copy_in(seL4_Word usr_ptr
         if ((usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
             to_copy = PAGE_SIZE - (usr_ptr & ~PAGE_MASK);
         } 
-        int err = map_if_valid(usr_ptr & PAGE_MASK, pid);
+        int err = map_if_valid(usr_ptr & PAGE_MASK, pid, NULL, NULL, 0);
         if (err) {
             return count;
         }

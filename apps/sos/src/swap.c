@@ -28,7 +28,7 @@ typedef struct _swap_init_args {
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
 
-seL4_Word write_to_swap_slot (int index) {
+void write_to_swap_slot (int index) {
 	seL4_Word slot = swap_head;
 	// We have reached the end of the swap table
 	if (slot == SWAP_SLOTS) {

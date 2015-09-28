@@ -2,4 +2,4 @@
 
 
 int swap_init(void);
-seL4_Word write_to_swap_slot(int index);
+void write_to_swap_slot(int index);
