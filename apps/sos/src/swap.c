@@ -17,7 +17,6 @@ fhandle_t *swap_handle = NULL;
 typedef struct _swap_args {
     int index;
     int slot;
-    // jmp buffer
 } swap_args;
 
 typedef struct _swap_init_args {

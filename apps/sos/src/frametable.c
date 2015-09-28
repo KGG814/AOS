@@ -38,7 +38,7 @@ static seL4_Word high;
 seL4_Word buffer_head = -1;
 seL4_Word buffer_tail = -1;
 
-int frame_alloc_continue(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int pid);
+int frame_alloc_cb(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int pid);
 
 static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
@@ -159,12 +159,12 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         if (err) { 
             return FRAMETABLE_ERR;
         }
-        frame_alloc_continue(index, pt_addr, vaddr, map, pid);
+        frame_alloc_cb(index, pt_addr, vaddr, map, pid);
     }
     return index;
 }
 
-int frame_alloc_continue(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int pid) {
+int frame_alloc_cb(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int pid) {
     int err;
     if (map) {
         err = map_page(frametable[index].frame_cap
