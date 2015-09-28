@@ -27,6 +27,7 @@ int fdt_init(int pid);
 int oft_init(void);
 
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap);
+void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args);
 int fd_close(int pid, int file);
 int add_fd(vnode* vn, int pid);
 

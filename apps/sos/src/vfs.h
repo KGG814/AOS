@@ -90,5 +90,6 @@ void    vfs_stat(const char *path
                 ,int pid
                 ); 
 
+void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args);
 
 #endif /* _VFS_H_ */
