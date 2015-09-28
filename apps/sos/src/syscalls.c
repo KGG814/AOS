@@ -158,7 +158,7 @@ void handle_getdirent(seL4_CPtr reply_cap, int pid) {
     if (check_region((seL4_Word)name, (seL4_Word)nbyte)) {
         send_seL4_reply(reply_cap, EFAULT);
         return;
-    }
+    } 
     /* Call the getdirent vnode op */
     vfs_getdirent(pos, name, nbyte, reply_cap, pid); 
 }
@@ -169,21 +169,26 @@ void handle_getdirent(seL4_CPtr reply_cap, int pid) {
  */
 void handle_stat(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
-    const char* path =  (char*)        seL4_GetMR(1);
+    seL4_Word   path =                 seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
-    /* Check page boundaries and map in pages if necessary */
-    if (check_region((seL4_Word)path, (seL4_Word)256) || 
-        check_region((seL4_Word)path, (seL4_Word)sizeof(sos_stat_t))) {
+    
+    if (check_region((seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
         send_seL4_reply(reply_cap, EFAULT);
         return;
-    }
-    user_buffer_map((seL4_Word)path, 256, pid);  
-    /* Turn the user ptrs path and buf into kernel ptrs*/
+    } 
 
-    seL4_Word k_ptr1 = user_to_kernel_ptr((seL4_Word)path, pid);
-    printf("Handle stat %p, %p\n", path, buf);
+    if ((void *)path == NULL) {
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+
+    char kpath[MAXNAMLEN + 1] = {};
+    kpath[MAXNAMLEN] = '\0';
+
+    copy_in((seL4_Word) path, (seL4_Word) kpath, MAXNAMLEN, pid);
+
     /* Call stat */
-    vfs_stat((char*)k_ptr1, buf, reply_cap, pid);
+    vfs_stat((char*) kpath, (seL4_Word) buf, reply_cap, pid);
 }
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {

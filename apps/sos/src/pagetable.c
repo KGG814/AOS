@@ -56,6 +56,8 @@ seL4_CPtr sos_map_page(int ft_index
     seL4_CPtr frame_cap;
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         // 9242_TODO Swap things in
+        // 9242_TODO get frame cap of swapped in page, preserve frame cap of
+        // swapped out page
         int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
         frametable[index].vaddr = vaddr;
     } else {
@@ -196,11 +198,10 @@ int handle_swap(seL4_Word vaddr, int pid) {
         // Get the kernel mapping for that frame
         seL4_Word k_vaddr = index_to_vaddr(index);
         // 9242_TODO Do a NFS read from the swap file to the addr
-    } else {
-        // No swapping to be done, continue as normal
-        return 0;
-    }
+    } 
     
+    // No swapping to be done, continue as normal
+    return 0;
 }
 
 int copy_in(seL4_Word usr_ptr

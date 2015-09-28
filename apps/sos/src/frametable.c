@@ -165,7 +165,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
 }
 
 int frame_alloc_cb(int index, seL4_Word pt_addr, seL4_Word *vaddr, int map, int pid) {
-    int err;
+    int err = 0;
     if (map) {
         err = map_page(frametable[index].frame_cap
                    ,seL4_CapInitThreadPD
