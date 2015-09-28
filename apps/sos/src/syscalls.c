@@ -48,13 +48,18 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
+
     if (path == NULL) {
         send_seL4_reply(reply_cap, -1);
         return;
     }
 
-    seL4_Word k_ptr = user_to_kernel_ptr((seL4_Word)path, pid);
-    int err = fh_open(pid, (char*)k_ptr, mode, reply_cap);
+    char kpath[MAXNAMLEN + 1] = {};
+    kpath[MAXNAMLEN] = '\0';
+
+    copy_in((seL4_Word) path, (seL4_Word) kpath, MAXNAMLEN, pid);
+
+    int err = fh_open(pid, kpath, mode, reply_cap);
     if (err == FILE_TABLE_CALLBACK) {
         return; //return and let process wait for callback
     } else {
@@ -263,14 +268,6 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
         return;
     }
     printf("sleep timer registered\n");
-}
-
-
-void send_seL4_reply(seL4_CPtr reply_cap, int ret) {
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, ret);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
 }
 
 /*************************************************************************/

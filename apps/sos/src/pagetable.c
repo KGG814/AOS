@@ -10,6 +10,7 @@
 #include "proc.h"
 #include <sos/vmem_layout.h>
 #include <assert.h>
+#include <string.h>
 
 
 #define FT_INDEX_MASK       0x000FFFFF
@@ -207,8 +208,35 @@ int handle_swap(seL4_Word vaddr, int pid) {
     
 }
 
-//copy from kernel ptr to usr ptr 
 int copy_in(seL4_Word usr_ptr
+           ,seL4_Word k_ptr
+           ,int nbyte
+           ,int pid 
+           ) {
+    int count = 0;
+    while (count != nbyte) {
+        int to_copy = nbyte - count;
+        if ((usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+            to_copy = PAGE_SIZE - (usr_ptr & ~PAGE_MASK);
+        } 
+        int err = map_if_valid(usr_ptr & PAGE_MASK, pid);
+        if (err) {
+            return count;
+        }
+        //9242_TODO pin the page
+        seL4_Word src = user_to_kernel_ptr(usr_ptr, pid);
+        memcpy((void *) k_ptr, (void *) src, to_copy);
+
+        count += to_copy;
+        usr_ptr += to_copy;
+        k_ptr += to_copy;
+    } 
+    return count;
+
+}
+
+//copy from kernel ptr to usr ptr 
+int copy_out(seL4_Word usr_ptr
            ,seL4_Word src
            ,int nbyte
            ,int pid 
@@ -237,10 +265,12 @@ int copy_page(seL4_Word dst
              ) 
 {
     int err = map_if_valid(dst & PAGE_MASK, pid);
+    //9242_TODO pin the page
     if (err) {
         return err;
     }
     seL4_Word kptr = user_to_kernel_ptr(dst, pid);
     memcpy((void *)kptr, (void *)src , count);
+    //9242_TODO unpin the page
     return 0;
 }
