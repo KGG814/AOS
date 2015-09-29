@@ -23,7 +23,13 @@ char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 
 typedef struct _con_read_args con_read_args;
+typedef struct _con_write_cb_args {
+    seL4_Word buf;
+    size_t nbyte;
+    size_t bytes_written;
+} con_write_args;
 
+void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args);
 void con_read_reply_cb(seL4_Uint32 id, void *data);
 //console specific stuff
 void serial_cb(struct serial* s, char c);
@@ -161,7 +167,14 @@ int con_close(vnode *vn) {
 }
 
 
-void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
+void con_read(vnode *vn
+             ,char *buf
+             ,size_t nbyte
+             ,seL4_CPtr reply_cap
+             ,int *offset
+             ,int pid
+             ) 
+{
     //assert(!"trying to read!");
     char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, pid);
     if (vn == NULL || (vn->fmode == O_WRONLY)) {
@@ -191,17 +204,67 @@ void con_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offs
     }
 }
 
-void con_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
+
+void con_write(vnode *vn
+              ,const char *buf
+              ,size_t nbyte
+              ,seL4_CPtr reply_cap
+              ,int *offset
+              ,int pid
+              ) 
+{
     ////printf("Con write\n");
-    if (vn == NULL || (vn->fmode == O_RDONLY)) {
+    if (vn == NULL || (vn->fmode == O_RDONLY) || nbyte == 0) {
         send_seL4_reply(reply_cap, 0);
         return;
     }
 
     //9242_TODO make this page by page
-    char *c = (char *)user_to_kernel_ptr((seL4_Word)buf, pid);
-    int bytes = serial_send(serial_handle, c, nbyte);
-    send_seL4_reply(reply_cap, bytes);
+    con_write_args *args = malloc(sizeof(con_write_args));
+    args->buf = (seL4_Word) buf;
+    args->nbyte = nbyte;
+    args->bytes_written = 0;
+
+    int err = map_if_valid(args->buf & PAGE_MASK
+                          ,pid
+                          ,con_write_cb
+                          ,args 
+                          ,reply_cap
+                          );
+
+    if (err) {
+        send_seL4_reply(reply_cap, 0);
+        free(args);   
+    }
+}
+
+void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+    con_write_args *args = (con_write_args*) _args;
+    int to_write = args->nbyte - args->bytes_written; 
+    if ((args->buf & ~PAGE_MASK) + to_write > PAGE_SIZE) {
+        to_write = PAGE_SIZE - (args->buf & ~PAGE_MASK);
+    }
+    seL4_Word src = user_to_kernel_ptr(args->buf, pid);
+    serial_send(serial_handle, (char *) src, to_write);
+    args->bytes_written += to_write;
+    args->buf += to_write;
+    
+    if (args->bytes_written == args->nbyte) {
+        send_seL4_reply(reply_cap, args->nbyte);
+        free(args);
+        return;
+    }
+
+    int err = map_if_valid(args->buf & PAGE_MASK
+                          ,pid
+                          ,con_write_cb
+                          ,args
+                          ,reply_cap
+                          );
+    if (err) {
+        send_seL4_reply(reply_cap, args->bytes_written);
+        free(args);
+    }
 }
 
 void serial_cb(struct serial* s, char c) {
