@@ -56,9 +56,9 @@ int copy_page (seL4_Word dst, int count, seL4_Word src, int pid);
 
 vnode_ops file_ops = 
 {
-    .vfs_write  = &file_write, 
-    .vfs_read   = &file_read,
-    .vfs_close  = &file_close
+    ._vfs_write  = &file_write, 
+    ._vfs_read   = &file_read,
+    ._vfs_close  = &file_close
 };
 
 struct _file_open_args {
