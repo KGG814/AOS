@@ -30,8 +30,8 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fa
 void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 
 void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
-void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
-
+void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
+void file_write_cb(int pid, seL4_CPtr reply_cap, void* args);
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 
 void vfs_getdirent_cb(uintptr_t token
@@ -44,9 +44,10 @@ void vfs_getdirent_cb(uintptr_t token
 
 typedef struct _file_open_args file_open_args;
 typedef struct _file_read_args file_read_args;
-typedef struct _file_write_args file_write_args;
+typedef struct _file_write_nfs_args file_write_nfs_args;
 typedef struct _vfs_stat_args vfs_stat_args;
 typedef struct _getdirent_args getdirent_args;
+typedef struct _file_write_args file_write_args;
 
 int copy_page (seL4_Word dst, int count, seL4_Word src, int pid);
 
@@ -74,7 +75,7 @@ struct _file_read_args {
     seL4_Word to_read;
 };
 
-struct _file_write_args {
+struct _file_write_nfs_args {
     vnode *vn;
     seL4_CPtr reply_cap;
     seL4_Word buf;
@@ -83,6 +84,13 @@ struct _file_write_args {
     size_t nbyte;
     size_t bytes_written;
     seL4_Word to_write;
+};
+
+struct _file_write_args {
+    vnode *vn;
+    seL4_Word buf;
+    int *offset;
+    file_write_nfs_args* nfs_args;
 };
 
 struct _vfs_stat_args {
@@ -383,53 +391,68 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
         send_seL4_reply(reply_cap, 0);
         return;
     }
-
     //printf("File Write called \n");
-    file_write_args *args = malloc(sizeof(file_write_args));
-    args->vn = vn;
-    args->reply_cap = reply_cap;
-    args->buf = (seL4_Word) buf;
-    args->offset = offset;
-    args->pid = pid;
-    args->nbyte = nbyte;
-    args->bytes_written = 0;
-
-    args->to_write = nbyte;
+    file_write_nfs_args *nfs_args = malloc(sizeof(file_write_nfs_args));
+    nfs_args->vn = vn;
+    nfs_args->reply_cap = reply_cap;
+    nfs_args->buf = (seL4_Word) buf;
+    nfs_args->offset = offset;
+    nfs_args->pid = pid;
+    nfs_args->nbyte = nbyte;
+    nfs_args->bytes_written = 0;
+    nfs_args->to_write = nbyte;
     seL4_Word start_addr = (seL4_Word) buf;
-    seL4_Word end_addr = start_addr + args->to_write;
+    seL4_Word end_addr = start_addr + nfs_args->to_write;
+
+    file_write_args *write_args = malloc(sizeof(file_write_args));
+    write_args->vn = vn;
+    write_args->buf = (seL4_Word) buf;
+    write_args->offset = offset;
+    write_args->nfs_args = nfs_args;
+
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
-        args->to_write = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
+        nfs_args->to_write = (start_addr & PAGE_MASK) - start_addr + PAGE_SIZE ;
     }
+
     printf("file_write calling map_if_valid\n");
-    int err = map_if_valid(args->buf & PAGE_MASK, pid, NULL, NULL, reply_cap);
+    int err = map_if_valid(nfs_args->buf & PAGE_MASK, pid, file_write_cb, write_args, reply_cap);
     if (err) {
         //printf("couldn't map buffer\n");
-        free(args);
+        free(nfs_args);
+        free(write_args);
         send_seL4_reply(reply_cap, 0);
-        return;
-    }
-
-    seL4_Word kptr = user_to_kernel_ptr(args->buf, pid);
-
-    int status = nfs_write(vn->fs_data
-            ,*offset
-            ,args->to_write
-            ,(const void*)kptr
-            ,file_write_cb
-            ,(uintptr_t)args
-            );
-
-    if (status != RPC_OK) {
-        send_seL4_reply(reply_cap, -1);
-        free(args);
         return;
     }
     //printf("write callback set up\n");
 }
 
-void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
+void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
+    printf("Write Callback\n");
+    file_write_args* write_args = (file_write_args*) args;
+    vnode *vn = write_args->vn;
+    int *offset = write_args->offset;
+    file_write_nfs_args* nfs_args = write_args->nfs_args;
 
-    file_write_args *args = (file_write_args*) token;
+    seL4_Word kptr = user_to_kernel_ptr(nfs_args->buf, pid);
+    
+    int status = nfs_write(vn->fs_data
+            ,*offset
+            ,nfs_args->to_write
+            ,(const void*)kptr
+            ,file_write_nfs_cb
+            ,(uintptr_t)nfs_args
+            );
+    free(args);
+    if (status != RPC_OK) {
+        send_seL4_reply(reply_cap, -1);
+        free(nfs_args);
+        return;
+    }
+}
+
+void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
+    printf("NFS Callback\n");
+    file_write_nfs_args *args = (file_write_nfs_args*) token;
     vnode *vn = args->vn;
     //printf("write: got status from nfs: %d\n", status);
     if (status != NFS_OK) {
@@ -445,6 +468,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
     args->buf += count; //need to increment this pointer
 
     if (args->bytes_written == args->nbyte) {
+
         send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
         free(args);
     } else {
@@ -466,7 +490,7 @@ void file_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count
                 ,*args->offset
                 ,args->to_write
                 ,(const void*)kptr
-                ,&file_write_cb
+                ,&file_write_nfs_cb
                 ,(uintptr_t) token
                 );
         if (status != RPC_OK) {
@@ -573,4 +597,11 @@ void vfs_getdirent_cb(uintptr_t token
         args->entries_received += num_files;
         nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);
     }
+}
+
+void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
+    copy_in_args *copy_args = (copy_in_args *)args;
+    char *path = (char *) copy_args->cb_arg_1;
+    seL4_Word buf = copy_args->cb_arg_2;
+    vfs_stat(path, buf, reply_cap, pid); 
 }

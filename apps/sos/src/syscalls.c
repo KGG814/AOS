@@ -8,6 +8,7 @@
 #define verbose 5
 #include <sys/debug.h>
 
+
 void handle_syscall0(seL4_CPtr reply_cap, int pid) {
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
@@ -63,15 +64,23 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
         send_seL4_reply(reply_cap, -1); 
     }
     memset(kpath, 0, MAXNAMLEN + 1);
+    copy_in_args *args = malloc(sizeof(copy_in_args));
+    args->count = 0;
+    args->nbyte = MAXNAMLEN;
+    args->usr_ptr = (seL4_Word) path;
+    args->k_ptr = (seL4_Word) kpath;
+    args->cb = fh_open_wrapper;
+    args->cb_arg_1 = (seL4_Word) kpath;
+    args->cb_arg_2 = (seL4_Word) mode;
+    printf("handle open calling copy in with reply cap %d\n", reply_cap);
+    copy_in(pid, reply_cap, args);
 
-    copy_in((seL4_Word) path, (seL4_Word) kpath, MAXNAMLEN, pid);
-
-    int err = fh_open(pid, kpath, mode, reply_cap);
+    /*int err = fh_open(pid, kpath, mode, reply_cap);
     if (err == FILE_TABLE_CALLBACK) {
         return; //return and let process wait for callback
     } else {
         send_seL4_reply(reply_cap, err);
-    }
+    }*/
 }
 
 void handle_open_name_cb() {
@@ -199,11 +208,19 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
 
     char kpath[MAXNAMLEN + 1] = {};
     kpath[MAXNAMLEN] = '\0';
-
-    copy_in((seL4_Word) path, (seL4_Word) kpath, MAXNAMLEN, pid);
+    copy_in_args *args = malloc(sizeof(copy_in_args));
+    args->count = 0;
+    args->nbyte = MAXNAMLEN;
+    args->usr_ptr = (seL4_Word) path;
+    args->k_ptr = (seL4_Word) kpath;
+    args->cb = vfs_stat_wrapper;
+    args->cb_arg_1 = (seL4_Word) kpath;
+    args->cb_arg_2 = (seL4_Word) buf;
+    printf("handle stat calling copy in\n");
+    copy_in(pid, reply_cap, args);
 
     /* Call stat */
-    vfs_stat((char*) kpath, (seL4_Word) buf, reply_cap, pid);
+    //vfs_stat((char*) kpath, (seL4_Word) buf, reply_cap, pid);
 }
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {

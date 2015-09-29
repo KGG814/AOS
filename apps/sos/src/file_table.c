@@ -44,6 +44,15 @@ int fdt_init(int pid) {
     return 0;
 }
 
+void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
+    copy_in_args *copy_args = (copy_in_args *)args;
+    char* path = (char *) copy_args->cb_arg_1;
+    fmode_t mode = (fmode_t) copy_args->cb_arg_2;
+    free(args);
+    printf(" Reply cap is %d\n", reply_cap);
+    fh_open(pid, path, mode, reply_cap);
+}
+
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     
     int err;
@@ -67,7 +76,9 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     }
 
     proc_table[pid]->n_files_open++;
-
+    if (reply_cap != 0) {
+        send_seL4_reply(reply_cap, fd);
+    }
     return fd;
 } 
 

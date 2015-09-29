@@ -47,7 +47,7 @@ void write_to_swap_slot (int index) {
 	args->slot = slot;
 	int status = 0;
 	if (swap_handle == NULL) {
-		swap_handle = -1;
+		swap_handle = (fhandle_t *)-1;
 		swap_init_args *init_args = malloc(sizeof(swap_init_args));
 		init_args->args = args;
 		init_args->offset = offset;
