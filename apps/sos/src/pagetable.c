@@ -49,7 +49,10 @@ seL4_CPtr sos_map_page(int ft_index
     map_args->vaddr = vaddr;
     map_args->ft_index = ft_index;
     map_args->pd = pd;
+    seL4_CPtr frame_cap;
+    map_args->frame_cap = &frame_cap;
 	seL4_Word dir_index = PT_TOP(vaddr);
+    map_args->cb = NULL;
 	/* Check that the page table exists */
     assert(as->page_directory != NULL);
 	if (as->page_directory[dir_index] == NULL) {
@@ -62,7 +65,30 @@ seL4_CPtr sos_map_page(int ft_index
         sos_map_page_cb(pid, 0, map_args); 
     }
     
-    return map_args->frame_cap;
+    return frame_cap;
+}
+
+void sos_map_page_swap(int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
+                      ,addr_space* as, int pid, seL4_CPtr reply_cap
+                      ,callback_ptr cb, seL4_CPtr *frame_cap) {
+    sos_map_page_args *map_args = malloc(sizeof(sos_map_page_args));
+    map_args->as = as;
+    map_args->vaddr = vaddr;
+    map_args->ft_index = ft_index;
+    map_args->pd = pd;
+    map_args->frame_cap = frame_cap;
+    seL4_Word dir_index = PT_TOP(vaddr);
+    /* Check that the page table exists */
+    assert(as->page_directory != NULL);
+    if (as->page_directory[dir_index] == NULL) {
+        frame_alloc_args *args = malloc(sizeof(frame_alloc_args));
+        args->map = KMAP;
+        args->cb = sos_map_page_dir_cb;
+        args->cb_args = (void *) map_args;
+        frame_alloc_swap(pid, reply_cap, args);
+    } else {
+        sos_map_page_cb(pid, reply_cap, map_args); 
+    }
 }
 
 void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
@@ -92,12 +118,12 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
         as->page_directory[dir_index][page_index] = map_args->ft_index;
         as->page_directory[dir_index][page_index] |= pid << PROCESS_BIT_SHIFT;
         // Map into the given process page directory //
-        map_args->frame_cap = cspace_copy_cap(cur_cspace
+        *(map_args->frame_cap) = cspace_copy_cap(cur_cspace
                                    ,cur_cspace
                                    ,frametable[map_args->ft_index].frame_cap
                                    ,seL4_AllRights
                                    );
-        map_page_user(map_args->frame_cap, map_args->pd, map_args->vaddr, 
+        map_page_user(*(map_args->frame_cap), map_args->pd, map_args->vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, map_args->as);
         frametable[map_args->ft_index].vaddr = map_args->vaddr;
     }
@@ -146,6 +172,11 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
     int err = 0;
     int dir_index = PT_TOP(vaddr);
     int page_index = PT_BOTTOM(vaddr);
+    map_if_valid_args *map_args = malloc(sizeof(map_if_valid_args));
+    map_args->ft_index = ft_index;
+    map_args->vaddr = vaddr;
+    map_args->cb = cb;
+    map_args->cb_args = args;
     if (proc_table[pid]->page_directory[dir_index] != NULL && 
         proc_table[pid]->page_directory[dir_index][page_index] != 0) {
         printf("map_if_valid calling frame_free\n");
@@ -188,17 +219,18 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
         dprintf(0, "Address %p was not in valid region\n", vaddr);
         return UNKNOWN_REGION;
     }
-    frametable[ft_index].vaddr = vaddr;
-    printf("checking callback_ptr\n");
-    if (cb != NULL) {
-        printf("Calling callback\n");
-        cb(pid, reply_cap, args);
-    }
+    map_if_valid_cb(pid, reply_cap, map_args);
     return 0;
 }
 
 void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
-
+    map_if_valid_args *map_args = (map_if_valid_args *)args;
+    frametable[map_args->ft_index].vaddr = map_args->vaddr;
+    if (map_args->cb != NULL) {
+        printf("Calling callback\n");
+        map_args->cb(pid, reply_cap, map_args->cb_args);
+    }
+    free(map_args);
 }
 
 int check_region(seL4_Word start, seL4_Word size) {
