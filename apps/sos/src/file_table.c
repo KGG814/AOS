@@ -72,7 +72,7 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     if (fd == -1) {
         dprintf(0, "failed to open %s.\n", path);
         // Error, so delete vnode
-        vn->ops->vfs_close(vn);
+        vfs_close(vn);
     }
 
     proc_table[pid]->n_files_open++;
@@ -98,7 +98,7 @@ int fd_close(int pid, int file) {
         return FILE_TABLE_ERR;
     }
 
-    int err = handle->vn->ops->vfs_close(handle->vn);
+    int err = vfs_close(handle->vn);
     free(handle);
 
     proc_table[pid]->file_table[file] = INVALID_FD;

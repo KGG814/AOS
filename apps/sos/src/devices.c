@@ -50,15 +50,15 @@ struct _con_read_args {
 };
 vnode_ops console_ops = 
 {
-    .vfs_write  = &con_write, 
-    .vfs_read   = &con_read,
-    .vfs_close = &con_close
+    ._vfs_write  = &con_write, 
+    ._vfs_read   = &con_read,
+    ._vfs_close = &con_close
 };
 
 vnode_ops nul_ops = {
-    .vfs_read = &nul_read,
-    .vfs_write = &nul_write,
-    .vfs_close = &nul_close
+    ._vfs_read = &nul_read,
+    ._vfs_write = &nul_write,
+    ._vfs_close = &nul_close
 };
 
 vnode *console_open(fmode_t mode, int *err) {

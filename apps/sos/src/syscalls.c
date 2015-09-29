@@ -2,9 +2,11 @@
 #include "file_table.h"
 #include "pagetable.h"
 
+#include <string.h>
 #include <clock/clock.h>
 #include <sos.h>
 #include <sos/vmem_layout.h>
+
 #define verbose 5
 #include <sys/debug.h>
 
@@ -126,7 +128,7 @@ void handle_read(seL4_CPtr reply_cap, int pid) {
     /* Turn the user ptr buff into a kernel ptr */
     /* Call the read vnode op */
 
-    handle->vn->ops->vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
+    vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
     return;
 }
 
@@ -158,7 +160,7 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
 
     /* Check page boundaries and map in pages if necessary */;
     /* Call the write vnode op */
-    handle->vn->ops->vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);  
+    vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);  
 }
 
 

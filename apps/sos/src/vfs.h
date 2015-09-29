@@ -1,6 +1,12 @@
 #ifndef _VFS_H_
 #define _VFS_H_ 
 
+#define VOP(vn, op, args...) vn->ops->op(vn, ##args)
+
+#define vfs_write(vn, args...) VOP(vn, _vfs_write, ##args)
+#define vfs_read(vn, args...) VOP(vn, _vfs_read, ##args)
+#define vfs_close(vn, args...) VOP(vn, _vfs_close, ##args)
+
 //return codes
 #define VFS_OK              (0)
 
@@ -49,21 +55,21 @@ struct _vnode {
 
 struct _vnode_ops {
     /* function pointers for fs specific functions */
-    void (*vfs_write)(vnode *vn
+    void (*_vfs_write)(vnode *vn
                      ,const char *buf
                      ,size_t nbyte
                      ,seL4_CPtr reply_cap
                      ,int *offset
                      ,int pid
                      );
-    void (*vfs_read)(vnode *vn
+    void (*_vfs_read)(vnode *vn
                     ,char *buf
                     ,size_t nbyte
                     ,seL4_CPtr reply_cap
                     ,int *offset
                     ,int pid
                     );
-    int (*vfs_close)(vnode *vn);
+    int (*_vfs_close)(vnode *vn);
 };
 
 void vfs_init(void);
