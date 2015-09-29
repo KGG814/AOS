@@ -19,6 +19,7 @@
 int handle_swap(seL4_Word vaddr, int pid, seL4_CPtr reply_cap);
 void handle_swap_cb (int pid, seL4_CPtr reply_cap, void *args);
 void copy_in_cb(int pid, seL4_CPtr reply_cap, void* args);
+void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args);
 
 int page_init(int pid) {
     seL4_Word vaddr;
@@ -226,10 +227,6 @@ int copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
         copy_args->cb(pid, reply_cap, args);
         return copy_args->count;
     } else {
-        int to_copy = copy_args->nbyte - copy_args->count;
-        if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
-            to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
-        } 
         int err = map_if_valid(copy_args->usr_ptr & PAGE_MASK, pid, copy_in_cb, args, reply_cap);
         if (err) {
             return copy_args->count;
@@ -250,31 +247,40 @@ void copy_in_cb(int pid, seL4_CPtr reply_cap, void *args) {
     copy_args->count += to_copy;
     copy_args->usr_ptr += to_copy;
     copy_args->k_ptr += to_copy;
-    return copy_in(pid, reply_cap, args);
+    copy_in(pid, reply_cap, args);
 }
 
 //copy from kernel ptr to usr ptr 
-int copy_out(seL4_Word usr_ptr
-           ,seL4_Word src
-           ,int nbyte
-           ,int pid 
-           )
-{
-    int count = 0; 
-    while (count != nbyte) {
-        int to_copy = nbyte - count;
-        if ((usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
-            to_copy = PAGE_SIZE - (usr_ptr & ~PAGE_MASK);
+int copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
+
+    if (args->count == args->nbyte) {
+        args->cb(pid, reply_cap, args);
+        return args->count;
+    } else {
+        int to_copy = args->nbyte - args->count;
+        if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+            to_copy = PAGE_SIZE - (args->usr_ptr & ~PAGE_MASK);
         } 
-        if (!copy_page(usr_ptr, to_copy, src, pid)) {
-            return count;
+        int err = copy_page(args->usr_ptr, to_copy, args->src, pid);
+        if (err) {
+            return args->count;
         }
-        count += to_copy;
-        usr_ptr += to_copy;
-        src += to_copy;
-    } 
-    return count;
+        copy_out_cb(pid, reply_cap, args);
+    }
+
 } 
+
+void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args) {
+    copy_out_args *copy_args = args;
+    int to_copy = copy_args->nbyte - copy_args->count;
+    if ((copy_args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+        to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
+    }
+    copy_args->count += to_copy;
+    copy_args->usr_ptr += to_copy;
+    copy_args->src += to_copy;
+    copy_out(pid, reply_cap, args);
+}
 
 int copy_page(seL4_Word dst
              ,int count

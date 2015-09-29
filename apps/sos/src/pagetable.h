@@ -26,6 +26,13 @@ typedef struct _copy_in_args {
   seL4_Word cb_arg_2;
 } copy_in_args;
 
+typedef struct _copy_out_args {
+    seL4_Word usr_ptr;
+    seL4_Word src;
+    int nbyte;
+    int count;
+    callback_ptr cb;
+} copy_out_args;
 
 int page_init(int pid);
 
@@ -45,10 +52,10 @@ int copy_in(int pid
            ,seL4_CPtr reply_cap
            ,copy_in_args *args
            );
-int copy_out(seL4_Word usr_ptr
-           ,seL4_Word src
-           ,int nbyte
-           ,int pid 
+
+int copy_out(int pid
+           ,seL4_CPtr reply_cap
+           ,copy_out_args *args
            );
 
 int copy_page (seL4_Word dst

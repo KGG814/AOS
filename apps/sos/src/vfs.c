@@ -23,7 +23,7 @@ fattr_t *mnt_attr = NULL;
 int o_to_fm[] = {FM_READ, FM_WRITE, FM_READ + FM_WRITE};
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
-void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+void file_read_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 
 int file_close(vnode *vn);
 
@@ -36,14 +36,11 @@ void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args);
 void file_write_cb(int pid, seL4_CPtr reply_cap, void* args);
 
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args);
 
-void vfs_getdirent_cb(uintptr_t token
-                     ,nfs_stat_t status
-                     ,int num_files
-                     ,char *file_names[]
-                     ,nfscookie_t nfscookie
-                     );
-
+void vfs_getdirent_cb(uintptr_t token ,nfs_stat_t status
+                     ,int num_files ,char *file_names[], nfscookie_t nfscookie);
+void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args);
 
 typedef struct _file_open_args file_open_args;
 typedef struct _file_read_args file_read_args;
@@ -336,7 +333,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     if ((end_addr & PAGE_MASK) != (start_addr & PAGE_MASK)) {
         args->to_read = PAGE_SIZE - (start_addr & ~PAGE_MASK);
     }
-    int status = nfs_read(vn->fs_data, *offset, args->to_read, file_read_cb, (uintptr_t)args);
+    int status = nfs_read(vn->fs_data, *offset, args->to_read, file_read_nfs_cb, (uintptr_t)args);
     if (status != RPC_OK) {
         free(args);
         printf("couldn't open file in read\n");
@@ -344,7 +341,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     }
 }
 
-void file_read_cb(uintptr_t token
+void file_read_nfs_cb(uintptr_t token
                  ,nfs_stat_t status
                  ,fattr_t *fattr
                  ,int count
@@ -379,7 +376,7 @@ void file_read_cb(uintptr_t token
         int status = nfs_read(vn->fs_data
                 ,*(args->offset)
                 ,args->to_read
-                ,file_read_cb
+                ,file_read_nfs_cb
                 ,token
                 );
         if (status != RPC_OK) {
@@ -545,9 +542,19 @@ void vfs_stat_cb(uintptr_t token
     } else {
         temp.st_type = ST_SPECIAL;
     }
+    copy_out_args *copy_args = malloc(sizeof(copy_out_args));
+    copy_args->usr_ptr = (seL4_Word) args->buf;
+    copy_args->src = (seL4_Word) &temp;
+    copy_args->nbyte = sizeof(sos_stat_t);
+    copy_args->count = 0;
+    copy_args->cb = vfs_stat_reply;
+    copy_out(args->pid, args->reply_cap, copy_args);
+    free(args);
+}
 
-    copy_out(args->buf, (seL4_Word) &temp, sizeof(sos_stat_t), args->pid);
-    send_seL4_reply(args->reply_cap, 0);
+void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args) {
+    copy_in_args *copy_args = (copy_out_args *)args;
+    send_seL4_reply(reply_cap, 0);
     free(args);
 }
 
@@ -596,15 +603,24 @@ void vfs_getdirent_cb(uintptr_t token
         if (args->nbyte > len) {
             args->nbyte = len;
         }
-
-        copy_out(args->buf, (seL4_Word) file_names[index], args->nbyte, args->pid);
-
-        send_seL4_reply(args->reply_cap, args->nbyte);
+        copy_out_args *copy_args = malloc(sizeof(copy_out_args));
+        copy_args->usr_ptr = (seL4_Word) args->buf;
+        copy_args->src = (seL4_Word) file_names[index];
+        copy_args->nbyte = args->nbyte;
+        copy_args->cb = vfs_getdirent_reply;
+        copy_args->count = 0;
+        copy_out(args->pid, args->reply_cap, copy_args);
         free(args);
     } else {
         args->entries_received += num_files;
         nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);
     }
+}
+
+void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
+    copy_in_args *copy_args = (copy_out_args *)args;
+    send_seL4_reply(reply_cap, copy_args->nbyte);
+    free(args);
 }
 
 void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
