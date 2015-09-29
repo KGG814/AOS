@@ -1,7 +1,7 @@
 #include "syscalls.h"
 #include "file_table.h"
 #include "pagetable.h"
-
+#include <string.h>
 #include <clock/clock.h>
 #include <sos.h>
 #include <sos/vmem_layout.h>

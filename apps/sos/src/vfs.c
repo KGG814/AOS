@@ -23,15 +23,18 @@ fattr_t *mnt_attr = NULL;
 int o_to_fm[] = {FM_READ, FM_WRITE, FM_READ + FM_WRITE};
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
-void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
+void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+
 int file_close(vnode *vn);
 
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t* fh, fattr_t* fattr);
 void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 
-void file_read_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
 void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
+void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args);
 void file_write_cb(int pid, seL4_CPtr reply_cap, void* args);
+
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 
 void vfs_getdirent_cb(uintptr_t token
@@ -473,32 +476,37 @@ void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
         free(args);
     } else {
         printf("file_write_cb calling map_if_valid\n");
-        int err = map_if_valid(args->buf & PAGE_MASK, args->pid, NULL, NULL, 0);
+        int err = map_if_valid(args->buf & PAGE_MASK, args->pid, file_write_nfs_cb_continue, args, 0);
         if (err) {
             send_seL4_reply(args->reply_cap, args->bytes_written);
             free(args);
             return;
         }
 
-        seL4_Word kptr = user_to_kernel_ptr(args->buf, args->pid);
-
-        args->to_write = args->nbyte - args->bytes_written;
-        if ((kptr & ~PAGE_MASK) + args->to_write > PAGE_SIZE) {
-            args->to_write = PAGE_SIZE - (kptr & ~(PAGE_MASK));
-        }
-        int status = nfs_write(vn->fs_data
-                ,*args->offset
-                ,args->to_write
-                ,(const void*)kptr
-                ,&file_write_nfs_cb
-                ,(uintptr_t) token
-                );
-        if (status != RPC_OK) {
-            send_seL4_reply(args->reply_cap, args->bytes_written);
-            free(args);
-        }
+        
     } 
 
+}
+
+void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
+    file_write_nfs_args *nfs_args = (file_write_nfs_args*) args;
+    seL4_Word kptr = user_to_kernel_ptr(nfs_args->buf, nfs_args->pid);
+    vnode *vn = nfs_args->vn;
+    nfs_args->to_write = nfs_args->nbyte - nfs_args->bytes_written;
+    if ((kptr & ~PAGE_MASK) + nfs_args->to_write > PAGE_SIZE) {
+        nfs_args->to_write = PAGE_SIZE - (kptr & ~(PAGE_MASK));
+    }
+    int status = nfs_write(vn->fs_data
+            ,*nfs_args->offset
+            ,nfs_args->to_write
+            ,(const void*)kptr
+            ,&file_write_nfs_cb
+            ,(uintptr_t) nfs_args
+            );
+    if (status != RPC_OK) {
+        send_seL4_reply(nfs_args->reply_cap, nfs_args->bytes_written);
+        free(args);
+    }
 }
 
 void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
