@@ -83,14 +83,6 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     }*/
 }
 
-void handle_open_name_cb() {
-
-}
-
-void handle_open_return_cb() {
-
-}
-
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
 */
 void handle_close(seL4_CPtr reply_cap, int pid) {
