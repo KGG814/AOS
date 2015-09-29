@@ -553,7 +553,6 @@ void vfs_stat_cb(uintptr_t token
 }
 
 void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args) {
-    copy_in_args *copy_args = (copy_out_args *)args;
     send_seL4_reply(reply_cap, 0);
     free(args);
 }
@@ -618,7 +617,7 @@ void vfs_getdirent_cb(uintptr_t token
 }
 
 void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
-    copy_in_args *copy_args = (copy_out_args *)args;
+    copy_out_args *copy_args = (copy_out_args *)args;
     send_seL4_reply(reply_cap, copy_args->nbyte);
     free(args);
 }

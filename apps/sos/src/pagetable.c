@@ -11,6 +11,7 @@
 #include <sos/vmem_layout.h>
 #include <assert.h>
 #include <string.h>
+#include "syscalls.h"
 
 
 #define FT_INDEX_MASK       0x000FFFFF
@@ -20,6 +21,8 @@ int handle_swap(seL4_Word vaddr, int pid, seL4_CPtr reply_cap);
 void handle_swap_cb (int pid, seL4_CPtr reply_cap, void *args);
 void copy_in_cb(int pid, seL4_CPtr reply_cap, void* args);
 void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args);
+void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args);
+void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args);
 
 int page_init(int pid) {
     seL4_Word vaddr;
@@ -41,44 +44,63 @@ seL4_CPtr sos_map_page(int ft_index
                       ,int pid
                       ) 
 {
+    sos_map_page_args *map_args = malloc(sizeof(sos_map_page_args));
+    map_args->as = as;
+    map_args->vaddr = vaddr;
+    map_args->ft_index = ft_index;
+    map_args->pd = pd;
 	seL4_Word dir_index = PT_TOP(vaddr);
-	seL4_Word page_index = PT_BOTTOM(vaddr);
 	/* Check that the page table exists */
     assert(as->page_directory != NULL);
-    int index = 0;
-    seL4_Word temp;
 	if (as->page_directory[dir_index] == NULL) {
-        printf("sos_map_page calling frame_alloc\n");
-        index = frame_alloc(&temp, KMAP, pid);
-        as->page_directory[dir_index] = (seL4_Word*)temp;
-        assert(index > FRAMETABLE_OK);
-        //9242_TODO Set to no swap
-	}
-	/* Map into the sos page table 
-       ft_index is the lower 20 bits */
+        frame_alloc_args *args = malloc(sizeof(frame_alloc_args));
+        args->map = KMAP;
+        args->cb = sos_map_page_dir_cb;
+        args->cb_args = (void *) map_args;
+        frame_alloc_swap(pid, 0, args);
+	} else {
+        sos_map_page_cb(pid, 0, map_args); 
+    }
+    
+    return map_args->frame_cap;
+}
+
+void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
+    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+    sos_map_page_args *map_args = alloc_args->cb_args;
+    seL4_Word dir_index = PT_TOP(map_args->vaddr);
+    map_args->as->page_directory[dir_index] = (seL4_Word *) alloc_args->vaddr;
+    free(alloc_args);
+    sos_map_page_cb(pid, reply_cap, map_args);
+}
+
+void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
+    sos_map_page_args *map_args = (sos_map_page_args *) args;
+    addr_space *as = map_args->as;
+    seL4_Word dir_index = PT_TOP(map_args->vaddr);
+    seL4_Word page_index = PT_BOTTOM(map_args->vaddr);
     assert(as->page_directory[dir_index] != NULL);
-    seL4_CPtr frame_cap;
+
+
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         // 9242_TODO Swap things in
-		// 9242_TODO get frame cap of swapped in page, preserve frame cap of
+        // 9242_TODO get frame cap of swapped in page, preserve frame cap of
         // swapped out page
         //int slot = as->page_directory[dir_index][page_index] & SWAP_SLOT_MASK;
-        frametable[index].vaddr = vaddr;
+        frametable[map_args->ft_index].vaddr = map_args->vaddr;
     } else {
-        as->page_directory[dir_index][page_index] = ft_index;
+        as->page_directory[dir_index][page_index] = map_args->ft_index;
         as->page_directory[dir_index][page_index] |= pid << PROCESS_BIT_SHIFT;
         // Map into the given process page directory //
-        frame_cap = cspace_copy_cap(cur_cspace
+        map_args->frame_cap = cspace_copy_cap(cur_cspace
                                    ,cur_cspace
-                                   ,frametable[ft_index].frame_cap
+                                   ,frametable[map_args->ft_index].frame_cap
                                    ,seL4_AllRights
                                    );
-
-        map_page_user(frame_cap, pd, vaddr, 
-                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
-        frametable[index].vaddr = vaddr;
+        map_page_user(map_args->frame_cap, map_args->pd, map_args->vaddr, 
+                    seL4_AllRights, seL4_ARM_Default_VMAttributes, map_args->as);
+        frametable[map_args->ft_index].vaddr = map_args->vaddr;
     }
-    return frame_cap;
 }
 
 void handle_vm_fault(seL4_Word badge, int pid) {
@@ -175,6 +197,10 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
     return 0;
 }
 
+void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
+
+}
+
 int check_region(seL4_Word start, seL4_Word size) {
     for (seL4_Word curr = start; curr < start + size; curr += PAGE_SIZE) {
         if ((curr & PAGE_MASK) == GUARD_PAGE) {
@@ -220,18 +246,16 @@ void handle_swap_cb (int pid, seL4_CPtr reply_cap, void *args) {
     // 9242_TODO Do a NFS read from the swap file to the addr
 }
 
-int copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
+void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
     printf("copy in with reply cap %d\n", reply_cap);
     copy_in_args *copy_args = (copy_in_args *) args;
     if (copy_args->count == args->nbyte) {
         copy_args->cb(pid, reply_cap, args);
-        return copy_args->count;
     } else {
         int err = map_if_valid(copy_args->usr_ptr & PAGE_MASK, pid, copy_in_cb, args, reply_cap);
         if (err) {
-            return copy_args->count;
+            send_seL4_reply(reply_cap, copy_args->count);
         }
-        return 0;
     }
 }
 
@@ -251,11 +275,10 @@ void copy_in_cb(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 //copy from kernel ptr to usr ptr 
-int copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
+void copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
 
     if (args->count == args->nbyte) {
         args->cb(pid, reply_cap, args);
-        return args->count;
     } else {
         int to_copy = args->nbyte - args->count;
         if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
@@ -263,7 +286,7 @@ int copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
         } 
         int err = copy_page(args->usr_ptr, to_copy, args->src, pid);
         if (err) {
-            return args->count;
+            send_seL4_reply(reply_cap, args->count);
         }
         copy_out_cb(pid, reply_cap, args);
     }

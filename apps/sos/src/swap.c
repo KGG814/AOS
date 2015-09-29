@@ -53,7 +53,7 @@ void write_to_swap_slot (int index) {
 		init_args->offset = offset;
 		//status = nfs_lookup(&mnt_point, "swap", swap_init_cb, (uintptr_t)init_args);
 	// Currently being initialised
-	} else if (swap_handle == -1) {
+	} else if (swap_handle == (fhandle_t *)-1) {
 		// Timer callback to write_to_swap_slot?
 	} else {
 		//status = nfs_write(swap_handle, offset, PAGE_SIZE, index_to_vaddr(index), swap_cb, (uintptr_t)args);
@@ -67,7 +67,7 @@ void write_to_swap_slot (int index) {
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
 	swap_handle = fh;
 	swap_init_args *init_args = (swap_init_args *) token;
-	status = nfs_write(swap_handle, init_args->offset, PAGE_SIZE, index_to_vaddr(init_args->args->index), swap_cb, (uintptr_t)init_args->args);
+	status = nfs_write(swap_handle, init_args->offset, PAGE_SIZE, (void *)index_to_vaddr(init_args->args->index), swap_cb, (uintptr_t)init_args->args);
 	if (status != RPC_OK) {
  		// Jmp back with error code?
     }

@@ -27,12 +27,22 @@ typedef struct _copy_in_args {
 } copy_in_args;
 
 typedef struct _copy_out_args {
-    seL4_Word usr_ptr;
-    seL4_Word src;
-    int nbyte;
-    int count;
-    callback_ptr cb;
+  seL4_Word usr_ptr;
+  seL4_Word src;
+  int nbyte;
+  int count;
+  callback_ptr cb;
 } copy_out_args;
+
+typedef struct  _sos_map_page_args {
+  addr_space *as;
+  seL4_Word vaddr;
+  int ft_index;
+  seL4_ARM_PageDirectory pd;
+  // Not initialised
+  seL4_CPtr frame_cap;
+} sos_map_page_args;
+
 
 int page_init(int pid);
 
@@ -48,12 +58,12 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
 
-int copy_in(int pid
+void copy_in(int pid
            ,seL4_CPtr reply_cap
            ,copy_in_args *args
            );
 
-int copy_out(int pid
+void copy_out(int pid
            ,seL4_CPtr reply_cap
            ,copy_out_args *args
            );

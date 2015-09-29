@@ -74,7 +74,6 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     args->cb = fh_open_wrapper;
     args->cb_arg_1 = (seL4_Word) kpath;
     args->cb_arg_2 = (seL4_Word) mode;
-    printf("handle open calling copy in with reply cap %d\n", reply_cap);
     copy_in(pid, reply_cap, args);
 
     /*int err = fh_open(pid, kpath, mode, reply_cap);
