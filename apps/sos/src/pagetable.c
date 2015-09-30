@@ -73,13 +73,16 @@ seL4_CPtr sos_map_page(int ft_index
 
 void sos_map_page_swap(int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
                       ,addr_space* as, int pid, seL4_CPtr reply_cap
-                      ,callback_ptr cb, seL4_CPtr *frame_cap) {
+                      ,callback_ptr cb, void *cb_args
+                      ,seL4_CPtr *frame_cap) {
     sos_map_page_args *map_args = malloc(sizeof(sos_map_page_args));
     map_args->as = as;
     map_args->vaddr = vaddr;
     map_args->ft_index = ft_index;
     map_args->pd = pd;
     map_args->frame_cap = frame_cap;
+    map_args->cb = cb;
+    map_args->cb_args = cb_args;
     seL4_Word dir_index = PT_TOP(vaddr);
     /* Check that the page table exists */
     assert(as->page_directory != NULL);
@@ -129,6 +132,10 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
         map_page_user(*(map_args->frame_cap), map_args->pd, map_args->vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, map_args->as);
         frametable[map_args->ft_index].vaddr = map_args->vaddr;
+    }
+    if (map_args->cb != NULL) {
+        map_args->cb(pid, reply_cap, map_args->cb_args);
+        free(map_args);
     }
 }
 
@@ -217,9 +224,11 @@ void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     map_if_valid_args *map_args = alloc_args->cb_args;
     map_args->ft_index = alloc_args->index;
-    sos_map_page(map_args->ft_index, map_args->vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
+    seL4_CPtr temp;
+    sos_map_page_swap(map_args->ft_index, map_args->vaddr, proc_table[pid]->vroot, 
+                      proc_table[pid], pid, reply_cap, map_if_valid_cb_continue,
+                      map_args, &temp);
     free(alloc_args);
-    map_if_valid_cb_continue(pid, reply_cap, map_args);
 }
 
 void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args) {
