@@ -37,12 +37,21 @@ typedef struct _frame_alloc_args {
 	int map;
 	callback_ptr cb;
 	void *cb_args;
-	// Not initialised in alloc call
+	// Not initialised
 	seL4_Word vaddr;
 	seL4_Word pt_addr;
 	int index;
 } frame_alloc_args;
 
+typedef struct _write_swap_args {
+	callback_ptr cb;
+	void *cb_args;
+	int index;
+	int pid;
+	seL4_CPtr reply_cap;
+	// Not initialised
+	int slot;
+} write_swap_args;
 //sos vspace addr of ft
 ft_entry* frametable;
 

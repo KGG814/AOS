@@ -198,14 +198,13 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
     if (err) {
         return err;
     }
-    seL4_Word temp;
     // map_if_valid args 
     map_if_valid_args *map_args = malloc(sizeof(map_if_valid_args));
     map_args->vaddr = vaddr;
     map_args->cb = cb;
     map_args->cb_args = args;
 
-    //
+    // alloc_args
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
     alloc_args->map = KMAP;
     alloc_args->cb = map_if_valid_cb;
@@ -226,9 +225,7 @@ void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
 void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args) {
     map_if_valid_args *map_args = (map_if_valid_args *)args;
     frametable[map_args->ft_index].vaddr = map_args->vaddr;
-    if (map_args->cb != NULL) {
-        map_args->cb(pid, reply_cap, map_args->cb_args);
-    }
+    map_args->cb(pid, reply_cap, map_args->cb_args);
     free(map_args);
 }
 

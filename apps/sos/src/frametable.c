@@ -39,6 +39,7 @@ seL4_Word buffer_head = -1;
 seL4_Word buffer_tail = -1;
 
 void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args);
+int get_next_frame_to_swap(void);
 
 static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
@@ -136,15 +137,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
     seL4_Word pt_addr = ut_alloc(seL4_PageBits);
     int index = 0;
     if (pt_addr < low) { //no frames available
-        // 9242_TODO Change this to do swapping instead
-        // Get the next frame index from the swap buffer
-        index = buffer_head;
-        // Set the head of the swap buffer to next thing
-        buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
-        // Write frame to current free swap slot
-        write_to_swap_slot(index);
-        
-        
+        assert(1);     
     } else {
         index = (pt_addr - low) / PAGE_SIZE;
         err |= cspace_ut_retype_addr(pt_addr
@@ -212,13 +205,14 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
     alloc_args->pt_addr = ut_alloc(seL4_PageBits);
     alloc_args->index = -1;
     if (alloc_args->pt_addr < low) { //no frames available
-        // 9242_TODO Change this to do swapping instead
-        // Get the next frame index from the swap buffer
-        int swap_index = buffer_head;
-        // Set the head of the swap buffer to next thing
-        buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
+        write_swap_args *write_args = malloc(sizeof(write_swap_args));
+        write_args->cb = frame_alloc_cb;
+        write_args->cb_args = args;
+        write_args->pid = pid;
+        write_args->reply_cap = reply_cap;
+        write_args->index = get_next_frame_to_swap();
         // Write frame to current free swap slot
-        write_to_swap_slot(swap_index);
+        write_to_swap_slot(pid, reply_cap, write_args);
         
         
     } else {
@@ -309,4 +303,10 @@ int frame_free(int index) {
     frametable[index].frame_cap = 0;
     frame_num--;
 	return FRAMETABLE_OK;
+}
+
+int get_next_frame_to_swap(void) {
+    int next_swap = buffer_head;
+    buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
+    return next_swap;
 }

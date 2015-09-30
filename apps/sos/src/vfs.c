@@ -626,5 +626,7 @@ void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
     copy_in_args *copy_args = (copy_in_args *)args;
     char *path = (char *) copy_args->cb_arg_1;
     seL4_Word buf = copy_args->cb_arg_2;
+    free(args);
     vfs_stat(path, buf, reply_cap, pid); 
+
 }
