@@ -5,9 +5,9 @@
 #define PAGE_MASK   		0xFFFFF000
 #define SWAPPED     		0x80000000
 #define SWAP_SLOT_MASK      0x7FFFFFFF
-#define GUARD_PAGE_FAULT 	1
-#define UNKNOWN_REGION		2
-#define NULL_DEREF			3
+#define GUARD_PAGE_FAULT 	-1
+#define UNKNOWN_REGION		-2
+#define NULL_DEREF			-3
 
 #define EFAULT				4
 

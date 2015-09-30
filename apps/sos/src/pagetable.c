@@ -24,6 +24,7 @@ void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args);
 void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args);
 void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args);
 void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args);
+void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args);
 void copy_page_cb(int pid, seL4_CPtr, void *args);
 
 int page_init(int pid) {
@@ -166,10 +167,6 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid) {
 }
 
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap) {
-    seL4_Word page_vaddr;
-    
-    
-    int err = 0;
     int dir_index = PT_TOP(vaddr);
     int page_index = PT_BOTTOM(vaddr);
     
@@ -179,45 +176,54 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
             cb(pid, reply_cap, args);
         }
         return 0;
-    }
-    int ft_index = frame_alloc(&page_vaddr, KMAP, pid);
-    assert(ft_index > FRAMETABLE_OK);
+    }   
+    int err = 0;
+    int permissions = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
-        /* Kill process */
-        return GUARD_PAGE_FAULT;
+        err = GUARD_PAGE_FAULT;
     } else if ((vaddr & PAGE_MASK) == 0) {
         err = NULL_DEREF;
-        frame_free(ft_index);
     /* Stack pages*/
-    } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
+    } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) { 
     /* IPC Pages */
     } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {;
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* VMEM */
     } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < proc_table[pid]->brk)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
     /* Scratch */
     } else if ((vaddr >= PROCESS_SCRATCH)) {
-        sos_map_page(ft_index, vaddr, proc_table[pid]->vroot, proc_table[pid], pid); 
     //} else if ((vaddr)) 
     } else {
       err = UNKNOWN_REGION;
-      frame_free(ft_index);
     }
     if (err) {
-        return UNKNOWN_REGION;
+        return err;
     }
+    seL4_Word temp;
+    // map_if_valid args 
     map_if_valid_args *map_args = malloc(sizeof(map_if_valid_args));
-    map_args->ft_index = ft_index;
     map_args->vaddr = vaddr;
     map_args->cb = cb;
     map_args->cb_args = args;
-    map_if_valid_cb(pid, reply_cap, map_args);
+
+    //
+    frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    alloc_args->map = KMAP;
+    alloc_args->cb = map_if_valid_cb;
+    alloc_args->cb_args = (void *) map_args;
+    frame_alloc_swap(pid, reply_cap, alloc_args);
     return 0;
 }
 
 void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
+    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+    map_if_valid_args *map_args = alloc_args->cb_args;
+    map_args->ft_index = alloc_args->index;
+    sos_map_page(map_args->ft_index, map_args->vaddr, proc_table[pid]->vroot, proc_table[pid], pid);
+    free(alloc_args);
+    map_if_valid_cb_continue(pid, reply_cap, map_args);
+}
+
+void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args) {
     map_if_valid_args *map_args = (map_if_valid_args *)args;
     frametable[map_args->ft_index].vaddr = map_args->vaddr;
     if (map_args->cb != NULL) {
