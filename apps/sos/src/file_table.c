@@ -49,7 +49,6 @@ void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
     char* path = (char *) copy_args->cb_arg_1;
     fmode_t mode = (fmode_t) copy_args->cb_arg_2;
     free(args);
-    printf(" Reply cap is %d\n", reply_cap);
     fh_open(pid, path, mode, reply_cap);
 }
 

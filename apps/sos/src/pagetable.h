@@ -50,6 +50,14 @@ typedef struct _map_if_valid_args {
   void *cb_args;
 } map_if_valid_args;
 
+typedef struct _copy_page_args {
+  seL4_Word dst;
+  seL4_Word src;
+  int count;
+  callback_ptr cb;
+  void *cb_args;
+}copy_page_args;
+
 int page_init(int pid);
 
 
@@ -89,6 +97,9 @@ int copy_page (seL4_Word dst
               ,int count
               ,seL4_Word src
               ,int pid
+              ,callback_ptr cb
+              ,void *cb_args
+              ,seL4_CPtr reply_cap
               );
 
 void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args);

@@ -209,7 +209,6 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     args->cb = vfs_stat_wrapper;
     args->cb_arg_1 = (seL4_Word) kpath;
     args->cb_arg_2 = (seL4_Word) buf;
-    printf("handle stat calling copy in\n");
     copy_in(pid, reply_cap, args);
 
     /* Call stat */

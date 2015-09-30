@@ -191,7 +191,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         }
     }  
     frame_num++;
-    printf("Allocated frame %d at index %d\n\n", frame_num, index);
+    printf("Allocated frame %d at index %d\n", frame_num, index);
     return index;
 }
 
@@ -200,8 +200,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
 void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
-    /* Check frame table has been initialised */
-    printf("frame_alloc_swap called\n");
+    /* Check frame table has been initialised */;
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     if (ft_initialised != 1) {
         free(args);
@@ -241,7 +240,6 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
-    printf("frame_alloc_cb called\n");
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     int err = 0;
     if (alloc_args->map) {
@@ -272,7 +270,8 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
             tmp[i] = 0;
         }
     }  
-    printf("frame_alloc calling its callback\n");
+    frame_num++;
+    printf("Allocated frame %d at index %d\n", frame_num, alloc_args->index);
     alloc_args->cb(pid, reply_cap, args);
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 
@@ -290,7 +289,7 @@ int frame_free(int index) {
         
     //do any sort of untyping/retyping capping/uncapping here 
     seL4_ARM_Page_Unmap(frametable[index].frame_cap);
-    
+    printf("Freed frame %d at index %d\n", frame_num, index);
     int err = cspace_revoke_cap(cur_cspace, frametable[index].frame_cap);
 
     if (err) {
