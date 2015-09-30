@@ -26,8 +26,10 @@
 #define FRAME_DONT_SWAP     (1 << 29) //frame is not to be swapped
 //this bit is 1 if the frame should be swapped on the next pass of the clock
 #define FRAME_SWAP_MARKED   (1 << 28)
-#define verbose 5
 #define PAGE_BITS           12
+#define MAX_FRAMES          34
+#define verbose 5
+
 int ft_initialised = 0;
 int frame_num = 0;
 //frametable is essentially a list stack of free frames 
@@ -184,7 +186,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         }
     }  
     frame_num++;
-    printf("Allocated frame %d at index %d\n", frame_num, index);
+    //printf("Allocated frame %d at index %d\n", frame_num, index);
     return index;
 }
 
@@ -204,7 +206,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
 
     alloc_args->pt_addr = ut_alloc(seL4_PageBits);
     alloc_args->index = -1;
-    if (alloc_args->pt_addr < low) { //no frames available
+    if (alloc_args->pt_addr < low || frame_num >= MAX_FRAMES) { //no frames available
         write_swap_args *write_args = malloc(sizeof(write_swap_args));
         write_args->cb = frame_alloc_cb;
         write_args->cb_args = args;
@@ -213,8 +215,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
         write_args->index = get_next_frame_to_swap();
         // Write frame to current free swap slot
         write_to_swap_slot(pid, reply_cap, write_args);
-        
-        
+        printf("write_to_swap_slot returned\n");
     } else {
         alloc_args->index = (alloc_args->pt_addr - low) / PAGE_SIZE;
         err |= cspace_ut_retype_addr(alloc_args->pt_addr
@@ -265,7 +266,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
         }
     }  
     frame_num++;
-    printf("Allocated frame %d at index %d\n", frame_num, alloc_args->index);
+    //printf("Swap: Allocated frame %d at index %d\n", frame_num, alloc_args->index);
     alloc_args->cb(pid, reply_cap, args);
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 
@@ -307,6 +308,7 @@ int frame_free(int index) {
 
 int get_next_frame_to_swap(void) {
     int next_swap = buffer_head;
-    buffer_head = frametable[buffer_head].frame_status & SWAP_BUFFER_MASK;
+    printf("Swapping frame index %d\n", next_swap);
+    buffer_head = frametable[next_swap].frame_status & SWAP_BUFFER_MASK;
     return next_swap;
 }

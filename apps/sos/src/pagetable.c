@@ -91,6 +91,7 @@ void sos_map_page_swap(int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
         args->map = KMAP;
         args->cb = sos_map_page_dir_cb;
         args->cb_args = (void *) map_args;
+        printf("sos_map_page_swap called frame_alloc_swap\n");
         frame_alloc_swap(pid, reply_cap, args);
     } else {
         sos_map_page_cb(pid, reply_cap, map_args); 
@@ -148,6 +149,7 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     fault_vaddr &= PAGE_MASK;
     //dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);
     reply_cap = cspace_save_reply_cap(cur_cspace);
+
     handle_swap(fault_vaddr, pid, reply_cap);
     int err = map_if_valid(fault_vaddr, pid, handle_vm_fault_cb, NULL, reply_cap);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {

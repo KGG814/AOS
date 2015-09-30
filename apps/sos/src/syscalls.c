@@ -115,7 +115,6 @@ void handle_read(seL4_CPtr reply_cap, int pid) {
         send_seL4_reply(reply_cap, -1);
         return;
     } 
-
     if (buf == NULL) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -188,7 +187,6 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     seL4_Word   path =                 seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
-    
     if (check_region((seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
         send_seL4_reply(reply_cap, EFAULT);
         return;

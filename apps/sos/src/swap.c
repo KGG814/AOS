@@ -6,11 +6,14 @@
 #include "frametable.h"
 #include "pagetable.h"
 #include "syscalls.h"
+#include <clock/clock.h>
+#include <string.h>
 
 #define SWAP_SLOTS 	(256 * 512)
 #define IN_USE 		(1 << 31) 
 
 extern fhandle_t mnt_point;
+extern fattr_t *mnt_attr;
 
 seL4_Word swap_table[SWAP_SLOTS];
 seL4_Word swap_head = -1;
@@ -28,7 +31,9 @@ typedef struct _swap_init_args {
 
 
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+void swap_mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
+
 
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	// Get the next free swap slot
@@ -45,14 +50,37 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	swap_table[slot] |= IN_USE;
 	// Do the write to the slot at the offset
 	int offset = slot * PAGE_SIZE;
-	
 	int status = 0;
 	if (swap_handle == NULL) {
-		swap_handle = (fhandle_t *)-1;
-		status = nfs_lookup(&mnt_point, "swap", swap_init_cb, (uintptr_t)args);
-	// Currently being initialised
-	} else if (swap_handle == (fhandle_t *)-1) {
-		// Timer callback to write_to_swap_slot?
+		timestamp_t cur_time = time_stamp();
+		printf("Swap handle is null\n");
+		if (mnt_attr != NULL) {
+			printf("Making swap file\n");
+			sattr_t sattr = {.mode = 0666
+                		,.uid = mnt_attr->uid
+                    	,.gid = mnt_attr->gid
+                    	,.size = 0
+                    	,.atime = {.seconds = cur_time/1000000
+                        	,.useconds = cur_time % 1000000 
+                    		}
+                		,.mtime = {.seconds = cur_time/1000000
+                    		,.useconds = cur_time % 1000000
+                			}            
+            			};
+            status = nfs_create(&mnt_point, "swap", &sattr, swap_init_cb, (uintptr_t)args);
+			if (status != RPC_OK) {
+				assert(1==0);
+			} else {
+			}
+        } else {
+        	printf("Getting mnt\n");
+        	mnt_attr = malloc(sizeof(fattr_t));
+        	int status = nfs_lookup(&mnt_point, ".", swap_mnt_lookup_cb, (uintptr_t) args);
+            if (status != RPC_OK) {
+            	assert(1==0);
+            } else {
+            }
+        }
 	} else {
 		status = nfs_write(swap_handle, offset, PAGE_SIZE, (void *)index_to_vaddr(write_args->index), swap_cb, (uintptr_t)args);
 	}
@@ -62,17 +90,30 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
     }
 }
 
+void swap_mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+	printf("swap_mnt_lookup_cb called\n");
+    write_swap_args *write_args = (write_swap_args *) token;
+
+    if (status != NFS_OK) {
+        printf("Something went wrong\n");
+    }
+    memcpy(mnt_attr, fattr, sizeof(fattr_t));
+    write_to_swap_slot(write_args->pid, write_args->reply_cap, write_args);
+}
+
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+	printf("swap_init_cb called\n");
 	swap_handle = fh;
 	write_swap_args *write_args = (write_swap_args *) token;
 	int offset = write_args->slot * PAGE_SIZE;
-	status = nfs_write(swap_handle, offset, PAGE_SIZE, (void *)index_to_vaddr(write_args->index), swap_cb, token);
-	if (status != RPC_OK) {
+	rpc_stat_t rpc_status = nfs_write(swap_handle, offset, PAGE_SIZE, (void *)index_to_vaddr(write_args->index), swap_cb, token);
+	if (rpc_status != RPC_OK) {
  		// Jmp back with error code?
     }
 }
 
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
+	printf("swap_cb called\n");
 	write_swap_args* args = (write_swap_args*) token;
 	if (status != NFS_OK) {
 		send_seL4_reply(args->reply_cap, -1);
