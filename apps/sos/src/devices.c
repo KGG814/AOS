@@ -30,7 +30,8 @@ typedef struct _con_write_cb_args {
 } con_write_args;
 
 void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args);
-void con_read_reply_cb(seL4_Uint32 id, void *data);
+void con_read_cb(seL4_Uint32 id, void *data);
+void con_read_cb_wrapper(int pid, seL4_CPtr reply_cap, void *args);
 //console specific stuff
 void serial_cb(struct serial* s, char c);
 
@@ -50,9 +51,11 @@ void con_init(void) {
 }
 //arguments for the console read callback 
 struct _con_read_args {
-    char *buf;
+    seL4_Word buf;
     size_t nbyte;
+    size_t nread;
     seL4_CPtr reply_cap;
+    int pid;
 };
 vnode_ops console_ops = 
 {
@@ -175,14 +178,57 @@ void con_read(vnode *vn
              ,int pid
              ) 
 {
-    //assert(!"trying to read!");
-    char* cur = (char *)user_to_kernel_ptr((seL4_Word)buf, pid);
-    if (vn == NULL || (vn->fmode == O_WRONLY)) {
-        send_seL4_reply(reply_cap, VFS_ERR);
+    if (vn == NULL || (vn->fmode == O_WRONLY) || nbyte == 0 || buf == NULL) {
+        send_seL4_reply(reply_cap, 0);
     }
+    
+    con_read_args *args = malloc(sizeof(con_read_args));
+    if (args == NULL) {
+        send_seL4_reply(reply_cap, 0);
+        return;
+    }
+    
+    args->buf = (seL4_Word) buf;
+    args->nbyte = nbyte;
+    args->nread = 0;
+    args->reply_cap = reply_cap;
+    args->pid = pid;
+    
+    int err = map_if_valid(args->buf & PAGE_MASK
+                          ,pid
+                          ,con_read_cb_wrapper
+                          ,args
+                          ,reply_cap
+                          );
+    if (err) {
+        send_seL4_reply(reply_cap, 0);
+        free(args);
+        return;
+    }
+}
+
+void con_read_cb_wrapper(int pid, seL4_CPtr reply_cap, void *args) {
+    con_read_cb(0, args);
+}
+
+void con_read_cb(seL4_Uint32 id, void *data) {
+    if (data == NULL) {
+        //no reply cap to reply to. 
+        return;
+    }
+
+    con_read_args *args = (con_read_args *) data;
+
+    char* cur = (char*) user_to_kernel_ptr(args->buf, args->pid);
     int bytes = 0;
+    int to_read = args->nbyte - args->nread;
+    if ((((seL4_Word) cur) & ~PAGE_MASK) + to_read > PAGE_SIZE) {
+        to_read = PAGE_SIZE - (((seL4_Word) cur) & ~PAGE_MASK);
+    }
+
     if (console_data_size) { 
-        while (bytes < nbyte && console_data_size) {
+        while (bytes < to_read && console_data_size) {
+            //assert(!"got into copy loop");
             *cur++ = *console_data_start++; 
             if (console_data_start == console_buf_end) {
                 console_data_start = console_buf;
@@ -190,20 +236,44 @@ void con_read(vnode *vn
             --console_data_size;
             ++bytes;
         }
-        send_seL4_reply(reply_cap, bytes);
-    } else {
-        con_read_args *args = malloc(sizeof(con_read_args));
-        if (args == NULL) {
-            send_seL4_reply(reply_cap, bytes);
+        args->buf += bytes;
+        if (console_data_size) {
+            if (bytes + args->nread < args->nbyte) {
+                //this should only happen if the user buffer was across a page 
+                //boundary, i.e. still more to read 
+                args->nread += bytes;
+                int err = map_if_valid(args->buf & PAGE_MASK
+                                      ,args->pid
+                                      ,con_read_cb_wrapper
+                                      ,args
+                                      ,args->reply_cap
+                                      );
+                if (err) {
+                    send_seL4_reply(args->reply_cap, args->nread);
+                    free(args);
+                    return;
+                }
+            } else {
+                //read all that we wanted to. just return 
+                send_seL4_reply(args->reply_cap, args->nbyte);
+                free(args);
+                return;
+            }
+        } else {
+            send_seL4_reply(args->reply_cap, bytes + args->nread);
+            free(args);
+            return;
         }
-        args->buf = cur;
-        args->nbyte = nbyte;
-        args->reply_cap = reply_cap;
-
-        register_timer(READ_CB_DELAY, &con_read_reply_cb, args);
+    } else {
+        int t_id = register_timer(READ_CB_DELAY, &con_read_cb, args);
+        if (t_id == 0) {
+            send_seL4_reply(args->reply_cap, args->nread);
+            free(args);
+            return;
+        }
     }
-}
 
+}
 
 void con_write(vnode *vn
               ,const char *buf
@@ -235,6 +305,7 @@ void con_write(vnode *vn
     if (err) {
         send_seL4_reply(reply_cap, 0);
         free(args);   
+        return;
     }
 }
 
@@ -264,6 +335,7 @@ void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args) {
     if (err) {
         send_seL4_reply(reply_cap, args->bytes_written);
         free(args);
+        return;
     }
 }
 
@@ -275,31 +347,7 @@ void serial_cb(struct serial* s, char c) {
     console_data_size++;
     if (console_data_end == console_buf_end) {
         console_data_end = console_buf;
+        return;
     }
 } 
-
-void con_read_reply_cb(seL4_Uint32 id, void *data) {
-    int bytes = 0;
-    con_read_args *args = (con_read_args *) data;
-    char* cur = args->buf;
-    size_t nbyte = args->nbyte;
-    seL4_CPtr reply_cap = args->reply_cap;
-    if (console_data_size) { 
-        while (bytes < nbyte && console_data_size) {
-            //assert(!"got into copy loop");
-            *cur++ = *console_data_start++; 
-            if (console_data_start == console_buf_end) {
-                console_data_start = console_buf;
-            } 
-            --console_data_size;
-            ++bytes;
-        }
-        send_seL4_reply(reply_cap, bytes);
-        free(args);
-    } else {
-        register_timer(READ_CB_DELAY, &con_read_reply_cb, args);
-    }
-
-}
-
 
