@@ -170,14 +170,17 @@ vnode* vfs_open(const char* path
             return NULL;
         }
         file_open_args *args = malloc(sizeof(file_open_args));
+        if (args == NULL) {
+            *err = VFS_ERR;
+            return NULL;
+        }
         args->vn = vn;
         args->pid = pid;
         args->reply_cap = reply_cap;
         //set fields
         vn->fmode = mode;
         //insert into linked list
-        vn->next = vnode_list;
-        vnode_list = vn;
+        vnode_insert(vn);
         // Set the ops type
         vn->ops = &file_ops;
         //set the name of the file
@@ -199,14 +202,34 @@ vnode* vfs_open(const char* path
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     file_open_args *args = (file_open_args*) token;
     vnode* vn = args->vn;
+    if (args == NULL) {
+        if (vn != NULL) {
+            vnode_remove(vn);
+        }
+        //nothing to return to 
+        return;
+    }
+    if (vn == NULL) {
+        send_seL4_reply(args->reply_cap, -1);
+        return;
+    }
+
     if (status == NFS_OK) { //file found
-        if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {//if permissions don't match
+        if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {
+            //if permissions don't match
             send_seL4_reply(args->reply_cap, -1);
             vnode_remove(vn);
             free(args);
             return; 
         }
         vn->fs_data = malloc(sizeof(fhandle_t));
+        if (vn->fs_data == NULL) {
+            vnode_remove(vn);
+            send_seL4_reply(args->reply_cap, -1);
+            free(args);
+            return; 
+        }
+
         memcpy(vn->fs_data, fh, sizeof(fhandle_t));
         vn->size = fattr->size;
         vn->ctime = fattr->ctime;
@@ -220,18 +243,25 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         //open file as read/write
         if (mnt_attr != NULL) {
             timestamp_t cur_time = time_stamp();
-            sattr_t sattr = {.mode = 0666
-                ,.uid = mnt_attr->uid
-                    ,.gid = mnt_attr->gid
-                    ,.size = 0
-                    ,.atime = {.seconds = cur_time/1000000
-                        ,.useconds = cur_time % 1000000 
-                    }
-                ,.mtime = {.seconds = cur_time/1000000
-                    ,.useconds = cur_time % 1000000
-                }            
+            sattr_t sattr = 
+            {.mode = 0666
+            ,.uid = mnt_attr->uid
+            ,.gid = mnt_attr->gid
+            ,.size = 0
+            ,.atime = {.seconds = cur_time/1000000
+                      ,.useconds = cur_time % 1000000 
+                      }
+            ,.mtime = {.seconds = cur_time/1000000
+                      ,.useconds = cur_time % 1000000
+                      }            
             };
-            int status = nfs_create(&mnt_point, vn->name, &sattr, file_open_cb, (uintptr_t) args);
+
+            int status = nfs_create(&mnt_point
+                                   ,vn->name
+                                   ,&sattr
+                                   ,file_open_cb
+                                   ,(uintptr_t) args
+                                   );
             if (status != RPC_OK) {
                 send_seL4_reply(args->reply_cap, -1);
                 vnode_remove(vn);
