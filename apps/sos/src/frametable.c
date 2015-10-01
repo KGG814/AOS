@@ -27,7 +27,7 @@
 //this bit is 1 if the frame should be swapped on the next pass of the clock
 #define FRAME_SWAP_MARKED   (1 << 28)
 #define PAGE_BITS           12
-#define MAX_FRAMES          200
+#define MAX_FRAMES          32
 #define verbose 5
 
 int ft_initialised = 0;
@@ -173,7 +173,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
     if (buffer_head == -1) {
         buffer_head = index;
     } else {
-        frametable[buffer_tail].frame_status &= STATUS_MASK;
+        frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
         frametable[buffer_tail].frame_status |= index;
     }
     frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
@@ -186,7 +186,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         }
     }  
     frame_num++;
-    //printf("Allocated frame %d at index %d\n", frame_num, index);
+    printf("Allocated frame %d at index %d with pid %d and status %p\n", frame_num, index, pid, (void *)frametable[index].frame_status);
     return index;
 }
 
@@ -266,7 +266,8 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
         }
     }  
     frame_num++;
-    //printf("Swap: Allocated frame %d at index %d\n", frame_num, alloc_args->index);
+    printf("Swap: Allocated frame %d at index %d with pid %d and status %p\n", 
+            frame_num, alloc_args->index, pid, (void *)frametable[alloc_args->index].frame_status);
     alloc_args->cb(pid, reply_cap, args);
 }
 //frame_free: the physical memory is no longer mapped in the window, the frame 
