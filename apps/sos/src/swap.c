@@ -34,7 +34,6 @@ void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 void swap_mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
 void swap_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
 
-
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	printf("write_to_swap_slot\n");
 	
@@ -110,6 +109,7 @@ void swap_mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr
 }
 
 void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+	//9242_TODO Initalise swap table
 	printf("swap_init_cb called\n");
 	swap_handle = fh;
 	write_swap_args *write_args = (write_swap_args *) token;
