@@ -31,6 +31,9 @@ typedef struct _addr_space {
 
 addr_space* proc_table[MAX_PROCESSES + 1];
 
+//this is the endpoint all processes will be attached to
+seL4_CPtr _sos_ipc_ep_cap;
+
 void proc_table_init(void);
 
 int new_as(void);

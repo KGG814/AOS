@@ -6,7 +6,6 @@
 //this is set to increase
 #define NUM_SYSCALLS 11
 
-
 void handle_brk(seL4_CPtr reply_cap, int pid);
 
 void handle_syscall0(seL4_CPtr reply_cap, int pid);

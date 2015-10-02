@@ -88,6 +88,13 @@ typedef struct {
 #define GETDIRENT           9
 /* STAT */
 #define STAT 				10
+
+#define P_CREATE            11
+#define P_DELETE            12
+#define MY_ID               13
+#define P_STATUS            14
+#define P_WAIT              15
+
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */
