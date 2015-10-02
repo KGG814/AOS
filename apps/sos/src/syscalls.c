@@ -10,12 +10,11 @@
 #define verbose 5
 #include <sys/debug.h>
 
+//callback for waking sleeping processes
+static void wake_process(uint32_t id, void* data); 
 
 void handle_syscall0(seL4_CPtr reply_cap, int pid) {
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, 0);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, 0);
 }
 
 void handle_sos_write(seL4_CPtr reply_cap, int pid) {
@@ -236,33 +235,34 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
-void handle_process_create(void) {
-}
+void handle_process_create(seL4_CPtr reply_cap, int pid) {
 
+}
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
-void handle_process_delete(void) {
+void handle_process_delete(seL4_CPtr reply_cap, int pid) {
 }
 
-
 /* Returns ID of caller's process. */
-void handle_my_id(void) {
+void handle_my_id(seL4_CPtr reply_cap, int pid) {
+    send_seL4_reply(reply_cap, pid);
 }
 
 
 /* Returns through "processes" status of active processes (at most "max"),
  * returns number of process descriptors actually returned.
  */
-void handle_process_status(void) {
-}
+void handle_process_status(seL4_CPtr reply_cap, int pid) {
 
+}
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
-void handle_process_wait(void) {
+void handle_process_wait(seL4_CPtr reply_cap, int pid) {
+
 }
 
 
@@ -278,13 +278,6 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 }
 
 
-//timer callback for usleep
-void wake_process(uint32_t id, void* data) {
-    //(void *) data;
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send((seL4_CPtr)data, reply);
-}
-
 /* Sleeps for the specified number of milliseconds.
  */
 void handle_usleep(seL4_CPtr reply_cap, int pid) {
@@ -296,6 +289,14 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
     }
     printf("sleep timer registered\n");
 }
+
+//timer callback for usleep
+static void wake_process(uint32_t id, void* data) {
+    //(void *) data;
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_Send((seL4_CPtr)data, reply);
+}
+
 
 /*************************************************************************/
 /*                                   */

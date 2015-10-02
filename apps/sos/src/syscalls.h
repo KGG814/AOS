@@ -59,29 +59,29 @@ void handle_stat(seL4_CPtr reply_cap, int pid);
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
-void handle_process_create(void);
+void handle_process_create(seL4_CPtr reply_cap, int pid);
 
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
-void handle_process_delete(void);
+void handle_process_delete(seL4_CPtr reply_cap, int pid);
 
 
 /* Returns ID of caller's process. */
-void handle_my_id(void);
+void handle_my_id(seL4_CPtr reply_cap, int pid);
 
 
 /* Returns through "processes" status of active processes (at most "max"),
  * returns number of process descriptors actually returned.
  */
-void handle_process_status(void);
+void handle_process_status(seL4_CPtr reply_cap, int pid);
 
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
-void handle_process_wait(void);
+void handle_process_wait(seL4_CPtr reply_cap, int pid);
 
 
 /* Returns time in microseconds since booting.
