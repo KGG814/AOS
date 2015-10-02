@@ -16,6 +16,7 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#include "syscalls.h"
 #include "network.h"
 #include "elf.h"
 #include "ft_tests.h"
@@ -30,9 +31,9 @@ extern char _cpio_archive[];
 
 addr_space* proc_table[MAX_PROCESSES + 1];
 int num_processes = 0;
-int next_pid = 255;
+int next_pid = MAX_PROCESSES;
 
-//this is the endpoint all processes will be attached to
+void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
@@ -45,7 +46,7 @@ int new_as() {
 
     int pid = next_pid;
     for (int i = 0; i < MAX_PROCESSES && proc_table[next_pid] != NULL; i++) {
-        next_pid = (next_pid % 255) + 1;
+        next_pid = (next_pid % MAX_PROCESSES) + 1;
     }
 
     pid = next_pid;
@@ -78,7 +79,7 @@ int new_as() {
     as->size = 0;
     as->create_time = time_stamp();
     
-    next_pid = (next_pid % 255) + 1;
+    next_pid = (next_pid % MAX_PROCESSES) + 1;
     num_processes++;
     return pid;
 }
@@ -192,26 +193,47 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid
-                   ,sos_stat_t* processes
+                   ,sos_process_t* processes
                    ,unsigned max_processes
                    ) {
     if (processes == NULL) {
         send_seL4_reply(reply_cap, 0);
     }
-   /* 
-    sos_stat_t* k_ptr = malloc(sizeof  
     
-    typedef struct _copy_out_args {
-  seL4_Word usr_ptr;
-  seL4_Word src;
-  int nbyte;
-  int count;
-  callback_ptr cb;
-}   
+    sos_process_t* k_ptr = malloc(sizeof(sos_process_t) * max_processes);
+    if (k_ptr == NULL) {
+        send_seL4_reply(reply_cap, 0);
+    }
+    
     copy_out_args *cpa = malloc(sizeof(copy_out_args));
     if (cpa == NULL) {
-    
+        send_seL4_reply(reply_cap, 0); 
     }
-    */
 
+    int count = 0;
+    
+    for (int i = 1; count < num_processes && count < max_processes && i <= MAX_PROCESSES; i++) {
+        if (proc_table[i] != NULL) {
+            k_ptr[count].pid = i;
+            k_ptr[count].size = proc_table[i]->size;
+            k_ptr[count].stime = (time_stamp() - proc_table[i]->create_time)/1000;
+            strncpy(k_ptr[count].command, proc_table[i]->command, N_NAME);
+            count++;
+        }
+    }
+
+    cpa->usr_ptr = (seL4_Word) processes;
+    cpa->src = (seL4_Word) k_ptr;
+    cpa->nbyte = count * sizeof(sos_process_t);
+    cpa->count = 0;
+    cpa->cb = process_status_cb;
+
+    copy_out(pid, reply_cap, cpa);
+}
+
+void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+    copy_out_args *args = (copy_out_args *) _args;
+    send_seL4_reply(reply_cap, ((seL4_Word) args->count) /sizeof(sos_process_t));
+    free((void *) args->src);
+    printf("ps done\n");
 }

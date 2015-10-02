@@ -196,7 +196,7 @@ int sos_process_status(sos_process_t *processes, unsigned max) {
     seL4_SetMR(1, (seL4_Word) processes);
     seL4_SetMR(2, (seL4_Word) max);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    return seL4_GetMR(0)/sizeof(sos_process_t);
+    return seL4_GetMR(0);
 }
 
 pid_t sos_process_wait(pid_t pid) {

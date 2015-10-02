@@ -55,7 +55,7 @@ int start_process(char* app_name, seL4_CPtr fault_ep, int priority);
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid
-                   ,sos_stat_t* processes
+                   ,sos_process_t* processes
                    ,unsigned max_processes
                    );
 
