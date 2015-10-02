@@ -253,6 +253,8 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
 
+    //*((int *) NULL) = 1;
+
     in = open("console", O_RDONLY);
     assert(in >= 0);
 

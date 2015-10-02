@@ -1,4 +1,6 @@
 #include "proc.h"
+#include "pagetable.h"
+#include "file_table.h"
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));

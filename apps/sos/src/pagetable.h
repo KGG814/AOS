@@ -1,3 +1,6 @@
+#ifndef _PAGETABLE_H_
+#define _PAGETABLE_H_
+
 #include "frametable.h"
 #include "proc.h"
 #include <sel4/sel4.h>
@@ -107,3 +110,4 @@ int copy_page (seL4_Word dst
 
 void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args);
 
+#endif /* _PAGETABLE_H_ */

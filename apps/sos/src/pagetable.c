@@ -160,6 +160,7 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     int err = map_if_valid(fault_vaddr, pid, handle_vm_fault_cb, NULL, reply_cap);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
         // 9242_TODO Kill process
+        assert(!"process kill not implemented yet.");
     }
 }
 
