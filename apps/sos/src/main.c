@@ -447,10 +447,7 @@ int main(void) {
     proc_table_init();
     
     /* Start the user application */
-    proc_table[0] = malloc(sizeof(addr_space));
-    proc_table[1] = malloc(sizeof(addr_space));
-    page_init(1);
-    fdt_init(1);
+    int pid = new_as();
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");

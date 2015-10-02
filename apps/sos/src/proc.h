@@ -6,7 +6,9 @@
 
 #define CAP_TABLE_PAGES 4
 #define PROCESS_MAX_FILES 16
-#define MAX_PROCESSES     0xFF
+#define MAX_PROCESSES     (0xFF + 1)
+
+#define PROC_ERR (-1)
 
 typedef struct _addr_space {
 	seL4_Word vroot_addr;
@@ -30,5 +32,8 @@ typedef struct _addr_space {
 addr_space* proc_table[MAX_PROCESSES];
 
 void proc_table_init(void);
+
+int new_as(void);
+void cleanup_as(int pid);
 
 #endif /* _PROC_H_ */

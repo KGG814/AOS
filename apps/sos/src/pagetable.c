@@ -40,6 +40,12 @@ int page_init(int pid) {
     return 0;
 }
 
+void pt_cleanup(int pid) {
+    for (int i = 0; i < CAP_TABLE_PAGES; i++) {
+        
+    }
+} 
+
 seL4_CPtr sos_map_page(int ft_index
                       ,seL4_Word vaddr
                       ,seL4_ARM_PageDirectory pd

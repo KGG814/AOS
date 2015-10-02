@@ -8,6 +8,7 @@
 #define GUARD_PAGE_FAULT 	-1
 #define UNKNOWN_REGION		-2
 #define NULL_DEREF			-3
+#define PT_ERR              -4
 
 #define EFAULT				4
 
@@ -60,7 +61,7 @@ typedef struct _copy_page_args {
 }copy_page_args;
 
 int page_init(int pid);
-
+void pt_cleanup(int pid);
 
 seL4_CPtr sos_map_page(int ft_index
                       ,seL4_Word vaddr

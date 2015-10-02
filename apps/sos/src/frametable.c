@@ -274,7 +274,6 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
 //object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index) {
     if (ft_initialised != 1) {
-        //this is not the correct behaviour; we should instead steal_mem or something 
         return FRAMETABLE_NOT_INITIALISED; 
     }
 

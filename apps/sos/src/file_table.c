@@ -21,6 +21,9 @@ int oft_init(void) {
 } 
 
 int fdt_init(int pid) {
+    if (proc_table[pid] == NULL) {
+        return -1;
+    }
     for (int i = 0; i < PROCESS_MAX_FILES; i++) {
         proc_table[pid]->file_table[i] = INVALID_FD;
     }
@@ -42,6 +45,16 @@ int fdt_init(int pid) {
         return -1;
     }
     return 0;
+}
+
+void fdt_cleanup(int pid) {
+    if (proc_table[pid] = NULL) {
+        return;
+    }
+
+    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+        fd_close(pid, i);
+    }
 }
 
 void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
