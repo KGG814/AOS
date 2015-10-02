@@ -56,6 +56,7 @@ sync endpoint. The badge that we receive will
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (1)
+#define seL4_MsgMaxLength    120
 
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
