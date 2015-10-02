@@ -36,4 +36,6 @@ void proc_table_init(void);
 int new_as(void);
 void cleanup_as(int pid);
 
+int start_process(char* app_name, seL4_CPtr fault_ep, int priority);
+
 #endif /* _PROC_H_ */
