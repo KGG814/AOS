@@ -115,6 +115,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
     if (syscall_number < NUM_SYSCALLS) {
         syscall_handlers[syscall_number](reply_cap, 1);
+        
     } else {
         printf("Unkwown syscall %d.\n", syscall_number);
         send_seL4_reply(reply_cap, -1);
@@ -135,7 +136,9 @@ void syscall_loop(seL4_CPtr ep) {
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
+                printf("network_irq\n");
                 network_irq();
+                printf("network_irq ended\n\n\n");
             }
 
             if(badge & IRQ_BADGE_TIMER) {
@@ -153,7 +156,9 @@ void syscall_loop(seL4_CPtr ep) {
             //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
             /* System call */
+            printf("handling syscall\n");
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+            printf("syscall handled\n\n\n");
 
         }else{
             printf("Rootserver got an unknown message\n");
@@ -252,6 +257,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     as->croot = cspace_create(1);
     assert(as->croot != NULL);   
     /* Create an IPC buffer */
+    printf("start_first_process frame_alloc\n");
     index = frame_alloc(&temp, NOMAP, 1);
     as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
@@ -259,6 +265,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     err = map_page_user(as->ipc_buffer_cap, as->vroot,
                    PROCESS_IPC_BUFFER,
                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
     conditional_panic(err, "Unable to map IPC buffer for user app");
     /* Copy the fault endpoint to the user app to enable IPC */
     user_ep_cap = cspace_mint_cap(as->croot,

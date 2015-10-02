@@ -73,9 +73,7 @@ lwip_iface_t *ethif_new_lwip_driver_no_malloc(ps_io_ops_t io_ops, ps_dma_man_t *
 /* Wrapper function for an LWIP driver for asking the underlying
  * eth driver to handle an IRQ */
 static inline void ethif_lwip_handle_irq(lwip_iface_t *iface, int irq) {
-	printf("Before Eth %p, %p, %d\n", iface, &iface->driver, irq);
     iface->driver.i_fn.raw_handleIRQ(&iface->driver, irq);
-    printf("After Eth\n");
 }
 
 /* Wrapper function for an LWIP driver for asking the underlying

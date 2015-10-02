@@ -14,6 +14,13 @@
 #define FRAMETABLE_NO_MEM           (-3)
 #define FRAMETABLE_CALLBACK			(-4)
 
+/* Frame status bits */
+#define FRAME_INVALID    	(1 << 31) //not managed by our frame table 
+#define FRAME_IN_USE        (1 << 30) //frame is in use and managed by us
+#define FRAME_DONT_SWAP     (1 << 29) //frame is not to be swapped
+//this bit is 1 if the frame should be swapped on the next pass of the clock
+#define FRAME_SWAP_MARKED   (1 << 28)
+
 #define PROCESS_MASK        0x0FF00000
 #define SWAP_BUFFER_MASK	0x000FFFFF
 #define STATUS_MASK			0xF0000000
@@ -43,15 +50,7 @@ typedef struct _frame_alloc_args {
 	int index;
 } frame_alloc_args;
 
-typedef struct _write_swap_args {
-	callback_ptr cb;
-	void *cb_args;
-	int index;
-	int pid;
-	seL4_CPtr reply_cap;
-	// Not initialised
-	int slot;
-} write_swap_args;
+
 //sos vspace addr of ft
 ft_entry* frametable;
 

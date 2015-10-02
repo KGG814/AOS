@@ -425,7 +425,7 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
         send_seL4_reply(reply_cap, 0);
         return;
     }
-    //printf("File Write called \n");
+    printf("file_write called \n");
     file_write_nfs_args *nfs_args = malloc(sizeof(file_write_nfs_args));
     nfs_args->vn = vn;
     nfs_args->reply_cap = reply_cap;
@@ -456,7 +456,7 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
         send_seL4_reply(reply_cap, 0);
         return;
     }
-    //printf("write callback set up\n");
+    printf("file_write finished\n");
 }
 
 void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
@@ -537,11 +537,13 @@ void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
+    printf("vfs_stat\n");
     vfs_stat_args *args = malloc(sizeof(vfs_stat_args));
     args->reply_cap = reply_cap;
     args->buf = buf;
     args->pid = pid;
     nfs_lookup(&mnt_point, path, vfs_stat_cb, (uintptr_t)args);
+    printf("vfs_stat ended\n");
 }
 
 void vfs_stat_cb(uintptr_t token
@@ -550,6 +552,7 @@ void vfs_stat_cb(uintptr_t token
                 ,fattr_t *fattr
                 ) 
 {
+    printf("vfs_stat_cb\n");
     vfs_stat_args *args = (vfs_stat_args*) token;
 
     if (status != NFS_OK) {
@@ -580,11 +583,14 @@ void vfs_stat_cb(uintptr_t token
     copy_args->cb = vfs_stat_reply;
     copy_out(args->pid, args->reply_cap, copy_args);
     free(args);
+    printf("vfs_stat_cb ended\n");
 }
 
 void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args) {
+    printf("vfs_stat_reply\n");
     send_seL4_reply(reply_cap, 0);
     free(args);
+    printf("vfs_stat_reply ended\n");
 }
 
 void vfs_getdirent(int pos
@@ -653,9 +659,11 @@ void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
+    printf("vfs_stat_wrapper\n");
     copy_in_args *copy_args = (copy_in_args *)args;
     char *path = (char *) copy_args->cb_arg_1;
     seL4_Word buf = copy_args->cb_arg_2;
     free(args);
     vfs_stat(path, buf, reply_cap, pid); 
+    printf("vfs_stat_wrapper_ended\n");
 }
