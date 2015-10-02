@@ -238,6 +238,12 @@ static int micro_time(int argc, char *argv[]) {
     return 0;
 }
 
+static int id(int argc, char *argv[]) {
+    pid_t pid = sos_my_id();
+    printf("My PID is %d.\n", pid);
+    return 0;
+}
+
 struct command {
     char *name;
     int (*command)(int argc, char **argv);
@@ -245,7 +251,7 @@ struct command {
 
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
         "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time} };
+        {"time", second_time}, {"mtime", micro_time}, {"id", id} };
 
 int main(void) {
     char buf[BUF_SIZ];

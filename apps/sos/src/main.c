@@ -77,6 +77,7 @@ syscall_handler syscall_handlers[] =
 ,&handle_write
 ,&handle_getdirent
 ,&handle_stat
+,&handle_my_id
 };
 
 struct {

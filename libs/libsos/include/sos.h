@@ -89,9 +89,10 @@ typedef struct {
 /* STAT */
 #define STAT 				10
 
-#define P_CREATE            11
-#define P_DELETE            12
-#define MY_ID               13
+#define MY_ID               11
+
+#define P_CREATE            12
+#define P_DELETE            13
 #define P_STATUS            14
 #define P_WAIT              15
 
