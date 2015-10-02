@@ -27,7 +27,7 @@
 //this bit is 1 if the frame should be swapped on the next pass of the clock
 #define FRAME_SWAP_MARKED   (1 << 28)
 #define PAGE_BITS           12
-#define MAX_FRAMES          32
+#define MAX_FRAMES          256
 #define verbose 5
 
 int ft_initialised = 0;

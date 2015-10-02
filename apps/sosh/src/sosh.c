@@ -260,7 +260,7 @@ int main(void) {
     done = 0;
     new = 1;
 
-    printf("\n[SOS Starting]\n");
+    printf("\n[Spaghetti OS Starting]\n");
 
     while (!done) {
         if (new) {
@@ -370,5 +370,5 @@ int main(void) {
             }
         }
     }
-    printf("[SOS Exiting]\n");
+    printf("[Spaghetti OS Exiting]\n");
 }

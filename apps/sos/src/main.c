@@ -388,32 +388,10 @@ void check(uint32_t id, void* data) {
     dprintf(0, "\nhello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
-/*
-uint64_t tick_check_tss[10] = {};
-int num_ts = 0;
-*/
 int count = 0;
 
 void tick_check(uint32_t id, void *data) {
-    //(void *) data;
-    uint64_t cur_time = time_stamp();
-    /*
-    tick_check_tss[num_ts++] = time_stamp();
-    
-    if (num_ts == 10) {
-        num_ts = 0;
-        count++;
-        dprintf(0
-               ,"\ntimestamps %d:\
-\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
-\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
-               ,count
-               ,tick_check_tss[0], tick_check_tss[1], tick_check_tss[2], tick_check_tss[3]
-               ,tick_check_tss[4], tick_check_tss[5], tick_check_tss[6], tick_check_tss[7]
-               ,tick_check_tss[8], tick_check_tss[9]
-               );
-    }
-    */
+    timestamp_t cur_time = time_stamp();
     dprintf(0, "tick: %12llu (us)\t", id, cur_time);
     count++;
     if (count % 3 == 0) {
@@ -422,18 +400,9 @@ void tick_check(uint32_t id, void *data) {
     }
 }
 
-/*void stop_cb(uint32_t id, void *data) {
-    dprintf(0, "\n%d: stopping timer at time %llu\n", id, time_stamp());
-    int err = stop_timer();
-    dprintf(0, "\ntimer stopped with err:%d\n", err);
-}*/
-
 void clock_test(seL4_CPtr interrupt_ep) {
-    //start_timer(interrupt_ep);
     
     dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
-    //stop_timer();
-    //start_timer(interrupt_ep);
     
     int id = register_timer(200000000, &check, NULL);
     dprintf(0, "registered a timer with id %d\n", id);
@@ -457,26 +426,8 @@ void clock_test(seL4_CPtr interrupt_ep) {
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
 
-    //dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
-    dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
-
     dprintf(0, "Current us since boot = %d\n", time_stamp());
     
-    /* 
-    uint64_t timestamps[4] = {};
-    for (int i = 0; i < 128; i++) {
-        for (int j = 0; j < 4; j++) {
-            timestamps[j] = time_stamp();
-        }
-        dprintf(0
-               ,"%016llx %016llx %016llx %016llx\n"
-               ,timestamps[0]
-               ,timestamps[1]
-               ,timestamps[2]
-               ,timestamps[3]
-               );
-    }
-    */
 }
 
 /*
@@ -493,7 +444,8 @@ int main(void) {
 
     vfs_init();
     oft_init();
-    //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
+    proc_table_init();
+    
     /* Start the user application */
     proc_table[0] = malloc(sizeof(addr_space));
     proc_table[1] = malloc(sizeof(addr_space));

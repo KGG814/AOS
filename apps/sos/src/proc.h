@@ -29,6 +29,6 @@ typedef struct _addr_space {
 
 addr_space* proc_table[MAX_PROCESSES];
 
-
+void proc_table_init(void);
 
 #endif /* _PROC_H_ */
