@@ -188,18 +188,15 @@ pid_t sos_my_id(void) {
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     return seL4_GetMR(0);
 }
+
 int sos_process_status(sos_process_t *processes, unsigned max) {
-    printf("system call not implemented\n");
-    return -1;
-    /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 3);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, P_STATUS);
     seL4_SetMR(1, (seL4_Word) processes);
     seL4_SetMR(2, (seL4_Word) max);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    return seL4_GetMR(0);
-    */
+    return seL4_GetMR(0)/sizeof(sos_process_t);
 }
 
 pid_t sos_process_wait(pid_t pid) {

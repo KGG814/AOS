@@ -10,6 +10,8 @@
 #include <sos/vmem_layout.h>
 #include <sos.h>
 
+#include <clock/clock.h>
+
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
@@ -26,19 +28,27 @@
 
 extern char _cpio_archive[];
 
+addr_space* proc_table[MAX_PROCESSES + 1];
+int num_processes = 0;
+int next_pid = 255;
+
+//this is the endpoint all processes will be attached to
+
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
 }
 
 int new_as() {
-    int pid = 1;
-    while (pid <= MAX_PROCESSES && proc_table[pid] != NULL) {
-        pid++;
-    }
-
-    if (pid > MAX_PROCESSES) {
+    if (num_processes == MAX_PROCESSES) {
         return PROC_ERR;
     }
+
+    int pid = next_pid;
+    for (int i = 0; i < MAX_PROCESSES && proc_table[next_pid] != NULL; i++) {
+        next_pid = (next_pid % 255) + 1;
+    }
+
+    pid = next_pid;
 
     addr_space *as = malloc(sizeof(addr_space)); 
     if (as == NULL) {
@@ -62,6 +72,14 @@ int new_as() {
         proc_table[pid] = NULL;
     }
 
+    as->status = 0;
+
+    as->pid = pid;
+    as->size = 0;
+    as->create_time = time_stamp();
+    
+    next_pid = (next_pid % 255) + 1;
+    num_processes++;
     return pid;
 }
 
@@ -80,13 +98,14 @@ void cleanup_as(int pid) {
     //clean shit up here
     fdt_cleanup(pid);
     pt_cleanup(pid);
+    num_processes--;
 
     free(as);
     proc_table[pid] = NULL;
 } 
 
 int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
-    int pid = new_as();
+    int pid = new_as(app_name);
     int err;
     seL4_CPtr user_ep_cap;
     seL4_Word temp;
@@ -131,7 +150,7 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     
     //???
     /* should be the first slot in the space, hack I know */
-    assert(user_ep_cap == 1);
+    //assert(user_ep_cap == 1);
     //assert(user_ep_cap == USER_EP_CAP);
     
     /* Create a new TCB object */
@@ -159,9 +178,9 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     /* load the elf image */
     err = elf_load(as->vroot, elf_base, as);
     conditional_panic(err, "Failed to load elf image");
-
     
-
+    memset(as->command, 0, N_NAME);
+    strncpy(as->command, app_name, N_NAME - 1); 
 
     /* Start the new process */
     memset(&context, 0, sizeof(context));
@@ -169,4 +188,30 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
     return pid;
+}
+
+void process_status(seL4_CPtr reply_cap
+                   ,int pid
+                   ,sos_stat_t* processes
+                   ,unsigned max_processes
+                   ) {
+    if (processes == NULL) {
+        send_seL4_reply(reply_cap, 0);
+    }
+   /* 
+    sos_stat_t* k_ptr = malloc(sizeof  
+    
+    typedef struct _copy_out_args {
+  seL4_Word usr_ptr;
+  seL4_Word src;
+  int nbyte;
+  int count;
+  callback_ptr cb;
+}   
+    copy_out_args *cpa = malloc(sizeof(copy_out_args));
+    if (cpa == NULL) {
+    
+    }
+    */
+
 }

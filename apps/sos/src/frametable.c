@@ -190,7 +190,13 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
         }
     }  
     frame_num++;
-    printf("Allocated frame %d at index %d with pid %d and status %p\n", frame_num, index, pid, (void *)frametable[index].frame_status);
+
+    printf("Allocated frame %d at index %d with pid %d and status %p\n"
+          ,frame_num
+          ,index
+          ,pid
+          ,(void *)frametable[index].frame_status
+          );
     return index;
 }
 

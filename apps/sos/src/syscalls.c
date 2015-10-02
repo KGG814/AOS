@@ -7,6 +7,8 @@
 #include <sos.h>
 #include <sos/vmem_layout.h>
 
+#include "proc.h"
+
 #define verbose 5
 #include <sys/debug.h>
 
@@ -255,7 +257,15 @@ void handle_my_id(seL4_CPtr reply_cap, int pid) {
  * returns number of process descriptors actually returned.
  */
 void handle_process_status(seL4_CPtr reply_cap, int pid) {
-
+    sos_process_t* processes = (sos_process_t *) seL4_GetMR(1);
+    unsigned max_processes   = (unsigned)        seL4_GetMR(2);
+    if (check_region((seL4_Word) processes
+                    ,(seL4_Word) (max_processes * sizeof(sos_process_t)))) 
+    {
+        send_seL4_reply(reply_cap, 0);
+        return;
+    } 
+    process_status(reply_cap, pid, processes, max_processes);
 }
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process

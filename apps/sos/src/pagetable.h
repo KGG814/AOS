@@ -22,7 +22,7 @@
 #define PT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_Word))
 #define CT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_CPtr))
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+typedef void (*callback_ptr)(int pid, seL4_CPtr reply_cap, void* data);
 
 typedef struct _copy_in_args {
   seL4_Word usr_ptr;

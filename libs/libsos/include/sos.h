@@ -91,9 +91,10 @@ typedef struct {
 
 #define MY_ID               11
 
-#define P_CREATE            12
-#define P_DELETE            13
-#define P_STATUS            14
+#define P_STATUS            12
+
+#define P_CREATE            13
+#define P_DELETE            14
 #define P_WAIT              15
 
 /* I/O system calls */
