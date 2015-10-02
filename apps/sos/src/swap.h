@@ -1,4 +1,5 @@
-#include <sel4/types.h>
+#ifndef _SWAP_H_
+#define _SWAP_H_
 
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
@@ -25,3 +26,5 @@ typedef struct _read_swap_args {
 int swap_init(void);
 void write_to_swap_slot(int pid, seL4_CPtr reply_cap, void *args);
 void read_from_swap_slot (int pid, seL4_CPtr reply_cap, void *args);
+
+#endif /* _SWAP_H_ */

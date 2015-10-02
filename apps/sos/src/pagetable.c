@@ -340,7 +340,7 @@ void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
     } else {
         int err = map_if_valid(copy_args->usr_ptr & PAGE_MASK, pid, copy_in_cb, args, reply_cap);
         if (err) {
-            send_seL4_reply(reply_cap, copy_args->count);
+            copy_args->cb(pid, reply_cap, args);
         }
     }
     printf("copy_in ended\n");
@@ -376,9 +376,16 @@ void copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
         if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
             to_copy = PAGE_SIZE - (args->usr_ptr & ~PAGE_MASK);
         } 
-        int err = copy_page(args->usr_ptr, to_copy, args->src, pid, copy_out_cb, args, reply_cap);
+        int err = copy_page(args->usr_ptr + args->count
+                           ,to_copy
+                           ,args->src + args->count
+                           ,pid
+                           ,copy_out_cb
+                           ,args
+                           ,reply_cap
+                           );
         if (err) {
-            send_seL4_reply(reply_cap, args->count);
+            args->cb(pid, reply_cap, args);
         }
     }
     printf("copy out ended\n");
@@ -392,11 +399,12 @@ void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args) {
         to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
     }
     copy_args->count += to_copy;
-    copy_args->usr_ptr += to_copy;
-    copy_args->src += to_copy;
+    //copy_args->usr_ptr += to_copy;
+    //copy_args->src += to_copy;
     copy_out(pid, reply_cap, args);
     printf("copy_out_cb ended\n");
 }
+
 
 int copy_page(seL4_Word dst
              ,int count
