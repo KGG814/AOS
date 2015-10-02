@@ -6,7 +6,7 @@
 
 #define CAP_TABLE_PAGES 4
 #define PROCESS_MAX_FILES 16
-#define MAX_PROCESSES     (0xFF + 1)
+#define MAX_PROCESSES     0xFF
 
 #define PROC_ERR (-1)
 
@@ -29,7 +29,7 @@ typedef struct _addr_space {
     int n_files_open;
 } addr_space; 
 
-addr_space* proc_table[MAX_PROCESSES];
+addr_space* proc_table[MAX_PROCESSES + 1];
 
 void proc_table_init(void);
 

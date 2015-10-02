@@ -54,7 +54,7 @@ sync endpoint. The badge that we receive will
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
-#define TTY_EP_BADGE         (101)
+#define TTY_EP_BADGE         (1)
 #define seL4_MsgMaxLength    120
 
 /* The linker will link this symbol to the start address  *
@@ -114,7 +114,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
     assert(reply_cap != CSPACE_NULL);
 
     if (syscall_number < NUM_SYSCALLS) {
-        syscall_handlers[syscall_number](reply_cap, 1);
+        syscall_handlers[syscall_number](reply_cap, badge);
     } else {
         printf("Unkwown syscall %d.\n", syscall_number);
         send_seL4_reply(reply_cap, -1);
@@ -130,7 +130,7 @@ void syscall_loop(seL4_CPtr ep) {
 
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);  
-        //dprintf(0, "Badge: %p\n", badge);
+        //dprintf(0, "Badge: %d\n", badge);
         //dprintf(0, "Label: %p\n", label);
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
@@ -149,12 +149,12 @@ void syscall_loop(seL4_CPtr ep) {
             //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
             //seL4_GetMR(0),
             //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(badge, 1);
+            handle_vm_fault(badge, badge);
             //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
+            printf("Syscall from process with badge: %d\n", badge);
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
         }else{
             printf("Rootserver got an unknown message\n");
         }
@@ -224,12 +224,12 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"--------------------------------------------------------\n");
 }
 
-void start_first_process(char* app_name, seL4_CPtr fault_ep) {
+void start_first_process(char* app_name, seL4_CPtr fault_ep, int pid) {
     int err;
     seL4_CPtr user_ep_cap;
     seL4_Word temp;
     int index;
-    addr_space* as = proc_table[1];
+    addr_space* as = proc_table[pid];
     /* These required for setting up the TCB */
     seL4_UserContext context;
 
@@ -252,7 +252,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     as->croot = cspace_create(1);
     assert(as->croot != NULL);   
     /* Create an IPC buffer */
-    index = frame_alloc(&temp, NOMAP, 1);
+    index = frame_alloc(&temp, NOMAP, pid);
     as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/
@@ -265,7 +265,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
                                   cur_cspace,
                                   fault_ep,
                                   seL4_AllRights, 
-                                  seL4_CapData_Badge_new(TTY_EP_BADGE));
+                                  seL4_CapData_Badge_new(pid));
     /* should be the first slot in the space, hack I know */
     assert(user_ep_cap == 1);
     assert(user_ep_cap == USER_EP_CAP);
@@ -448,7 +448,7 @@ int main(void) {
     
     /* Start the user application */
     int pid = new_as();
-    start_first_process(TTY_NAME, _sos_ipc_ep_cap);
+    start_first_process(TTY_NAME, _sos_ipc_ep_cap, pid);
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     //int index = frame_alloc();

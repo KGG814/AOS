@@ -1,16 +1,16 @@
 #include "proc.h"
 
 void proc_table_init(void) {
-    memset(proc_table, 0, MAX_PROCESSES * sizeof(addr_space*));
+    memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
 }
 
 int new_as() {
     int pid = 1;
-    while (pid < MAX_PROCESSES && proc_table[pid] != NULL) {
+    while (pid <= MAX_PROCESSES && proc_table[pid] != NULL) {
         pid++;
     }
 
-    if (pid == MAX_PROCESSES) {
+    if (pid > MAX_PROCESSES) {
         return PROC_ERR;
     }
 
@@ -40,7 +40,7 @@ int new_as() {
 }
 
 void cleanup_as(int pid) {
-    if (pid < 1 || pid >= MAX_PROCESSES) {
+    if (pid < 1 || pid > MAX_PROCESSES) {
         //invalid pid
         return;
     }
