@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "proc.h"
 #include "pagetable.h"
 #include "file_table.h"
@@ -55,6 +57,7 @@ void cleanup_as(int pid) {
 
     //clean shit up here
     fdt_cleanup(pid);
+    pt_cleanup(pid);
 
     free(as);
     proc_table[pid] = NULL;

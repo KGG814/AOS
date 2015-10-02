@@ -18,6 +18,10 @@
 #define PT_BOTTOM(x)        (((x) & 0x3FF000) >> 12)
 #define PT_TOP(x)           (((x) & 0xFFC00000) >> 22)
 
+#define PD_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_Word*))
+#define PT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_Word))
+#define CT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_CPtr))
+
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _copy_in_args {

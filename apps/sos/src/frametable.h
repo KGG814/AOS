@@ -67,5 +67,6 @@ int frame_free(int index);
 
 seL4_Word index_to_paddr(int index);
 seL4_Word index_to_vaddr(int index);
+int vaddr_to_index(seL4_Word vaddr);
 
 #endif

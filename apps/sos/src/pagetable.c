@@ -35,14 +35,42 @@ int page_init(int pid) {
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
         frame_alloc(&vaddr, KMAP, pid);
         proc_table[pid]->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
+        memset((seL4_ARM_PageTable*) vaddr, 0, PAGE_SIZE);
     }
 
     return 0;
 }
 
 void pt_cleanup(int pid) {
+    assert(pid > 0 && pid <= MAX_PROCESSES);
+    //free all the pages + revoke/delete the corresponding cap 
+    //9242_TODO unmark swapped out pages
+    seL4_Word** pd = proc_table[pid]->page_directory;
+    seL4_ARM_PageTable **ct = proc_table[pid]->cap_table;
+    for (int i = 0; i < PD_MAX_ENTRIES; i++) {
+        if (pd[i]) {
+            for (int j = 0; j < PT_MAX_ENTRIES; j++) {
+                if (pd[i][j]) {
+                    if (pd[i][j] & SWAPPED) {
+                    } else {
+                        frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                    }
+                }
+            }
+            frame_free(vaddr_to_index((seL4_Word) pd[i]));
+        }
+    }
+
+    frame_free(vaddr_to_index((seL4_Word) pd));
+
+    //free the cap table 
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        
+        for (int j = 0; j < CT_MAX_ENTRIES; j++) {
+            if ((seL4_Word) ct[i][j]) {
+                seL4_ARM_Page_Unmap(ct[i][j]);
+            }
+        }
+        frame_free(vaddr_to_index((seL4_Word) ct[i])); 
     }
 } 
 

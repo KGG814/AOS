@@ -55,6 +55,10 @@ seL4_Word index_to_vaddr(int index) {
     return (index * PAGE_SIZE + low) + VM_START_ADDR;
 }
 
+int vaddr_to_index(seL4_Word vaddr) {
+    return (vaddr - VM_START_ADDR - low)/PAGE_SIZE;
+}
+
 int frame_init(void) {
     frametable = (ft_entry *) FT_START_ADDR;
     if (ft_initialised == 1) {

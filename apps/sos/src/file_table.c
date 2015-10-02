@@ -48,7 +48,7 @@ int fdt_init(int pid) {
 }
 
 void fdt_cleanup(int pid) {
-    if (proc_table[pid] = NULL) {
+    if (proc_table[pid] == NULL) {
         return;
     }
 
