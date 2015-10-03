@@ -343,6 +343,7 @@ int file_close(vnode *vn) {
 
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
+    printf("file_read\n");
     if (vn->fmode == O_WRONLY) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -367,6 +368,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
         free(args);
         send_seL4_reply(reply_cap, -1);
     }
+    printf("file_read ended\n");
 }
 
 void file_read_nfs_cb(uintptr_t token
@@ -376,6 +378,7 @@ void file_read_nfs_cb(uintptr_t token
                  ,void *data
                  )
 {
+    printf("file_read_nfs_cb\n");
     file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     //printf("Read cb: usr ptr %p, read: %d\n", args->buf, count);
@@ -388,9 +391,11 @@ void file_read_nfs_cb(uintptr_t token
     }
     vn->atime = fattr->atime;  
     copy_page(args->buf, count, (seL4_Word) data, args->pid, file_read_nfs_cb_cont, args, args->reply_cap);
+    printf("file_read_nfs_cb ended\n");
 }
 
 void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
+    printf("file_read_nfs_cb_cont\n");
     file_read_args* read_args = args;
     vnode* vn = read_args->vn;
     *(read_args->offset) += read_args->count;
@@ -418,6 +423,7 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
             free(read_args);  
         }
     }
+    printf("file_read_nfs_cb ended\n");
 }
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
@@ -456,10 +462,11 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
         send_seL4_reply(reply_cap, 0);
         return;
     }
-    printf("file_write finished\n");
+    printf("file_write ended\n");
 }
 
 void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
+    printf("file_write_cb\n");
     file_write_args* write_args = (file_write_args*) args;
     vnode *vn = write_args->vn;
     int *offset = write_args->offset;
@@ -476,13 +483,15 @@ void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
             );
     free(args);
     if (status != RPC_OK) {
+        printf("Exit with error\n");
         send_seL4_reply(reply_cap, -1);
         free(nfs_args);
-        return;
     }
+    printf("file_write_cb ended\n");
 }
 
 void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
+    printf("file_write_nfs_cb\n");
     file_write_nfs_args *args = (file_write_nfs_args*) token;
     vnode *vn = args->vn;
     //printf("write: got status from nfs: %d\n", status);
@@ -509,13 +518,12 @@ void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
             free(args);
             return;
         }
-
-        
     } 
-
+    printf("file_write_nfs_cb ended\n");
 }
 
 void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
+    printf("file_write_nfs_cb_continue\n");
     file_write_nfs_args *nfs_args = (file_write_nfs_args*) args;
     seL4_Word kptr = user_to_kernel_ptr(nfs_args->buf, nfs_args->pid);
     vnode *vn = nfs_args->vn;
@@ -534,6 +542,7 @@ void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
         send_seL4_reply(nfs_args->reply_cap, nfs_args->bytes_written);
         free(args);
     }
+    printf("file_write_nfs_cb_continue ended\n");
 }
 
 void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
@@ -600,6 +609,7 @@ void vfs_getdirent(int pos
                   ,int pid
                   ) 
 {
+    printf("vfs_getdirent\n");
     getdirent_args *args = malloc(sizeof(getdirent_args));
     args->reply_cap = reply_cap;
     args->to_get = pos;
@@ -608,6 +618,7 @@ void vfs_getdirent(int pos
     args->nbyte = nbyte;
     args->pid = pid;
     nfs_readdir(&mnt_point, 0, vfs_getdirent_cb, (uintptr_t)args);
+    printf("vfs_getdirent ended\n");
 }
 
 void vfs_getdirent_cb(uintptr_t token
@@ -617,6 +628,7 @@ void vfs_getdirent_cb(uintptr_t token
                      ,nfscookie_t nfscookie
                      ) 
 {
+    printf("vfs_getdirent_cb\n");
     getdirent_args *args = (getdirent_args *)token;
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, -1);
@@ -650,12 +662,15 @@ void vfs_getdirent_cb(uintptr_t token
         args->entries_received += num_files;
         nfs_readdir(&mnt_point, nfscookie, vfs_getdirent_cb, (uintptr_t)args);
     }
+    printf("vfs_getdirent_cb ended\n");
 }
 
 void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
+    printf("vfs_getdirent_reply\n");
     copy_out_args *copy_args = (copy_out_args *)args;
     send_seL4_reply(reply_cap, copy_args->nbyte);;
     free(args);
+    printf("vfs_getdirent_reply ended\n");
 }
 
 void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {

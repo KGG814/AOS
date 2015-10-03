@@ -100,7 +100,12 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 			int offset = slot * PAGE_SIZE;
 			char *addr = (void *) index_to_vaddr(write_args->index);
 			printf("Writing at slot %p, offset %p, index %p, address %p\n", (void *) slot, (void *) offset, (void *) write_args->index, addr);
-			printf("Testing data: %d, Handle: %p\n", *addr, swap_handle);
+			printf("Testing data:, Handle: %p\n", swap_handle);
+			for (char *curr_addr = addr; curr_addr < addr + PAGE_SIZE; curr_addr++) {
+				if (*curr_addr != 0) {
+					printf("%d: %p\n", curr_addr-addr, *curr_addr);
+				}	
+			}
 			status = nfs_write(swap_handle, offset, PAGE_SIZE, addr, swap_write_cb, (uintptr_t)args);
 			// Check if RPC succeeded
     		if (status != RPC_OK) {
@@ -146,7 +151,7 @@ void swap_init_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 }
 
 void swap_write_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
-	printf("swap_write_cb\n");
+	printf("swap_write_cb, wrote %d\n", count);
 	write_swap_args* args = (write_swap_args*) token;
 	if (status != NFS_OK) {
 		printf("Something went wrong %d\n", status);
@@ -206,18 +211,19 @@ void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, void *args) {
     read_args->index = alloc_args->index;
     free(alloc_args);
     proc_table[pid]->page_directory[dir_index][page_index] = read_args->index;
-	int frame_status = FRAME_IN_USE | (read_args->pid << PROCESS_BIT_SHIFT);
+	
     if (!(frametable[read_args->index].frame_status & SWAP_BUFFER_MASK)) {
-    	printf("\n\n\nNot In swap buffer\n\n\n\n");
+    	int frame_status = FRAME_IN_USE | (read_args->pid << PROCESS_BIT_SHIFT);
         frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
         frametable[buffer_tail].frame_status |= read_args->index;
         frame_status |= buffer_head;
         buffer_tail = read_args->index;
+        frametable[read_args->index].frame_status = frame_status;
     } else {
-        printf("\n\n\nIn swap buffer: %p\n\n\n\n", (void *)(frametable[read_args->index].frame_status & SWAP_BUFFER_MASK));
+        frametable[read_args->index].frame_status &= ~PROCESS_MASK;
+        frametable[read_args->index].frame_status |= FRAME_IN_USE | (read_args->pid << PROCESS_BIT_SHIFT);
     }
-    frametable[read_args->index].frame_status = frame_status;
-
+    
     seL4_CPtr temp;
     sos_map_page_swap(read_args->index, read_args->vaddr, proc_table[pid]->vroot, 
                       proc_table[pid], pid, reply_cap, read_from_swap_slot_cb_continue,
@@ -245,7 +251,8 @@ void read_from_swap_slot_cb_continue (int pid, seL4_CPtr reply_cap, void *args) 
 void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
 	printf("swap_read_nfs_cb\n");
 	read_swap_args *read_args = (read_swap_args *) token;
-	if (status != NFS_OK || count != PAGE_SIZE) {
+	if (status != NFS_OK) {
+		printf("Exit with error: %d, %d\n", status, count);
 		send_seL4_reply(read_args->reply_cap, -1);
 	} else {
 		memcpy((void *)index_to_vaddr(read_args->index), data, count);
@@ -253,5 +260,5 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 
 	}
 	free(read_args);
-	printf("swap_read_nfs_cb ended\n");
+	printf("swap_read_nfs_cb ended\n");	
 }

@@ -205,6 +205,9 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
             swap_args->cb = cb;
             swap_args->cb_args = args;
             printf("Map page: %p\n", (void *) vaddr);
+
+            
+
             swap_args->vaddr = vaddr;
             swap_args->pid = pid = pid;
             swap_args->reply_cap = reply_cap;
@@ -354,11 +357,8 @@ void copy_in_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if ((copy_args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
         to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
     } 
-    printf("TEST1\n");
     seL4_Word src = user_to_kernel_ptr(copy_args->usr_ptr, pid);
-    printf("TEST2, %p, %p, %d\n", (void *) copy_args->k_ptr, (void *) src, to_copy);
     memcpy((void *) (copy_args->k_ptr), (void *) src, to_copy);
-    printf("TEST3\n");
     copy_args->count += to_copy;
     copy_args->usr_ptr += to_copy;
     copy_args->k_ptr += to_copy;

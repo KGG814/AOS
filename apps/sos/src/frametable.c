@@ -25,7 +25,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          32
+#define MAX_FRAMES          34
 #define verbose 5
 
 int ft_initialised = 0;
@@ -259,7 +259,6 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
         send_seL4_reply(err, reply_cap);
     }
     
-    
     int status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     if (!(frametable[alloc_args->index].frame_status & SWAP_BUFFER_MASK)) {
         // Not in the swap buffer, need to put it in
@@ -273,11 +272,11 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
         }
         status |= buffer_head;
         buffer_tail = alloc_args->index;
+        frametable[alloc_args->index].frame_status = status;
     } else {
-        //printf("In swap buffer\n");
+        frametable[buffer_tail].frame_status &= ~PROCESS_MASK;
+        frametable[buffer_tail].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     }
-    
-    frametable[alloc_args->index].frame_status = status;
 
     alloc_args->vaddr = paddr_to_vaddr(alloc_args->pt_addr);
     if (alloc_args->map) {
@@ -338,7 +337,7 @@ int get_next_frame_to_swap(void) {
     int status = 0;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
     while (1) {
-        printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
+        //printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
           assert(1==0);  
         }
@@ -366,6 +365,7 @@ int get_next_frame_to_swap(void) {
         next_frame = status & SWAP_BUFFER_MASK;
     }
     printf("Swapping frame index %p\n", (void *) next_frame);
+
     buffer_tail = curr_frame;
     buffer_head = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
     frametable[curr_frame].frame_status &= ~SWAP_BUFFER_MASK;
