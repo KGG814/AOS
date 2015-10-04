@@ -38,6 +38,7 @@ int free_swap_slot(int slot);
 void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, void *args);
 void read_from_swap_slot_cb_continue (int pid, seL4_CPtr reply_cap, void *args);
 void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	printf("write_to_swap_slot\n");
 	
@@ -87,7 +88,9 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	    printf("vaddr for frame that will be swapped %p\n", (void *) frametable[write_args->index].vaddr);
 	    printf("dir_index: %d, page_index: %d pid: %d\n", dir_index, page_index, swapped_frame_pid);
 	    assert(frametable[write_args->index].vaddr != 0);
+	    seL4_ARM_Page_Unify_Instruction(frametable[write_args->index].frame_cap, 0, PAGESIZE);
 	    proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
+
 	    frametable[write_args->index].vaddr = 0;
 		// We have reached the end of the swap table
 		if (slot == SWAP_SLOTS) {

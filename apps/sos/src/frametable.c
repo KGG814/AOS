@@ -25,7 +25,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          2000
+#define MAX_FRAMES          33
 #define verbose 5
 
 int ft_initialised = 0;
@@ -160,7 +160,6 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
-        seL4_ARM_Page_Unify_Instruction(frametable[index].frame_cap, 0, PAGESIZE);
     }
     
     //9242_TODO: interpret this error correctly.
@@ -253,12 +252,10 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
-        seL4_ARM_Page_Unify_Instruction(frametable[alloc_args->index].frame_cap, 0, PAGESIZE);
     }
     if (err) {
         send_seL4_reply(err, reply_cap);
     }
-    
     int status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     if (!(frametable[alloc_args->index].frame_status & SWAP_BUFFER_MASK)) {
         // Not in the swap buffer, need to put it in
@@ -361,7 +358,6 @@ int get_next_frame_to_swap(void) {
                    );
                 printf("err: %d\n", err);
                 assert(err == 0);
-                seL4_ARM_Page_Unify_Instruction(frametable[next_frame].frame_cap, 0, PAGESIZE);
             }
         }
 

@@ -34,7 +34,7 @@
 #define PAGEMASK              ((PAGESIZE) - 1)
 #define PAGE_ALIGN(addr)      ((addr) & ~(PAGEMASK))
 #define IS_PAGESIZE_ALIGNED(addr) !((addr) &  (PAGEMASK))
-
+#define OFST_MASK 0x00000FFF
 
 extern seL4_ARM_PageDirectory dest_as;
 
@@ -94,15 +94,10 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 
     /* We work a page at a time in the destination vspace. */
     pos = 0;
-    while(pos < segment_size) {
-        
-        
+    while(pos < segment_size) {        
         int ft_index;
         seL4_Word vaddr;
-        
-        
-        /* First we need to create a frame */
-        printf("load_segment_into_vspace frame_alloc\n");
+        /* First we need to create a frame */;
         ft_index = frame_alloc(&vaddr, KMAP, 1);
         seL4_Word vpage, kvpage;
         unsigned long kdst;
@@ -110,24 +105,20 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         vpage  = PAGE_ALIGN(dst);
         kvpage = PAGE_ALIGN(dst + PROCESS_SCRATCH);
         nbytes = PAGESIZE - (dst & PAGEMASK);
-        kdst   = dst + PROCESS_SCRATCH;
+        int offset = dst & OFST_MASK;
         seL4_CPtr sos_cap;
-        sos_map_page(ft_index, vpage, dest_as, as, 1);
+        sos_cap = sos_map_page(ft_index, vpage, dest_as, as, 1);
         // Need to change frame table vaddr association to the on the user will fault on
-        
-        //conditional_panic(err, "Failed to map to tty address space");
-        sos_cap = sos_map_page(ft_index, kvpage, seL4_CapInitThreadPD, as, 1);
         frametable[ft_index].vaddr = vpage;
         frametable[ft_index].frame_status |= FRAME_DONT_SWAP;
         //conditional_panic(err, "Failed to map sos address space");
         // Now copy our data into the destination vspace. 
-        
+        vaddr = vaddr + offset;
         if (pos < file_size){        
-            memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos));
+            memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - pos));
         }    
         // Not observable to I-cache yet so flush the frame 
         seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
-
         pos += nbytes;
         dst += nbytes;
         src += nbytes;

@@ -17,7 +17,6 @@
 #define FT_INDEX_MASK       0x000FFFFF
 #define verbose 5
 
-void handle_swap_cb (int pid, seL4_CPtr reply_cap, void *args);
 void copy_in_cb(int pid, seL4_CPtr reply_cap, void* args);
 void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args);
 void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args);
@@ -148,6 +147,7 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
         printf("Mapping into page_dir, cap %d\n", *(map_args->frame_cap));
         int err = map_page_user(*(map_args->frame_cap), map_args->pd, map_args->vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, map_args->as);
+        seL4_ARM_Page_Unify_Instruction(*(map_args->frame_cap), 0, PAGESIZE);
         printf("Err: %d\n", err);
         assert(err == 0);
         frametable[map_args->ft_index].vaddr = map_args->vaddr;
@@ -185,6 +185,7 @@ void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args) {
     seL4_SetMR(0, 0);
     seL4_Send(cap, reply);
     cspace_free_slot(cur_cspace, cap);
+    printf("handle_vm_fault_cb ended\n");
 }
 
 
@@ -209,9 +210,6 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
             swap_args->cb = cb;
             swap_args->cb_args = args;
             printf("Map page: %p\n", (void *) vaddr);
-
-            
-
             swap_args->vaddr = vaddr;
             swap_args->pid = pid = pid;
             swap_args->reply_cap = reply_cap;
@@ -229,6 +227,7 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, proc_table[pid]);
             assert(err == 0);
             frametable[index].frame_status &= ~FRAME_SWAP_MARKED;
+            seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE);
             if (cb != NULL) {
                 cb(pid, reply_cap, args);
                 return 0;
@@ -313,15 +312,6 @@ int check_region(seL4_Word start, seL4_Word size) {
         }
     }
     return 0;
-}
-
-void handle_swap_cb (int pid, seL4_CPtr reply_cap, void *args) {
-    printf("handle_swap_cb\n");
-    // Get the frame for the page that was mapped in
-    //int index = proc_table[pid]->page_directory[dir_index][page_index] & FT_INDEX_MASK;
-    // Get the kernel mapping for that frame
-    //seL4_Word k_vaddr = index_to_vaddr(index);
-    // 9242_TODO Do a NFS read from the swap file to the addr
 }
 
 void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
