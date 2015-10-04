@@ -8,7 +8,7 @@
 
 #include "ut_manager/ut.h"
 #include <sos/vmem_layout.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 #include <clock/clock.h>
 
@@ -141,6 +141,7 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     err = map_page_user(as->ipc_buffer_cap, as->vroot,
                    PROCESS_IPC_BUFFER,
                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
     conditional_panic(err, "Unable to map IPC buffer for user app");
     /* Copy the fault endpoint to the user app to enable IPC */
     user_ep_cap = cspace_mint_cap(as->croot,

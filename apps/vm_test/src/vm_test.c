@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 
-#define NPAGES 27
+#define NPAGES 100
 
 /* called from pt_test */
 static void do_pt_test( char *buf ) {
     int i;
-
+    printf("doing test\n");
     /* set */
     for(i = 0; i < NPAGES; i ++)
 	buf[i * 4096] = i;

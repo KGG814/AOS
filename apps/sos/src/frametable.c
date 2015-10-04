@@ -25,7 +25,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          33
+#define MAX_FRAMES          80
 #define verbose 5
 
 int ft_initialised = 0;
