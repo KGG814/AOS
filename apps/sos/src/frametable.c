@@ -25,7 +25,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          34
+#define MAX_FRAMES          2000
 #define verbose 5
 
 int ft_initialised = 0;
@@ -333,8 +333,8 @@ int frame_free(int index) {
 }
 
 int get_next_frame_to_swap(void) {
+    printf("get_next_frame_to_swap\n");
     int curr_frame = buffer_tail;
-    int status = 0;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
     while (1) {
         //printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
@@ -350,13 +350,17 @@ int get_next_frame_to_swap(void) {
             } else if (status & FRAME_IN_USE) {
                 frametable[next_frame].frame_status |= FRAME_SWAP_MARKED;
                 /* Unmap and map back into kernel only */
+                printf("Unmapping frame: %d vaddr: %p\n", frametable[next_frame].frame_cap, (void *)frametable[next_frame].vaddr);
+                cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
                 seL4_ARM_Page_Unmap(frametable[next_frame].frame_cap);
-                map_page(frametable[next_frame].frame_cap
+                int err = map_page(frametable[next_frame].frame_cap
                    ,seL4_CapInitThreadPD
                    ,index_to_vaddr(next_frame)
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
+                printf("err: %d\n", err);
+                assert(err == 0);
                 seL4_ARM_Page_Unify_Instruction(frametable[next_frame].frame_cap, 0, PAGESIZE);
             }
         }
@@ -372,5 +376,6 @@ int get_next_frame_to_swap(void) {
     frametable[curr_frame].frame_status |= frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
     frametable[next_frame].frame_status &= ~FRAME_STATUS_MASK;
     frametable[next_frame].frame_status |= FRAME_DONT_SWAP;
+    printf("get_next_frame_to_swap ended\n");
     return next_frame;
 }

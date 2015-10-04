@@ -343,7 +343,7 @@ int file_close(vnode *vn) {
 
 /* Takes a user pointer */
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {
-    printf("file_read\n");
+    
     if (vn->fmode == O_WRONLY) {
         send_seL4_reply(reply_cap, 0);
         return;
@@ -351,6 +351,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
 
     file_read_args *args = malloc(sizeof(file_read_args));
     args->vn = vn;
+    printf("file_read %s\n", vn->name);
     args->reply_cap = reply_cap;
     args->buf = (seL4_Word) buf;
     args->offset = offset;
@@ -383,14 +384,17 @@ void file_read_nfs_cb(uintptr_t token
     vnode* vn = args->vn;
     //printf("Read cb: usr ptr %p, read: %d\n", args->buf, count);
     args->count = count;
-
+    printf("count: %d\n", args->count);
     if (status != NFS_OK) {
         send_seL4_reply(args->reply_cap, args->bytes_read);
         free(args);
         return;
     }
-    vn->atime = fattr->atime;  
-    copy_page(args->buf, count, (seL4_Word) data, args->pid, file_read_nfs_cb_cont, args, args->reply_cap);
+    printf("File: %s, to buffer %p\n", vn->name, args->buf);
+    vn->atime = fattr->atime;
+    char *read_buf = malloc(sizeof(char)*count);  
+    memcpy(read_buf, data, count);
+    copy_page(args->buf, count, read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
     printf("file_read_nfs_cb ended\n");
 }
 
@@ -400,10 +404,11 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
     vnode* vn = read_args->vn;
     *(read_args->offset) += read_args->count;
     read_args->bytes_read += read_args->count;
-    read_args->buf += read_args->count; //need to increment this pointer
-
+    read_args->buf += read_args->count;
+    printf("Count: %d\n", read_args->count);
+    printf("Next buffer %p\n", (void *)read_args->buf);
     if (read_args->bytes_read == read_args->nbyte || read_args->count < read_args->to_read) {
-        //printf("read done, bytes_read = %d\n", read_args->bytes_read);
+        printf("read done, bytes_read = %d\n", read_args->bytes_read);
         send_seL4_reply(reply_cap, read_args->bytes_read);
         free(read_args); 
     } else {
@@ -423,7 +428,7 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
             free(read_args);  
         }
     }
-    printf("file_read_nfs_cb ended\n");
+    printf("file_read_nfs_cb_cont ended\n");
 }
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid) {

@@ -11,6 +11,9 @@ typedef struct _write_swap_args {
 	seL4_CPtr reply_cap;
 	// Not initialised
 	int slot;
+	int offset;
+	int bytes_written;
+	seL4_Word addr;
 } write_swap_args;
 
 typedef struct _read_swap_args {
@@ -20,7 +23,10 @@ typedef struct _read_swap_args {
 	int pid;
 	seL4_CPtr reply_cap;
 	// Not initialised
+	int slot;
 	int index;
+	int offset;
+	int bytes_read;
 } read_swap_args;
 
 int swap_init(void);
