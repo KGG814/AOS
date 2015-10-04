@@ -104,7 +104,9 @@ network_irq(void) {
     if(_irq_ep == seL4_CapNull){
         return;
     }
+    printf("handle irq %p\n", lwip_iface);
     ethif_lwip_handle_irq(lwip_iface, 150);
+    printf("irq handled\n");
     err = seL4_IRQHandler_Ack(_net_irqs[0].cap);
     assert(!err);
 }

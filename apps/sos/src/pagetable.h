@@ -22,7 +22,10 @@
 #define PT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_Word))
 #define CT_MAX_ENTRIES      (PAGE_SIZE/sizeof(seL4_CPtr))
 
-typedef void (*callback_ptr)(int pid, seL4_CPtr reply_cap, void* data);
+#define PRM_BUF             0
+#define TMP_BUF             1
+
+typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _copy_in_args {
   seL4_Word usr_ptr;
@@ -65,6 +68,7 @@ typedef struct _copy_page_args {
   int count;
   callback_ptr cb;
   void *cb_args;
+  int src_type;
 }copy_page_args;
 
 int page_init(int pid);
@@ -110,6 +114,7 @@ int copy_page (seL4_Word dst
               ,callback_ptr cb
               ,void *cb_args
               ,seL4_CPtr reply_cap
+              ,int src_type
               );
 
 void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args);
