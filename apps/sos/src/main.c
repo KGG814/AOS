@@ -136,9 +136,7 @@ void syscall_loop(seL4_CPtr ep) {
         if(badge & IRQ_EP_BADGE){
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
-                printf("network_irq\n");
                 network_irq();
-                printf("network_irq ended\n\n\n");
             }
 
             if(badge & IRQ_BADGE_TIMER) {
@@ -156,9 +154,7 @@ void syscall_loop(seL4_CPtr ep) {
             //assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
             /* System call */
-            printf("handling syscall\n");
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-            printf("syscall handled\n\n\n");
 
         }else{
             printf("Rootserver got an unknown message\n");
