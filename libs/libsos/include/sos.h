@@ -51,8 +51,6 @@ typedef struct {
   long      st_atime;   /* file last access (open) time (ms since booting) */
 } sos_stat_t;
 
-typedef int pid_t;
-
 typedef struct {
   pid_t     pid;
   unsigned  size;       /* in pages */

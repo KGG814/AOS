@@ -2,8 +2,9 @@
 #define _PROC_H_
 
 #include <cspace/cspace.h>
+#include <sel4/sel4.h>
+#include <stdlib.h>
 #include <sos/sos.h>
-#include <clock/clock.h>
 
 #define CAP_TABLE_PAGES 4
 #define PROCESS_MAX_FILES 16
@@ -13,6 +14,7 @@
 
 #define WAITING (1 << 0)
 #define KILLED  (1 << 1)
+
 
 typedef struct _addr_space {
 	seL4_Word vroot_addr;
@@ -34,7 +36,7 @@ typedef struct _addr_space {
 
     /* process properties */
     int status;
-    pid_t pid;
+    int pid;
     unsigned size;
     timestamp_t create_time;
     char command[N_NAME];

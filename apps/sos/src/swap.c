@@ -45,7 +45,7 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 
 // Functions for managing swap buffer
 int get_next_swap_slot(void);
-int free_swap_slot(int slot);
+void free_swap_slot(int slot);
 
 // Write a given frame to the next free swap slot
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
@@ -227,7 +227,6 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 
 void read_from_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot\n");
-	read_swap_args *read_args = (read_swap_args *) args;
 	// Initialise arguments to frame alloc
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
     alloc_args->map = NOMAP;
@@ -356,7 +355,7 @@ int get_next_swap_slot(void) {
 	return slot;
 }
 
-int free_swap_slot(int slot) {
+void free_swap_slot(int slot) {
 	swap_table[slot] = swap_head;
 	swap_head = slot;
 }

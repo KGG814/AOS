@@ -139,7 +139,7 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
     //printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
-        if (SOS_DEBUG) printf(0, "out of range fd: %d\n", file);
+        if (SOS_DEBUG) printf("out of range fd: %d\n", file);
         send_seL4_reply(reply_cap, -1);
         return;
     } 
@@ -216,13 +216,13 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
-    if (SOS_DEBUG) printf(0, "newbrk: %p\n", newbrk);
+    if (SOS_DEBUG) printf("newbrk: %p\n", (void *)newbrk);
     if (!newbrk) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
         proc_table[pid]->brk = newbrk;
-        if (SOS_DEBUG) printf(0, "proc_table[pid]->brk: %p\n", proc_table[pid]->brk);
+        if (SOS_DEBUG) printf("proc_table[pid]->brk: %p\n", (void *)proc_table[pid]->brk);
     } else {
         ret = 0;
     }

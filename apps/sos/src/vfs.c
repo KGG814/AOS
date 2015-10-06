@@ -401,7 +401,7 @@ void file_read_nfs_cb(uintptr_t token
     vn->atime = fattr->atime;
     char *read_buf = malloc(sizeof(char)*count);  
     memcpy(read_buf, data, count);
-    copy_page(args->buf, count, read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
+    copy_page(args->buf, count, (seL4_Word) read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
     if(SOS_DEBUG) printf("file_read_nfs_cb ended\n");
 }
 
