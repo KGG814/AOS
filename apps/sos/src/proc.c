@@ -144,6 +144,7 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     frametable[index].frame_status |= FRAME_DONT_SWAP;
     conditional_panic(err, "Unable to map IPC buffer for user app");
     /* Copy the fault endpoint to the user app to enable IPC */
+    printf("PID is %d\n", pid);
     user_ep_cap = cspace_mint_cap(as->croot,
                                   cur_cspace,
                                   fault_ep,

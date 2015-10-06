@@ -2,7 +2,7 @@
 #define _FILE_TABLE_H_
 
 
-#include <sos.h>
+#include <sos/sos.h>
 #include "vfs.h"
 #include "proc.h"
 

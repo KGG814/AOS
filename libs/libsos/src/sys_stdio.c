@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 #include <sel4/sel4.h>
 

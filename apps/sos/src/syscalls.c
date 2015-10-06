@@ -4,7 +4,7 @@
 
 #include <string.h>
 #include <clock/clock.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <sos/vmem_layout.h>
 
 #include "proc.h"

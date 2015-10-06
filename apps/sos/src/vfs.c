@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <assert.h>
 
 #include <serial/serial.h>
@@ -413,7 +413,6 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
     read_args->bytes_read += read_args->count;
     read_args->buf += read_args->count;
     if (read_args->bytes_read == read_args->nbyte || read_args->count < read_args->to_read) {
-        assert(RTN_ON_FAIL);
         send_seL4_reply(reply_cap, read_args->bytes_read);
         free(read_args); 
     } else {

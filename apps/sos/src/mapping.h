@@ -39,6 +39,6 @@ map_page_user(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
  * @param size the number of bytes that this device occupies
  * @return The new virtual address of the device
  */
-void* map_device(void* paddr, int size);
+
 
 #endif /* _MAPPING_H_ */

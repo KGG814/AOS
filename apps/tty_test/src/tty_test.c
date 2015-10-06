@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 #include <time.h>
-#include <sos.h>
+#include <sos/sos.h>
 #define NPAGES 27
 
 

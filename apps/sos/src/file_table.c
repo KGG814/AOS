@@ -1,4 +1,4 @@
-#include <sos.h>
+#include <sos/sos.h>
 #include "file_table.h"
 #include "vfs.h"
 #include "proc.h"

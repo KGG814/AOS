@@ -4,6 +4,7 @@
 #include <cspace/cspace.h>
 #include <sel4/sel4.h>
 #include <stdlib.h>
+#include <clock/clock.h>
 #include <sos/sos.h>
 
 #define CAP_TABLE_PAGES 4

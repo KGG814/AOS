@@ -22,7 +22,7 @@
 #include <utils/time.h>
 
 /* Your OS header file */
-#include <sos.h>
+#include <sos/sos.h>
 
 #define BUF_SIZ   (4 * 4096)
 #define MAX_ARGS   32

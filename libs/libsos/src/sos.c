@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 //needed for string comparisons
 #include <string.h>
