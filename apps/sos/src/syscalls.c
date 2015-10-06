@@ -11,6 +11,7 @@
 
 #define verbose 5
 #include <sys/debug.h>
+#include "debug.h"
 
 //callback for waking sleeping processes
 static void wake_process(uint32_t id, void* data); 
@@ -48,7 +49,7 @@ void handle_sos_write(seL4_CPtr reply_cap, int pid) {
  * "path" is file name, "mode" is one of O_RDONLY, O_WRONLY, O_RDWR.
  */
 void handle_open(seL4_CPtr reply_cap, int pid) {
-    printf("handle_open\n");
+    if (SOS_DEBUG) printf("handle_open\n");
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
@@ -73,17 +74,9 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     args->usr_ptr = (seL4_Word) path;
     args->k_ptr = (seL4_Word) kpath;
     args->cb = fh_open_wrapper;
-    printf("ARGS: %p, %p\n", (void *) kpath, (void *) path);
     args->cb_arg_1 = (seL4_Word) kpath;
     args->cb_arg_2 = (seL4_Word) mode;
     copy_in(pid, reply_cap, args);
-    printf("handle_open finished\n");
-    /*int err = fh_open(pid, kpath, mode, reply_cap);
-    if (err == FILE_TABLE_CALLBACK) {
-        return; //return and let process wait for callback
-    } else {
-        send_seL4_reply(reply_cap, err);
-    }*/
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
@@ -111,7 +104,7 @@ void handle_read(seL4_CPtr reply_cap, int pid) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf        =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    printf("handle read\n");
+    if (SOS_DEBUG) printf("handle read\n");
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
         send_seL4_reply(reply_cap, -1);
@@ -129,7 +122,7 @@ void handle_read(seL4_CPtr reply_cap, int pid) {
     /* Call the read vnode op */
 
     vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
-    printf("handle read finished\n");
+    if (SOS_DEBUG) printf("handle read finished\n");
     return;
 }
 
@@ -142,11 +135,11 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
     int file         =  (int)          seL4_GetMR(1);
     char* buf        =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);  
-    printf("handle write\n");
+    if (SOS_DEBUG) printf("handle write\n");
     //printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
-        dprintf(0, "out of range fd: %d\n", file);
+        if (SOS_DEBUG) printf(0, "out of range fd: %d\n", file);
         send_seL4_reply(reply_cap, -1);
         return;
     } 
@@ -163,7 +156,7 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
     /* Check page boundaries and map in pages if necessary */;
     /* Call the write vnode op */
     vfs_write(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
-    printf("handle write finished\n");  
+    if (SOS_DEBUG) printf("handle write finished\n");  
 }
 
 
@@ -189,7 +182,7 @@ void handle_getdirent(seL4_CPtr reply_cap, int pid) {
  * Returns 0 if successful, -1 otherwise (invalid name).
  */
 void handle_stat(seL4_CPtr reply_cap, int pid) {
-    printf("handle stat\n");
+    if (SOS_DEBUG) printf("handle stat\n");
     /* Get syscall arguments */
     seL4_Word   path =                 seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
@@ -214,7 +207,7 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     args->cb_arg_1 = (seL4_Word) kpath;
     args->cb_arg_2 = (seL4_Word) buf;
     copy_in(pid, reply_cap, args);
-    printf("handle stat finished\n");
+    if (SOS_DEBUG) printf("handle stat finished\n");
     /* Call stat */
     //vfs_stat((char*) kpath, (seL4_Word) buf, reply_cap, pid);
 }
@@ -223,13 +216,13 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
-    dprintf(0, "newbrk: %p\n", newbrk);
+    if (SOS_DEBUG) printf(0, "newbrk: %p\n", newbrk);
     if (!newbrk) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
         proc_table[pid]->brk = newbrk;
-        dprintf(0, "proc_table[pid]->brk: %p\n", proc_table[pid]->brk);
+        if (SOS_DEBUG) printf(0, "proc_table[pid]->brk: %p\n", proc_table[pid]->brk);
     } else {
         ret = 0;
     }
@@ -302,7 +295,7 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
         send_seL4_reply(reply_cap, -1);
         return;
     }
-    printf("sleep timer registered\n");
+    if (SOS_DEBUG) printf("sleep timer registered\n");
 }
 
 //timer callback for usleep
