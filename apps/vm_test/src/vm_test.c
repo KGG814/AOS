@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 
-#define NPAGES 100
+#define NPAGES 27
 
 /* called from pt_test */
 static void do_pt_test( char *buf ) {
@@ -11,7 +11,6 @@ static void do_pt_test( char *buf ) {
     printf("doing test\n");
     /* set */
     for(i = 0; i < NPAGES; i ++) {
-        printf("Touching address %p\n", (void *) &buf[i * 4096]);
         buf[i * 4096] = i;
     }
 	
@@ -23,6 +22,9 @@ static void do_pt_test( char *buf ) {
 
 int main( void ) {
     printf("Starting vm test\n");
+    int *x = malloc(sizeof(int));
+    *x = 9;
+    printf("TEST1 %d\n", *x);
     // heap test 
     char * buf1 = malloc(NPAGES * 4096);
     printf("Buffer 1 allocated\n");
