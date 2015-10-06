@@ -10,8 +10,11 @@ static void do_pt_test( char *buf ) {
     int i;
     printf("doing test\n");
     /* set */
-    for(i = 0; i < NPAGES; i ++)
-	buf[i * 4096] = i;
+    for(i = 0; i < NPAGES; i ++) {
+        printf("Touching address %p\n", (void *) &buf[i * 4096]);
+        buf[i * 4096] = i;
+    }
+	
 
     /* check */
     for(i = 0; i < NPAGES; i ++)
@@ -22,6 +25,7 @@ int main( void ) {
     printf("Starting vm test\n");
     // heap test 
     char * buf1 = malloc(NPAGES * 4096);
+    printf("Buffer 1 allocated\n");
     assert(buf1);
     do_pt_test(buf1);
     char * buf2 = malloc(NPAGES * 4096);

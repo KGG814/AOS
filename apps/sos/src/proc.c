@@ -179,7 +179,7 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
     conditional_panic(!elf_base, "Unable to locate cpio header");
     /* load the elf image */
-    err = elf_load(as->vroot, elf_base, as);
+    err = elf_load(elf_base, pid);
     conditional_panic(err, "Failed to load elf image");
     
     memset(as->command, 0, N_NAME);

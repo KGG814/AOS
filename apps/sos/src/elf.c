@@ -61,7 +61,7 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
                                     char *src, unsigned long segment_size,
                                     unsigned long file_size, unsigned long dst,
-                                    unsigned long permissions, addr_space* as) {
+                                    unsigned long permissions, int pid) {
 
     /* Overview of ELF segment loading
 
@@ -86,8 +86,8 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 
     */
 
-
-
+    printf("pid: %d\n", pid);
+    addr_space *as = proc_table[pid];
     assert(file_size <= segment_size);
 
     unsigned long pos;
@@ -98,7 +98,7 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         int ft_index;
         seL4_Word vaddr;
         /* First we need to create a frame */;
-        ft_index = frame_alloc(&vaddr, KMAP, 1);
+        ft_index = frame_alloc(&vaddr, KMAP, pid);
         seL4_Word vpage, kvpage;
         unsigned long kdst;
         int nbytes;
@@ -107,7 +107,7 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         nbytes = PAGESIZE - (dst & PAGEMASK);
         int offset = dst & OFST_MASK;
         seL4_CPtr sos_cap;
-        sos_cap = sos_map_page(ft_index, vpage, dest_as, as, 1);
+        sos_cap = sos_map_page(ft_index, vpage, dest_as, as, pid);
         // Need to change frame table vaddr association to the on the user will fault on
         frametable[ft_index].vaddr = vpage;
         frametable[ft_index].frame_status |= FRAME_DONT_SWAP;
@@ -128,12 +128,13 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 }
 
 
-int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
+int elf_load(char *elf_file, int pid) {
 
     int num_headers;
     int err;
     int i;
-
+    addr_space *as = proc_table[pid];
+    seL4_ARM_PageDirectory dest_as = as->vroot;
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
         return seL4_InvalidArgument;
@@ -157,7 +158,7 @@ int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file, addr_space* as) {
         /* Copy it across into the vspace. */
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
         err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
-                                       get_sel4_rights_from_elf(flags) & seL4_AllRights, as);
+                                       get_sel4_rights_from_elf(flags) & seL4_AllRights, pid);
         conditional_panic(err != 0, "Elf loading failed!\n");
     }
 
