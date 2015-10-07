@@ -1,5 +1,5 @@
 #include "device_mapping.h"
-
+#include "mapping.h"
 #include <ut_manager/ut.h>
 #include <sos/vmem_layout.h>
 

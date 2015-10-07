@@ -34,6 +34,7 @@ int num_processes = 0;
 int next_pid = MAX_PROCESSES;
 
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args);
+void start_process_cb(int pid, seL4_CPtr reply_cap, void *args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
@@ -105,25 +106,20 @@ void cleanup_as(int pid) {
     proc_table[pid] = NULL;
 } 
 
-int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
-    int pid = new_as(app_name);
-    int err;
-    seL4_CPtr user_ep_cap;
-    seL4_Word temp;
-    int index;
+void start_process(int pid, seL4_CPtr reply_cap, void *args) {
+	start_process_args *process_args = (start_process_args *) args;
+	// Get args that we use
+	char *app_name = process_args->app_name;
+	// Get new pid
+    int new_pid = new_as(app_name);
+    process_args->new_pid = new_pid;
+    // Address space of process
     addr_space* as = proc_table[pid];
-    /* These required for setting up the TCB */
-    seL4_UserContext context;
-
-    /* These required for loading program sections */
-    char* elf_base;
-    unsigned long elf_size;
-
     /* Create a VSpace */
     as->vroot_addr = ut_alloc(seL4_PageDirBits);
     conditional_panic(!as->vroot_addr, 
                       "No memory for new Page Directory");
-    err = cspace_ut_retype_addr(as->vroot_addr,
+    int err = cspace_ut_retype_addr(as->vroot_addr,
                                 seL4_ARM_PageDirectoryObject,
                                 seL4_PageDirBits,
                                 cur_cspace,
@@ -133,9 +129,38 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     /* Create a simple 1 level CSpace */
     as->croot = cspace_create(1);
     assert(as->croot != NULL);   
-    /* Create an IPC buffer */
-    index = frame_alloc(&temp, NOMAP, pid);
-    as->ipc_buffer_addr = index_to_paddr(index);
+    // Set up frame_alloc_swap args
+    frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    alloc_args->map = NOMAP;
+    alloc_args->cb = start_process_cb;
+    alloc_args->cb_args = process_args;
+    /* Get IPC buffer */
+    frame_alloc_swap(new_pid, 0, alloc_args);
+}
+
+void start_process_cb(int pid, seL4_CPtr reply_cap, void *args) {
+	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
+	/* Get args */
+	char *app_name = process_args->app_name;
+	seL4_CPtr fault_ep = process_args->fault_ep;
+	int priority = process_args->priority;
+	int index = alloc_args->index;
+	int new_pid = process_args->new_pid;
+	// Free frame_alloc args
+	free(alloc_args);
+	/* These required for setting up the TCB */
+    seL4_UserContext context;
+	// Address space of the new process
+	addr_space *as = proc_table[new_pid];
+	// Various local state
+	int err;
+	seL4_CPtr user_ep_cap;
+	// These required for loading program sections
+    char* elf_base;
+    unsigned long elf_size;
+	
+	as->ipc_buffer_addr = index_to_paddr(index);
     as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/
     err = map_page_user(as->ipc_buffer_cap, as->vroot,
@@ -144,12 +169,12 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     frametable[index].frame_status |= FRAME_DONT_SWAP;
     conditional_panic(err, "Unable to map IPC buffer for user app");
     /* Copy the fault endpoint to the user app to enable IPC */
-    printf("PID is %d\n", pid);
+    printf("PID is %d\n", new_pid);
     user_ep_cap = cspace_mint_cap(as->croot,
                                   cur_cspace,
                                   fault_ep,
                                   seL4_AllRights, 
-                                  seL4_CapData_Badge_new(pid));
+                                  seL4_CapData_Badge_new(new_pid));
     
     //???
     /* should be the first slot in the space, hack I know */
@@ -179,7 +204,7 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
     conditional_panic(!elf_base, "Unable to locate cpio header");
     /* load the elf image */
-    err = elf_load(elf_base, pid);
+    err = elf_load(elf_base, new_pid);
     conditional_panic(err, "Failed to load elf image");
     
     memset(as->command, 0, N_NAME);
@@ -190,7 +215,9 @@ int start_process(char *app_name, seL4_CPtr fault_ep, int priority) {
     context.pc = elf_getEntryPoint(elf_base);
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
-    return pid;
+    if (reply_cap) {
+    	send_seL4_reply(reply_cap, 0);
+    }
 }
 
 void process_status(seL4_CPtr reply_cap
@@ -233,9 +260,10 @@ void process_status(seL4_CPtr reply_cap
     copy_out(pid, reply_cap, cpa);
 }
 
-void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args) {
-    copy_out_args *args = (copy_out_args *) _args;
-    send_seL4_reply(reply_cap, ((seL4_Word) args->count) /sizeof(sos_process_t));
-    free((void *) args->src);
+void process_status_cb(int pid, seL4_CPtr reply_cap, void *args) {
+    copy_out_args *copy_args = (copy_out_args *) args;
+    send_seL4_reply(reply_cap, ((seL4_Word) copy_args->count) /sizeof(sos_process_t));
+    free((void *) copy_args->src);
+    free(args);
     printf("ps done\n");
 }

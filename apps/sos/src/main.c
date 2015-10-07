@@ -227,7 +227,12 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 }
 
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
-    start_process(app_name, fault_ep, TTY_PRIORITY);
+    // Set up start_process cb args
+    start_process_args *process_args = malloc(sizeof(start_process_args));
+    process_args->app_name = app_name;
+    process_args->fault_ep = fault_ep;
+    process_args->priority = TTY_PRIORITY;
+    start_process(0, 0, process_args);
 }
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){

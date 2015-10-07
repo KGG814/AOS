@@ -44,6 +44,14 @@ typedef struct _addr_space {
 
 } addr_space; 
 
+typedef struct _start_process_args {
+    char *app_name;
+    seL4_CPtr fault_ep;
+    int priority;
+    // Not initialised
+    int new_pid;
+} start_process_args;
+
 addr_space* proc_table[MAX_PROCESSES + 1];
 
 //this is the endpoint all processes will be attached to
@@ -54,7 +62,7 @@ void proc_table_init(void);
 int new_as();
 void cleanup_as(int pid);
 
-int start_process(char* app_name, seL4_CPtr fault_ep, int priority);
+void start_process(int pid, seL4_CPtr reply_cap, void *args);
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid

@@ -99,11 +99,9 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
         seL4_Word vaddr;
         /* First we need to create a frame */;
         ft_index = frame_alloc(&vaddr, KMAP, pid);
-        seL4_Word vpage, kvpage;
-        unsigned long kdst;
+        seL4_Word vpage;
         int nbytes;
         vpage  = PAGE_ALIGN(dst);
-        kvpage = PAGE_ALIGN(dst + PROCESS_SCRATCH);
         nbytes = PAGESIZE - (dst & PAGEMASK);
         int offset = dst & OFST_MASK;
         seL4_CPtr sos_cap;
