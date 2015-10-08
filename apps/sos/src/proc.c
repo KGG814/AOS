@@ -114,7 +114,7 @@ void start_process(int pid, seL4_CPtr reply_cap, void *args) {
     int new_pid = new_as(app_name);
     process_args->new_pid = new_pid;
     // Address space of process
-    addr_space* as = proc_table[pid];
+    addr_space* as = proc_table[new_pid];
     /* Create a VSpace */
     as->vroot_addr = ut_alloc(seL4_PageDirBits);
     conditional_panic(!as->vroot_addr, 
