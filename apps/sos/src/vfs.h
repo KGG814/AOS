@@ -26,7 +26,7 @@
 
 #define CALLBACK (-3)
 
-#include <sos.h>
+#include <sos/sos.h>
 #include <clock/clock.h>
 #include <nfs/nfs.h>
 #include "proc.h"

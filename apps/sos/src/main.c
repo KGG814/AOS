@@ -26,7 +26,7 @@
 
 #include "ut_manager/ut.h"
 #include <sos/vmem_layout.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <autoconf.h>
 
 #define verbose 5
@@ -38,6 +38,7 @@
 #include "file_table.h"
 #include "vfs.h"
 #include "proc.h"
+#include "debug.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -114,11 +115,11 @@ void handle_syscall(seL4_Word badge, int num_args) {
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
-
+    if (SOS_DEBUG) printf("Doing syscall %d\n", syscall_number);
     if (syscall_number < NUM_SYSCALLS) {
         syscall_handlers[syscall_number](reply_cap, badge);
     } else {
-        printf("Unkwown syscall %d.\n", syscall_number);
+        if (SOS_DEBUG) printf("Unkwown syscall %d.\n", syscall_number);
         send_seL4_reply(reply_cap, -1);
     }
 }
@@ -129,8 +130,8 @@ void syscall_loop(seL4_CPtr ep) {
         seL4_Word badge;
         seL4_Word label;
         seL4_MessageInfo_t message;
-
         message = seL4_Wait(ep, &badge);
+        if (SOS_DEBUG) printf("Syscall loop\n");
         label = seL4_MessageInfo_get_label(message);  
         //dprintf(0, "Badge: %d\n", badge);
         //dprintf(0, "Label: %p\n", label);
@@ -155,6 +156,7 @@ void syscall_loop(seL4_CPtr ep) {
             printf("Syscall from process with badge: %d\n", badge);
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+
         }else{
             printf("Rootserver got an unknown message\n");
         }
@@ -225,7 +227,12 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 }
 
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
-    start_process(app_name, fault_ep, TTY_PRIORITY);
+    // Set up start_process cb args
+    start_process_args *process_args = malloc(sizeof(start_process_args));
+    process_args->app_name = app_name;
+    process_args->fault_ep = fault_ep;
+    process_args->priority = TTY_PRIORITY;
+    start_process(0, 0, process_args);
 }
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){

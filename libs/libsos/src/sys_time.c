@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <utils/time.h>
 
 #include <sel4/sel4.h>

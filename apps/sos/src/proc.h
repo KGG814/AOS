@@ -2,8 +2,10 @@
 #define _PROC_H_
 
 #include <cspace/cspace.h>
-#include <sos.h>
+#include <sel4/sel4.h>
+#include <stdlib.h>
 #include <clock/clock.h>
+#include <sos/sos.h>
 
 #define CAP_TABLE_PAGES 4
 #define PROCESS_MAX_FILES 16
@@ -13,6 +15,7 @@
 
 #define WAITING (1 << 0)
 #define KILLED  (1 << 1)
+
 
 typedef struct _addr_space {
 	seL4_Word vroot_addr;
@@ -34,12 +37,20 @@ typedef struct _addr_space {
 
     /* process properties */
     int status;
-    pid_t pid;
+    int pid;
     unsigned size;
     timestamp_t create_time;
     char command[N_NAME];
 
 } addr_space; 
+
+typedef struct _start_process_args {
+    char *app_name;
+    seL4_CPtr fault_ep;
+    int priority;
+    // Not initialised
+    int new_pid;
+} start_process_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];
 
@@ -51,7 +62,7 @@ void proc_table_init(void);
 int new_as();
 void cleanup_as(int pid);
 
-int start_process(char* app_name, seL4_CPtr fault_ep, int priority);
+void start_process(int pid, seL4_CPtr reply_cap, void *args);
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid

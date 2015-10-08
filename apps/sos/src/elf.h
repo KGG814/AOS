@@ -13,6 +13,6 @@
 #include "proc.h"
 #include <sel4/sel4.h>
 
-int elf_load(seL4_ARM_PageDirectory dest_pd, char* elf_file, addr_space* as);
+int elf_load(char* elf_file, int pid);
 
 #endif /* _LIBOS_ELF_H_ */

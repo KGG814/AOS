@@ -1,7 +1,7 @@
 #ifndef _SYSCALLS_H_
 #define _SYSCALLS_H_
 #include "proc.h"
-#include <sos.h>
+#include <sos/sos.h>
 
 //this is set to increase
 #define NUM_SYSCALLS 13

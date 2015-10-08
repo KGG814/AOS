@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sel4/sel4.h>
-#include "sos.h"
+#include "sos/sos.h"
 
 static void
 sel4_abort()

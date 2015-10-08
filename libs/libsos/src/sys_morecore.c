@@ -16,7 +16,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sos/vmem_layout.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 /*
  * Statically allocated morecore area.

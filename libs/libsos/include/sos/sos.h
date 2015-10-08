@@ -42,6 +42,7 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+typedef int pid_t;
 
 typedef struct {
   st_type_t st_type;    /* file type */
@@ -50,8 +51,6 @@ typedef struct {
   long      st_ctime;   /* file creation time (ms since booting) */
   long      st_atime;   /* file last access (open) time (ms since booting) */
 } sos_stat_t;
-
-typedef int pid_t;
 
 typedef struct {
   pid_t     pid;

@@ -10,5 +10,5 @@
 
 components-$(CONFIG_APP_VM_TEST) += vm_test
 
-tty_test: $(libc) libsel4 libsos
+vm_test: $(libc) libsel4 libsos
 

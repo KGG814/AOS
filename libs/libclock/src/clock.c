@@ -6,7 +6,7 @@
 #include "../../../apps/sos/src/sys/panic.h"
 #include <sel4/sel4.h>
 #include <cspace/cspace.h>
-#include "../../../../apps/sos/src/mapping.h"
+#include "../../../../apps/sos/src/device_mapping.h"
 
 #define NOT_INITIALISED 0
 #define INITIALISED 1
