@@ -155,6 +155,7 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
     }
     //9242_TODO: interpret this error correctly
     if (err) { 
+        ut_free(pt_addr, PAGE_BITS);
         return FRAMETABLE_ERR;
     }
 
@@ -208,41 +209,47 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
 //retyped into a frame, and the frame is mapped into the SOS window at a fixed 
 //offset of the physical address.
-void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
+void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *_args) {
     if (SOS_DEBUG) printf("frame_alloc_swap\n");
     /* Check frame table has been initialised */;
-    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+    frame_alloc_args *args = (frame_alloc_args *) _args;
+    args->index = FRAMETABLE_ERR;
+
     if (ft_initialised != 1) {
-        free(args);
-        send_seL4_reply(reply_cap, FRAMETABLE_ERR);
+        args->cb(pid, reply_cap, args);
     }
 
     int err = 0;
 
-    alloc_args->pt_addr = ut_alloc(seL4_PageBits);
-    alloc_args->index = -1;
-    if (alloc_args->pt_addr < low || frame_num >= MAX_FRAMES) { //no frames available
+    args->pt_addr = ut_alloc(seL4_PageBits);
+    if (args->pt_addr < low || frame_num >= MAX_FRAMES) { //no frames available
         write_swap_args *write_args = malloc(sizeof(write_swap_args));
+        if (write_args == NULL) {
+            args->cb(pid, reply_cap, args);
+        }
+
         write_args->cb = frame_alloc_cb;
         write_args->cb_args = args;
         write_args->pid = pid;
         write_args->reply_cap = reply_cap;
         write_args->index = get_next_frame_to_swap();
-        alloc_args->index = write_args->index;
+
+        args->index = write_args->index;
         // Write frame to current free swap slot
         write_to_swap_slot(pid, reply_cap, write_args);
     } else {
-        alloc_args->index = (alloc_args->pt_addr - low) / PAGE_SIZE;
-        err |= cspace_ut_retype_addr(alloc_args->pt_addr
+        args->index = (args->pt_addr - low) / PAGE_SIZE;
+        err |= cspace_ut_retype_addr(args->pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
                                 ,cur_cspace
-                                ,&frametable[alloc_args->index].frame_cap
+                                ,&frametable[args->index].frame_cap
                                 ); 
         //9242_TODO: interpret this error correctly
         if (err) { 
-            free(args);
-            send_seL4_reply(reply_cap, FRAMETABLE_ERR);
+            ut_free(args->pt_addr, PAGE_BITS);
+            args->index = FRAMETABLE_ERR;
+            args->cb(pid, reply_cap, args);
         }
         
         frame_alloc_cb(pid, reply_cap, args);
@@ -257,11 +264,11 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if (alloc_args->map) {
         seL4_Word vaddr = paddr_to_vaddr(alloc_args->pt_addr);
         err = map_page(frametable[alloc_args->index].frame_cap
-                   ,seL4_CapInitThreadPD
-                   ,vaddr
-                   ,seL4_AllRights
-                   ,seL4_ARM_Default_VMAttributes
-                   );
+                      ,seL4_CapInitThreadPD
+                      ,vaddr
+                      ,seL4_AllRights
+                      ,seL4_ARM_Default_VMAttributes
+                      );
     }
     if (err) {
         send_seL4_reply(err, reply_cap);

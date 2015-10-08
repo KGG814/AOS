@@ -37,6 +37,8 @@ typedef struct _addr_space {
 
     /* process properties */
     int status;
+    int priority;
+    int parent_pid;
     int pid;
     unsigned size;
     timestamp_t create_time;
@@ -48,8 +50,6 @@ typedef struct _start_process_args {
     char *app_name;
     seL4_CPtr fault_ep;
     int priority;
-    // Not initialised
-    int new_pid;
 } start_process_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];
