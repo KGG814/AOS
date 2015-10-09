@@ -50,6 +50,8 @@ typedef struct _start_process_args {
     char *app_name;
     seL4_CPtr fault_ep;
     int priority;
+    // not initialised
+    char* elf_base;
 } start_process_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];
@@ -59,7 +61,7 @@ seL4_CPtr _sos_ipc_ep_cap;
 
 void proc_table_init(void);
 
-int new_as();
+int new_as(void);
 void cleanup_as(int pid);
 
 void start_process(int pid, seL4_CPtr reply_cap, void *args);

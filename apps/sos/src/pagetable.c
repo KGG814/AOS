@@ -192,7 +192,6 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
         frametable[map_args->ft_index].vaddr = map_args->vaddr;
     }
     if (map_args->cb != NULL) {
-        if (SOS_DEBUG) printf("Doing callback\n");
         map_args->cb(pid, reply_cap, map_args->cb_args);
         free(map_args);
     }

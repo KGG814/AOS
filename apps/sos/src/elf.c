@@ -36,8 +36,8 @@
 #define IS_PAGESIZE_ALIGNED(addr) !((addr) &  (PAGEMASK))
 #define OFST_MASK 0x00000FFF
 
-extern seL4_ARM_PageDirectory dest_as;
-
+void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args);
+void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_args);
 /*
  * Convert ELF permissions into seL4 permissions.
  */
@@ -58,11 +58,11 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
  * Inject data into the given vspace.
  * 9242_TODO: Don't keep these pages mapped in
  */
-static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
-                                    char *src, unsigned long segment_size,
-                                    unsigned long file_size, unsigned long dst,
-                                    unsigned long permissions, int pid) {
-
+void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
+    load_segment_args *args = (load_segment_args *) _args;
+    // Get the arguments we use
+    unsigned long segment_size = args->segment_size;
+    unsigned long file_size = args->file_size;
     /* Overview of ELF segment loading
 
        dst: destination base virtual address of the segment being loaded
@@ -87,78 +87,121 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
     */
 
     printf("pid: %d\n", pid);
-    addr_space *as = proc_table[pid];
+    
     assert(file_size <= segment_size);
 
-    unsigned long pos;
-
     /* We work a page at a time in the destination vspace. */
-    pos = 0;
-    while(pos < segment_size) {        
-        int ft_index;
-        seL4_Word vaddr;
-        /* First we need to create a frame */;
-        ft_index = frame_alloc(&vaddr, KMAP, pid);
-        seL4_Word vpage;
-        int nbytes;
-        vpage  = PAGE_ALIGN(dst);
-        nbytes = PAGESIZE - (dst & PAGEMASK);
-        int offset = dst & OFST_MASK;
-        seL4_CPtr sos_cap;
-        sos_cap = sos_map_page(ft_index, vpage, dest_as, as, pid);
-        // Need to change frame table vaddr association to the on the user will fault on
-        frametable[ft_index].vaddr = vpage;
-        frametable[ft_index].frame_status |= FRAME_DONT_SWAP;
-        //conditional_panic(err, "Failed to map sos address space");
-        // Now copy our data into the destination vspace. 
-        vaddr = vaddr + offset;
-        if (pos < file_size){        
-            memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - pos));
-        }    
-        // Not observable to I-cache yet so flush the frame 
-        seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
-        pos += nbytes;
-        dst += nbytes;
-        src += nbytes;
+    if (args->pos < segment_size) {        
+        frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+        alloc_args->map = KMAP;
+        alloc_args->cb = load_segment_into_vspace_cb;
+        alloc_args->cb_args = args;
+        frame_alloc_swap(pid, reply_cap, alloc_args);
+        
+    } else {
+        args->cb(pid, reply_cap, args->cb_args);
     }
-
-    return 0;
 }
 
+void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+    // Get results and args from frame_alloc call
+    frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
+    int index = alloc_args->index;
+    load_segment_args *args = (load_segment_args *) alloc_args->cb_args;
+    args->index = alloc_args->index;
+    args->vaddr = alloc_args->vaddr;
+    // Free frame alloc args
+    free(alloc_args);
+    // Get args we need for this call
+    seL4_ARM_PageDirectory dest_as = args->dest_as;
+    unsigned long dst = args->dst;
+    seL4_Word vpage  = PAGE_ALIGN(dst);
+    
+    
+    addr_space *as = proc_table[pid];
+    seL4_CPtr sos_cap;
 
-int elf_load(char *elf_file, int pid) {
+    
+    // Do sos_map_page_swap call
+    sos_map_page_swap(index, vpage, dest_as, as, pid, reply_cap,
+                      load_segment_into_vspace_cb_continue, args, &sos_cap);
+   
+}
 
-    int num_headers;
-    int err;
-    int i;
+void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_args) {
+    load_segment_args *args = (load_segment_args *) _args;
+    int index = args->index;
+    seL4_Word vaddr = args->vaddr;
+    unsigned long pos = args->pos;
+    unsigned long file_size = args->file_size;
+    unsigned long dst = args->dst;
+    char *src = args->src;
+     // Current don't swap ELF files
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
+    int nbytes = PAGESIZE - (dst & PAGEMASK);
+    int offset = dst & OFST_MASK;
+    vaddr = vaddr + offset;
+    if (pos < file_size){        
+        memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - args->pos));
+    }    
+    args->pos += nbytes;
+    args->dst += nbytes;
+    args->src += nbytes;
+    load_segment_into_vspace(pid, reply_cap, args);
+}
+
+void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
+    elf_load_args *args = (elf_load_args *) _args;
+    char *elf_file = args->elf_file;
+    int curr_header = args->curr_header;
     addr_space *as = proc_table[pid];
     seL4_ARM_PageDirectory dest_as = as->vroot;
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
-        return seL4_InvalidArgument;
+        return;
     }
-    num_headers = elf_getNumProgramHeaders(elf_file);
-    for (i = 0; i < num_headers; i++) {
+    int num_headers = elf_getNumProgramHeaders(elf_file);
+    if (curr_header < num_headers) {
         char *source_addr;
         unsigned long flags, file_size, segment_size, vaddr;
 
         /* Skip non-loadable segments (such as debugging data). */
-        if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD)
-            continue;
+        if (elf_getProgramHeaderType(elf_file, curr_header) != PT_LOAD) {
+            args->curr_header++;
+            elf_load(pid, reply_cap, args);
+        }
 
         /* Fetch information about this segment. */
-        source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i);
-        file_size = elf_getProgramHeaderFileSize(elf_file, i);
-        segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
-        vaddr = elf_getProgramHeaderVaddr(elf_file, i);
-        flags = elf_getProgramHeaderFlags(elf_file, i);
+        source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, curr_header);
+        file_size = elf_getProgramHeaderFileSize(elf_file, curr_header);
+        segment_size = elf_getProgramHeaderMemorySize(elf_file, curr_header);
+        vaddr = elf_getProgramHeaderVaddr(elf_file, curr_header);
+        flags = elf_getProgramHeaderFlags(elf_file, curr_header);
 
         /* Copy it across into the vspace. */
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
-        err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
-                                       get_sel4_rights_from_elf(flags) & seL4_AllRights, pid);
-        conditional_panic(err != 0, "Elf loading failed!\n");
+        // Set up load segment arguments
+        load_segment_args *segment_args = malloc(sizeof(load_segment_args));
+        segment_args->src = source_addr;
+        segment_args->dst = vaddr;
+        segment_args->pos = 0;
+        segment_args->dest_as = dest_as;
+        segment_args->segment_size = segment_size;
+        segment_args->file_size = file_size;
+        segment_args->permissions = get_sel4_rights_from_elf(flags) & seL4_AllRights;
+        segment_args->cb = elf_load;
+        segment_args->cb_args = args;
+        load_segment_into_vspace(pid, 0, segment_args);
+        args->curr_header++;
+        //conditional_panic(err != 0, "Elf loading failed!\n");
+    } else {
+        // Do callback
+        args->cb(pid, reply_cap, args->cb_args);
     }
 
-    return 0;
+    
+}
+
+void elf_load_cb(int pid, seL4_CPtr reply_cap, void *args) {
+
 }

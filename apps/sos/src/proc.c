@@ -26,6 +26,7 @@
 #include "proc.h"
 #include "pagetable.h"
 #include "file_table.h"
+#include "debug.h"
 
 extern char _cpio_archive[];
 
@@ -35,12 +36,13 @@ int next_pid = MAX_PROCESSES;
 
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args);
 void start_process_cb(int pid, seL4_CPtr reply_cap, void *args);
+void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
 }
 
-int new_as() {
+int new_as(void) {
     if (num_processes == MAX_PROCESSES) {
         return PROC_ERR;
     }
@@ -52,13 +54,12 @@ int new_as() {
 
     pid = next_pid;
 
-    addr_space *as = malloc(sizeof(addr_space)); 
-    memset(as, 0, sizeof(addr_space));
+    addr_space *as = malloc(sizeof(addr_space));  
     if (as == NULL) {
         //really nothing to be done
         return PROC_ERR;
     }
-    
+    memset(as, 0, sizeof(addr_space));
     proc_table[pid] = as;
     
     int err = fdt_init(pid);
@@ -119,9 +120,10 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
 	// Get args that we use
 	char *app_name = args->app_name;
 	// Get new pid/make new address space
-    int new_pid = new_as(app_name);
+    int new_pid = new_as();
     if (new_pid == PROC_ERR) {
         if (reply_cap) {
+            assert(RTN_ON_FAIL);
             send_seL4_reply(reply_cap, -1);
         } else {
             //this will only be entered if we are in start_first_process and 
@@ -222,15 +224,12 @@ void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
 	int index = alloc_args->index;
 	free(alloc_args);
 
-	/* These required for setting up the TCB */
-    seL4_UserContext context;
-
+	
 	// Various local state
 	int err;
 	seL4_CPtr user_ep_cap;
 
 	// These required for loading program sections
-    char* elf_base;
     unsigned long elf_size;
 	
 	as->ipc_buffer_addr = index_to_paddr(index);
@@ -277,20 +276,30 @@ void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
 
     /* parse the cpio image */
     dprintf(1, "\nStarting \"%s\"...\n", as->command);
-    elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
-    conditional_panic(!elf_base, "Unable to locate cpio header");
+    process_args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
+    conditional_panic(!process_args->elf_base, "Unable to locate cpio header");
     /* load the elf image */
-    err = elf_load(elf_base, new_pid);
-    conditional_panic(err, "Failed to load elf image");
+    elf_load_args *load_args = malloc(sizeof(elf_load_args));
+    load_args->elf_file = process_args->elf_base;
+    load_args->curr_header = 0;
+    load_args->cb = start_process_cb_cont;
+    load_args->cb_args = process_args;
+    elf_load(new_pid, reply_cap, load_args);
+}
 
+void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {
+    start_process_args *args = (start_process_args *) _args;
+    /* These required for setting up the TCB */
+    seL4_UserContext context;
     /* Start the new process */
+    addr_space *as = proc_table[pid];
     memset(&context, 0, sizeof(context));
-    context.pc = elf_getEntryPoint(elf_base);
+    context.pc = elf_getEntryPoint(args->elf_base);
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
 
     if (reply_cap) {
-    	send_seL4_reply(reply_cap, new_pid);
+        send_seL4_reply(reply_cap, pid);
     }
 }
 
