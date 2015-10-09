@@ -181,6 +181,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         /* Copy it across into the vspace. */
         dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
         // Set up load segment arguments
+        args->curr_header++;
         load_segment_args *segment_args = malloc(sizeof(load_segment_args));
         segment_args->src = source_addr;
         segment_args->dst = vaddr;
@@ -192,16 +193,11 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         segment_args->cb = elf_load;
         segment_args->cb_args = args;
         load_segment_into_vspace(pid, 0, segment_args);
-        args->curr_header++;
+        
         //conditional_panic(err != 0, "Elf loading failed!\n");
     } else {
         // Do callback
         args->cb(pid, reply_cap, args->cb_args);
     }
-
-    
 }
 
-void elf_load_cb(int pid, seL4_CPtr reply_cap, void *args) {
-
-}
