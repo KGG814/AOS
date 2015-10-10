@@ -25,6 +25,11 @@
 #define PRM_BUF             0
 #define TMP_BUF             1
 
+typedef struct _pt_entry {
+  int index;
+  seL4_CPtr mapped_cap;
+} pt_entry;
+
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _copy_in_args {
@@ -73,13 +78,6 @@ typedef struct _copy_page_args {
 
 int page_init(int pid);
 void pt_cleanup(int pid);
-
-seL4_CPtr sos_map_page(int ft_index
-                      ,seL4_Word vaddr
-                      ,seL4_ARM_PageDirectory pd
-                      ,addr_space* as
-                      ,int pid
-                      );
 
 void sos_map_page_swap(int ft_index
                       ,seL4_Word vaddr

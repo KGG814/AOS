@@ -75,37 +75,6 @@ void pt_cleanup(int pid) {
     }
 } 
 
-seL4_CPtr sos_map_page(int ft_index
-                      ,seL4_Word vaddr
-                      ,seL4_ARM_PageDirectory pd
-                      ,addr_space* as
-                      ,int pid
-                      ) 
-{
-    sos_map_page_args *map_args = malloc(sizeof(sos_map_page_args));
-    map_args->as = as;
-    map_args->vaddr = vaddr;
-    map_args->ft_index = ft_index;
-    map_args->pd = pd;
-    seL4_CPtr frame_cap;
-    map_args->frame_cap = &frame_cap;
-	seL4_Word dir_index = PT_TOP(vaddr);
-    map_args->cb = NULL;
-	/* Check that the page table exists */
-    assert(as->page_directory != NULL);
-	if (as->page_directory[dir_index] == NULL) {
-        frame_alloc_args *args = malloc(sizeof(frame_alloc_args));
-        args->map = KMAP;
-        args->cb = sos_map_page_dir_cb;
-        args->cb_args = (void *) map_args;
-        frame_alloc_swap(pid, 0, args);
-	} else {
-        sos_map_page_cb(pid, 0, map_args); 
-    }
-    
-    return frame_cap;
-}
-
 void sos_map_page_swap(int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
                       ,addr_space* as, int pid, seL4_CPtr reply_cap
                       ,callback_ptr cb, void *cb_args
@@ -173,7 +142,7 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
     seL4_Word dir_index = PT_TOP(map_args->vaddr);
     seL4_Word page_index = PT_BOTTOM(map_args->vaddr);
     assert(as->page_directory[dir_index] != NULL);
-    if (SOS_DEBUG) printf("PD addr: %p, dir_index %d, page_index %d\n", (void *) as->page_directory[dir_index], dir_index, page_index);
+    if (SOS_DEBUG) printf("dir_index %d, page_index %d\n", dir_index, page_index);
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         assert(1==0);
     } else {
@@ -187,8 +156,10 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
                                    );
         int err = map_page_user(*(map_args->frame_cap), map_args->pd, map_args->vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, map_args->as);
-        seL4_ARM_Page_Unify_Instruction(*(map_args->frame_cap), 0, PAGESIZE);
-        assert(err == 0);
+        if (!err) {
+          seL4_ARM_Page_Unify_Instruction(*(map_args->frame_cap), 0, PAGESIZE);  
+        }
+            
         frametable[map_args->ft_index].vaddr = map_args->vaddr;
     }
     if (map_args->cb != NULL) {
@@ -199,11 +170,12 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 void handle_vm_fault(seL4_Word badge, int pid) {
-    if (SOS_DEBUG) printf("handle_vm_fault\n");
+    
     // 9242_TODO Kill process if invalid memory 
     // 9242_TODO Instruction faults?
     seL4_CPtr reply_cap;
     seL4_Word fault_vaddr = seL4_GetMR(1);
+    if (SOS_DEBUG) printf("handle_vm_fault, %p\n", (void *) fault_vaddr);
     // Get the page of the fault address
     fault_vaddr &= PAGE_MASK;
     //dprintf(0, "Handling fault at: 0x%08x\n", fault_vaddr);

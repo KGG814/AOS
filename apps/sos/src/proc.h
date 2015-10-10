@@ -7,7 +7,7 @@
 #include <clock/clock.h>
 #include <sos/sos.h>
 
-#define CAP_TABLE_PAGES 4
+#define CAP_TABLE_PAGES 8
 #define PROCESS_MAX_FILES 16
 #define MAX_PROCESSES     0xFF
 

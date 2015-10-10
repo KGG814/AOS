@@ -115,6 +115,7 @@ void cleanup_as(int pid) {
 } 
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("start_process\n");
 	start_process_args *args = (start_process_args *) _args;
 
 	// Get args that we use
@@ -204,9 +205,11 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
 
     /* Get IPC buffer */
     frame_alloc_swap(new_pid, reply_cap, alloc_args);
+    if (SOS_DEBUG) printf("start_process end\n");
 }
 
 void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
+    if (SOS_DEBUG) printf("start_process_cb\n");
 	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
 	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
 
@@ -285,9 +288,11 @@ void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
     load_args->cb = start_process_cb_cont;
     load_args->cb_args = process_args;
     elf_load(new_pid, reply_cap, load_args);
+    if (SOS_DEBUG) printf("start_process_cb end\n");
 }
 
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("start_process_cb_cont\n");
     start_process_args *args = (start_process_args *) _args;
     /* These required for setting up the TCB */
     seL4_UserContext context;
@@ -301,6 +306,7 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {
     if (reply_cap) {
         send_seL4_reply(reply_cap, pid);
     }
+    if (SOS_DEBUG) printf("start_process_cb_cont end\n");
 }
 
 void process_status(seL4_CPtr reply_cap

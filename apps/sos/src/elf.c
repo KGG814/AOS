@@ -26,6 +26,7 @@
 #define verbose 0
 #include <sys/debug.h>
 #include <sys/panic.h>
+#include "debug.h"
 
 /* Minimum of two values. */
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -59,6 +60,7 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
  * 9242_TODO: Don't keep these pages mapped in
  */
 void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
     load_segment_args *args = (load_segment_args *) _args;
     // Get the arguments we use
     unsigned long segment_size = args->segment_size;
@@ -84,10 +86,7 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
        The code below relies on seL4's frame allocator already
        zero-filling a newly allocated frame.
 
-    */
-
-    printf("pid: %d\n", pid);
-    
+    */  
     assert(file_size <= segment_size);
 
     /* We work a page at a time in the destination vspace. */
@@ -101,9 +100,11 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
     } else {
         args->cb(pid, reply_cap, args->cb_args);
     }
+    if (SOS_DEBUG) printf("load_segment_into_vspace end\n");
 }
 
 void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("load_segment_into_vspace_cb\n");
     // Get results and args from frame_alloc call
     frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
     int index = alloc_args->index;
@@ -125,10 +126,11 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args) {
     // Do sos_map_page_swap call
     sos_map_page_swap(index, vpage, dest_as, as, pid, reply_cap,
                       load_segment_into_vspace_cb_continue, args, &sos_cap);
-   
+   if (SOS_DEBUG) printf("load_segment_into_vspace_cb end\n");
 }
 
 void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
     load_segment_args *args = (load_segment_args *) _args;
     int index = args->index;
     seL4_Word vaddr = args->vaddr;
@@ -148,9 +150,11 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_a
     args->dst += nbytes;
     args->src += nbytes;
     load_segment_into_vspace(pid, reply_cap, args);
+    if (SOS_DEBUG) printf("load_segment_into_vspace_cb_continue end\n");
 }
 
 void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("elf_load\n");
     elf_load_args *args = (elf_load_args *) _args;
     char *elf_file = args->elf_file;
     int curr_header = args->curr_header;
@@ -158,6 +162,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
     seL4_ARM_PageDirectory dest_as = as->vroot;
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
+        assert(0==1);
         return;
     }
     int num_headers = elf_getNumProgramHeaders(elf_file);
@@ -199,5 +204,6 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         // Do callback
         args->cb(pid, reply_cap, args->cb_args);
     }
+    if (SOS_DEBUG) printf("elf_load end\n");
 }
 
