@@ -16,6 +16,7 @@
 #define WAITING (1 << 0)
 #define KILLED  (1 << 1)
 
+typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _addr_space {
 	seL4_Word vroot_addr;
@@ -52,7 +53,15 @@ typedef struct _start_process_args {
     int priority;
     // not initialised
     char* elf_base;
+    int parent_pid;
 } start_process_args;
+
+typedef struct _new_as_args {
+    callback_ptr cb;
+    void *cb_args;  
+    // Not initalised
+    int new_pid;
+} new_as_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];
 
@@ -61,7 +70,7 @@ seL4_CPtr _sos_ipc_ep_cap;
 
 void proc_table_init(void);
 
-int new_as(void);
+void new_as(int pid, seL4_CPtr reply_cap, void *args);
 void cleanup_as(int pid);
 
 void start_process(int pid, seL4_CPtr reply_cap, void *args);

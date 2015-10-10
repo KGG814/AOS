@@ -13,7 +13,7 @@
 #include "proc.h"
 #include <sel4/sel4.h>
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+
 
 void elf_load(int pid, seL4_CPtr reply_cap, void *_args);
 

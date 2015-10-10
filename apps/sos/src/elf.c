@@ -57,7 +57,6 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 
 /*
  * Inject data into the given vspace.
- * 9242_TODO: Don't keep these pages mapped in
  */
 void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
     if (SOS_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);

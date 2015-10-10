@@ -32,6 +32,13 @@ typedef struct _pt_entry {
 
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
+typedef struct _vm_init_args {
+  callback_ptr cb;
+  void *cb_args;
+  // Not initialised
+  int curr_page;
+} vm_init_args;
+
 typedef struct _copy_in_args {
   seL4_Word usr_ptr;
   seL4_Word k_ptr;
@@ -92,7 +99,7 @@ void handle_vm_fault(seL4_Word badge, int pid);
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
-
+void pd_init(int pid, seL4_CPtr reply_cap, void *args);
 void copy_in(int pid
            ,seL4_CPtr reply_cap
            ,copy_in_args *args

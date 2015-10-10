@@ -155,7 +155,6 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
                                 ,&frametable[index].frame_cap
                                 ); 
     }
-    //9242_TODO: interpret this error correctly
     if (err) { 
         ut_free(pt_addr, PAGE_BITS);
         return FRAMETABLE_ERR;
@@ -170,7 +169,6 @@ int frame_alloc(seL4_Word *vaddr, int map, int pid) {
                    );
     }
     
-    //9242_TODO: interpret this error correctly.
     if (err) { 
         return FRAMETABLE_ERR;
     }
@@ -247,7 +245,6 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *_args) {
                                 ,cur_cspace
                                 ,&frametable[args->index].frame_cap
                                 ); 
-        //9242_TODO: interpret this error correctly
         if (err) { 
             ut_free(args->pt_addr, PAGE_BITS);
             args->index = FRAMETABLE_ERR;
@@ -302,9 +299,9 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
         }
     }  
     frame_num++;
-    //printf("Swap: Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
-            //(void *) frame_num,(void *)  alloc_args->index, pid, 
-            //(void *)frametable[alloc_args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
+    if (SOS_DEBUG) printf("Swap: Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
+            (void *) frame_num,(void *)  alloc_args->index, pid, 
+            (void *)frametable[alloc_args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
     alloc_args->cb(pid, reply_cap, args);
     if (SOS_DEBUG) printf("frame_alloc_cb ended, index %p\n", (void *) alloc_args->index);
 }
@@ -351,6 +348,7 @@ int get_next_frame_to_swap(void) {
     while (1) {
         if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
+          //9242_TODO Fix this sporadic bug
           assert(1==0);  
         }
         

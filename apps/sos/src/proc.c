@@ -35,56 +35,55 @@ int num_processes = 0;
 int next_pid = MAX_PROCESSES;
 
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args);
-void start_process_cb(int pid, seL4_CPtr reply_cap, void *args);
+void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *args);
+void start_process_cb2(int pid, seL4_CPtr reply_cap, void *args);
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
 }
 
-int new_as(void) {
+void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
+    new_as_args *args = (new_as_args *) _args;
     if (num_processes == MAX_PROCESSES) {
-        return PROC_ERR;
+        args->new_pid = PROC_ERR;
+        return;
     }
 
-    int pid = next_pid;
+    int new_pid = next_pid;
     for (int i = 0; i < MAX_PROCESSES && proc_table[next_pid] != NULL; i++) {
         next_pid = (next_pid % MAX_PROCESSES) + 1;
     }
 
-    pid = next_pid;
+    new_pid = next_pid;
 
     addr_space *as = malloc(sizeof(addr_space));  
     if (as == NULL) {
         //really nothing to be done
-        return PROC_ERR;
+        args->new_pid = PROC_ERR;
+        return;
     }
     memset(as, 0, sizeof(addr_space));
-    proc_table[pid] = as;
+    proc_table[new_pid] = as;
     
-    int err = fdt_init(pid);
+    int err = fdt_init(new_pid);
     if (err) {
         free(as);
-        proc_table[pid] = NULL;
-        return PROC_ERR;
+        args->new_pid = PROC_ERR;
+        return;
     }
-
-    err = page_init(pid);
-    if (err) {
-        fdt_cleanup(pid);
-        free(as);
-        proc_table[pid] = NULL;
-    }
-
     as->status = 0;
-
-    as->pid = pid;
+    as->pid = new_pid;
     as->size = 0;
     as->create_time = time_stamp();
-    
     next_pid = (next_pid % MAX_PROCESSES) + 1;
     num_processes++;
-    return pid;
+    vm_init_args* vm_args = malloc(sizeof(vm_init_args));
+    args->new_pid = new_pid;
+    vm_args->cb = args->cb;
+    vm_args->cb_args = args->cb_args;
+    pd_init(new_pid, reply_cap, vm_args);
+    free(vm_args);
 }
 
 void cleanup_as(int pid) {
@@ -118,10 +117,20 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     if (SOS_DEBUG) printf("start_process\n");
 	start_process_args *args = (start_process_args *) _args;
 
-	// Get args that we use
-	char *app_name = args->app_name;
+	
 	// Get new pid/make new address space
-    int new_pid = new_as();
+    new_as_args *as_args = malloc(sizeof(new_as_args));
+    as_args->cb = start_process_cb1;
+    as_args->cb_args = args;
+    new_as(parent_pid, reply_cap, as_args);
+
+    if (SOS_DEBUG) printf("start_process end\n");
+}
+
+void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
+    start_process_args *args = (start_process_args *) _args;
+    // Get args that we use
+    char *app_name = args->app_name;
     if (new_pid == PROC_ERR) {
         if (reply_cap) {
             assert(RTN_ON_FAIL);
@@ -132,14 +141,14 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
             assert(0); 
         }
     }
-
+    if (SOS_DEBUG) printf("pid: %d\n", new_pid);
     // Address space of process
     addr_space* as = proc_table[new_pid];
 
     //do some preliminary initialisation
     as->status = 0;
     as->priority = args->priority;
-    as->parent_pid = parent_pid;
+    as->parent_pid = args->parent_pid;
     as->pid = new_pid; 
     as->size = 0;
     as->create_time = time_stamp();
@@ -200,16 +209,15 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     }
 
     alloc_args->map = NOMAP;
-    alloc_args->cb = start_process_cb;
+    alloc_args->cb = start_process_cb2;
     alloc_args->cb_args = args;
 
     /* Get IPC buffer */
     frame_alloc_swap(new_pid, reply_cap, alloc_args);
-    if (SOS_DEBUG) printf("start_process end\n");
 }
 
-void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
-    if (SOS_DEBUG) printf("start_process_cb\n");
+void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
+    if (SOS_DEBUG) printf("start_process_cb2\n");
 	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
 	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
 
@@ -288,7 +296,12 @@ void start_process_cb(int new_pid, seL4_CPtr reply_cap, void *args) {
     load_args->cb = start_process_cb_cont;
     load_args->cb_args = process_args;
     elf_load(new_pid, reply_cap, load_args);
-    if (SOS_DEBUG) printf("start_process_cb end\n");
+    if (reply_cap) {
+        // 9242_TODO Possibly make this a callback later instead
+        // depending on how you want to do process create
+        send_seL4_reply(reply_cap, new_pid);
+    }
+    if (SOS_DEBUG) printf("start_process_cb2 end\n");
 }
 
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {

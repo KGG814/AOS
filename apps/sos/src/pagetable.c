@@ -24,22 +24,65 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args);
 void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args);
 void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args);
 void copy_page_cb(int pid, seL4_CPtr, void *args);
+void pd_init_cb(int pid, seL4_CPtr reply_cap, void *args);
+void pd_caps_init(int pid, seL4_CPtr reply_cap, void *_args);
+void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, void *_args);
 
-int page_init(int pid) {
-    seL4_Word vaddr;
-    if (SOS_DEBUG) printf("page_init frame_alloc\n");
-    int index = frame_alloc(&vaddr, KMAP, pid);
+void pd_init(int pid, seL4_CPtr reply_cap, void *args) {
+    if (SOS_DEBUG) printf("pd_init\n");
+    frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    alloc_args->map = KMAP;
+    alloc_args->cb = pd_init_cb;
+    alloc_args->cb_args = args;
+    frame_alloc_swap(pid, reply_cap, alloc_args);
+    if (SOS_DEBUG) printf("pd_init ended\n");
+}
+
+void pd_init_cb(int pid, seL4_CPtr reply_cap, void *args) {
+    if (SOS_DEBUG) printf("pd_init_cb\n");
+    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+    vm_init_args *vm_args = (vm_init_args *) alloc_args->cb_args;
+    int index = alloc_args->index;
+    seL4_Word vaddr = alloc_args->vaddr;
+    vm_args->curr_page = 0;
+    free(alloc_args);
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
     frametable[index].frame_status |= FRAME_DONT_SWAP;
-    for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        if (SOS_DEBUG) printf("page_init frame_alloc\n");
-        index = frame_alloc(&vaddr, KMAP, pid);
-        proc_table[pid]->cap_table[i] = (seL4_ARM_PageTable*)vaddr;
-        memset((seL4_ARM_PageTable*) vaddr, 0, PAGE_SIZE);
-        frametable[index].frame_status |= FRAME_DONT_SWAP;
-    }
+    pd_caps_init(pid, reply_cap, vm_args);
+    if (SOS_DEBUG) printf("pd_init_cb ended\n");
+}
 
-    return 0;
+void pd_caps_init(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("pd_caps_init\n");
+    vm_init_args *args = (vm_init_args *) _args;
+    int curr_page = args->curr_page;
+    if (curr_page < CAP_TABLE_PAGES) {
+        frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+        alloc_args->map = KMAP;
+        alloc_args->cb = pd_caps_init_cb;
+        alloc_args->cb_args = args;
+        frame_alloc_swap(pid, reply_cap, alloc_args);
+    } else {
+        start_process_args *process_args = (start_process_args *) args->cb_args;
+        args->cb(pid, reply_cap, process_args);
+    }
+    if (SOS_DEBUG) printf("pd_caps_init ended\n");
+}
+
+void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("pd_caps_init_cb\n");
+    frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
+    seL4_Word vaddr = alloc_args->vaddr;
+    seL4_Word index = alloc_args->index;
+    vm_init_args *vm_args = (vm_init_args *) alloc_args->cb_args;
+    free(alloc_args);
+    int curr_page = vm_args->curr_page;
+    proc_table[pid]->cap_table[curr_page] = (seL4_ARM_PageTable*) vaddr;
+    memset((seL4_ARM_PageTable*) vaddr, 0, PAGE_SIZE);
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
+    vm_args->curr_page++;
+    pd_caps_init(pid, reply_cap, vm_args);
+    if (SOS_DEBUG) printf("pd_caps_init_cb ended\n");
 }
 
 void pt_cleanup(int pid) {
@@ -176,8 +219,6 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
 
 void handle_vm_fault(seL4_Word badge, int pid) {
     
-    // 9242_TODO Kill process if invalid memory 
-    // 9242_TODO Instruction faults?
     seL4_CPtr reply_cap;
     seL4_Word fault_vaddr = seL4_GetMR(1);
     if (SOS_DEBUG) printf("handle_vm_fault, %p\n", (void *) fault_vaddr);
@@ -207,7 +248,6 @@ void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args) {
 
 
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid) {
-    // 9242_TODO error check instead
     seL4_Word dir_index = PT_TOP(user_ptr);
     seL4_Word page_index = PT_BOTTOM(user_ptr);
     assert(proc_table[pid]->page_directory[dir_index] != NULL);
@@ -347,7 +387,6 @@ void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
 
 void copy_in_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if (SOS_DEBUG) printf("copy_in_cb\n");
-    //9242_TODO pin the page
     copy_in_args *copy_args = args;
     int to_copy = copy_args->nbyte - copy_args->count;
     if ((copy_args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
@@ -421,7 +460,6 @@ int copy_page(seL4_Word dst
     copy_args->cb_args = cb_args;
     copy_args->src_type = src_type;
     int err = map_if_valid(dst & PAGE_MASK, pid, copy_page_cb, copy_args, reply_cap);
-	//9242_TODO pin the page
     if (err) {
         return err;
     }
