@@ -55,7 +55,6 @@ typedef struct  _sos_map_page_args {
   seL4_Word vaddr;
   int ft_index;
   seL4_ARM_PageDirectory pd;
-  seL4_CPtr *frame_cap;
   callback_ptr cb;
   void *cb_args;
 } sos_map_page_args;
@@ -87,7 +86,6 @@ void sos_map_page_swap(int ft_index
                       ,seL4_CPtr reply_cap
                       ,callback_ptr cb
                       ,void *cb_args
-                      ,seL4_CPtr *frame_cap
                       );
 
 void handle_vm_fault(seL4_Word badge, int pid);

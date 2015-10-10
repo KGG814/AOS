@@ -65,6 +65,8 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
     // Get the arguments we use
     unsigned long segment_size = args->segment_size;
     unsigned long file_size = args->file_size;
+    unsigned long dst = args->dst;
+    addr_space *as = proc_table[pid];
     /* Overview of ELF segment loading
 
        dst: destination base virtual address of the segment being loaded
@@ -95,7 +97,17 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
         alloc_args->map = KMAP;
         alloc_args->cb = load_segment_into_vspace_cb;
         alloc_args->cb_args = args;
-        frame_alloc_swap(pid, reply_cap, alloc_args);
+        seL4_Word dir_index = PT_TOP(dst);
+        seL4_Word page_index = PT_BOTTOM(dst);
+        if (as->page_directory[dir_index] == NULL || as->page_directory[dir_index][page_index] == 0) {
+            frame_alloc_swap(pid, reply_cap, alloc_args);
+        } else {
+            
+            args->index = as->page_directory[dir_index][page_index];
+            args->vaddr = index_to_vaddr(args->index);
+            load_segment_into_vspace_cb_continue(pid, reply_cap, args);
+        }
+        
         
     } else {
         args->cb(pid, reply_cap, args->cb_args);
@@ -116,16 +128,15 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args) {
     // Get args we need for this call
     seL4_ARM_PageDirectory dest_as = args->dest_as;
     unsigned long dst = args->dst;
+    if (SOS_DEBUG) printf("index %p\n", (void *)index);
     seL4_Word vpage  = PAGE_ALIGN(dst);
     
     
     addr_space *as = proc_table[pid];
-    seL4_CPtr sos_cap;
-
     
     // Do sos_map_page_swap call
     sos_map_page_swap(index, vpage, dest_as, as, pid, reply_cap,
-                      load_segment_into_vspace_cb_continue, args, &sos_cap);
+                      load_segment_into_vspace_cb_continue, args);
    if (SOS_DEBUG) printf("load_segment_into_vspace_cb end\n");
 }
 
@@ -138,14 +149,14 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_a
     unsigned long file_size = args->file_size;
     unsigned long dst = args->dst;
     char *src = args->src;
-     // Current don't swap ELF files
-    frametable[index].frame_status |= FRAME_DONT_SWAP;
     int nbytes = PAGESIZE - (dst & PAGEMASK);
     int offset = dst & OFST_MASK;
     vaddr = vaddr + offset;
-    if (pos < file_size){        
+    if (pos < file_size){     
         memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - args->pos));
-    }    
+    }   
+    seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
+
     args->pos += nbytes;
     args->dst += nbytes;
     args->src += nbytes;

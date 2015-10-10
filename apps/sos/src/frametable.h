@@ -38,6 +38,7 @@ typedef struct _ft_entry {
     seL4_Word frame_status;
     seL4_CPtr frame_cap;
     seL4_Word vaddr;
+    seL4_CPtr mapping_cap;
 } ft_entry;
 
 typedef struct _frame_alloc_args {

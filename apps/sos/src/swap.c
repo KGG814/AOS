@@ -94,8 +94,6 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	    // DEBUG
 	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p\n", (void *) frametable[index].vaddr);
 	    assert(frametable[index].vaddr != 0);
-	    // Flush in case it is an instruction frame
-	    seL4_ARM_Page_Unify_Instruction(frametable[index].frame_cap, 0, PAGESIZE);
 	    // Set the process's page table entry to swapped and store the swap slot
 	    proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
 	    // Set the frame vaddr to 0, removing association with vmem
@@ -225,7 +223,7 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 
 
 
-void read_from_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
+void read_from_swap_slot(int pid, seL4_CPtr reply_cap, void *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot\n");
 	// Initialise arguments to frame alloc
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
@@ -237,7 +235,7 @@ void read_from_swap_slot (int pid, seL4_CPtr reply_cap, void *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot ended\n");
 }
 
-void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, void *args) {
+void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, void *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot_cb\n");
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     read_swap_args *read_args = alloc_args->cb_args;
@@ -275,10 +273,9 @@ void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, void *args) {
         frametable[read_args->index].frame_status = FRAME_IN_USE | (read_args->pid << PROCESS_BIT_SHIFT) | buffer_head;
     }
     
-    seL4_CPtr temp;
     sos_map_page_swap(read_args->index, read_args->vaddr, proc_table[pid]->vroot, 
                       proc_table[pid], pid, reply_cap, read_from_swap_slot_cb_continue,
-                      read_args, &temp);
+                      read_args);
     if (SOS_DEBUG) printf("read_from_swap_slot_cb ended\n");
 
 }
@@ -300,6 +297,7 @@ void read_from_swap_slot_cb_continue (int pid, seL4_CPtr reply_cap, void *args) 
 void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
 	if (SOS_DEBUG) printf("swap_read_nfs_cb\n");
 	read_swap_args *read_args = (read_swap_args *) token;
+	int index = read_args->index;
 	read_args->bytes_read += count;
 	read_args->offset += count;
 	assert(count != 0);
@@ -310,6 +308,7 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 		memcpy((void *) index_to_vaddr(read_args->index), data, count);
 		if (read_args->bytes_read == PAGE_SIZE) {
 			// Free swap slot
+			seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
 			free_swap_slot(read_args->slot);
 			read_args->cb(read_args->pid, read_args->reply_cap, read_args->cb_args);
 			free(read_args);

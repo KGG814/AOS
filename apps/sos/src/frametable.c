@@ -114,6 +114,8 @@ int frame_init(void) {
     for (int i = 0; i < num_frames; i++) {
         frametable[i].frame_status = 0;
         frametable[i].frame_cap = 0;
+        frametable[i].mapping_cap = 0;
+        frametable[i].vaddr = 0;
     }
 
     int index = 0;
@@ -277,7 +279,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if (!(frametable[alloc_args->index].frame_status & SWAP_BUFFER_MASK)) {
         // Not in the swap buffer, need to put it in
         /* Swap buffer */
-        //printf("Not in swap buffer\n");
+        if (SOS_DEBUG) printf("Not in swap buffer\n");
         if (buffer_head == -1) {
             buffer_head = alloc_args->index;
         } else {
@@ -304,7 +306,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
             //(void *) frame_num,(void *)  alloc_args->index, pid, 
             //(void *)frametable[alloc_args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
     alloc_args->cb(pid, reply_cap, args);
-    if (SOS_DEBUG) printf("frame_alloc_cb ended\n");
+    if (SOS_DEBUG) printf("frame_alloc_cb ended, index %p\n", (void *) alloc_args->index);
 }
 
 //frame_free: the physical memory is no longer mapped in the window, the frame 
@@ -343,11 +345,11 @@ int frame_free(int index) {
 }
 
 int get_next_frame_to_swap(void) {
-    if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
+    if (SOS_DEBUG) printf("get_next_frame_to_swap %p\n");
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
     while (1) {
-        //printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
+        if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
           assert(1==0);  
         }
@@ -360,6 +362,7 @@ int get_next_frame_to_swap(void) {
             } else if (status & FRAME_IN_USE) {
                 frametable[next_frame].frame_status |= FRAME_SWAP_MARKED;
                 /* Unmap and map back into kernel only */
+                seL4_ARM_Page_Unify_Instruction(frametable[next_frame].mapping_cap, 0, PAGESIZE);
                 cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
                 seL4_ARM_Page_Unmap(frametable[next_frame].frame_cap);
                 int err = map_page(frametable[next_frame].frame_cap
@@ -368,6 +371,7 @@ int get_next_frame_to_swap(void) {
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
+                frametable[next_frame].mapping_cap = 0;
                 assert(err == 0);
             }
         }

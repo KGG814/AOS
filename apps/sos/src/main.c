@@ -153,7 +153,7 @@ void syscall_loop(seL4_CPtr ep) {
             //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
             handle_vm_fault(badge, badge);
         }else if(label == seL4_NoFault) {
-            printf("Syscall from process with badge: %d\n", badge);
+            if (SOS_DEBUG) printf("Syscall from process with badge: %d\n", badge);
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
 
