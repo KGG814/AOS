@@ -18,6 +18,7 @@
 void elf_load(int pid, seL4_CPtr reply_cap, void *_args);
 
 typedef struct _load_segment_args {
+	//9242_TODO Get rid of this variable
 	seL4_ARM_PageDirectory dest_as;
 	char *src;
 	unsigned long dst;

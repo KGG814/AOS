@@ -82,7 +82,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     args->new_pid = new_pid;
     vm_args->cb = args->cb;
     vm_args->cb_args = args->cb_args;
-    pd_init(new_pid, reply_cap, vm_args);
+    vm_init(new_pid, reply_cap, vm_args);
     free(vm_args);
 }
 

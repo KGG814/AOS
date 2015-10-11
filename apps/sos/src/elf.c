@@ -37,8 +37,8 @@
 #define IS_PAGESIZE_ALIGNED(addr) !((addr) &  (PAGEMASK))
 #define OFST_MASK 0x00000FFF
 
-void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args);
-void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_args);
+void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
+void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_segment_args *args);
 /*
  * Convert ELF permissions into seL4 permissions.
  */
@@ -58,14 +58,8 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 /*
  * Inject data into the given vspace.
  */
-void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
+void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
     if (SOS_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
-    load_segment_args *args = (load_segment_args *) _args;
-    // Get the arguments we use
-    unsigned long segment_size = args->segment_size;
-    unsigned long file_size = args->file_size;
-    unsigned long dst = args->dst;
-    addr_space *as = proc_table[pid];
     /* Overview of ELF segment loading
 
        dst: destination base virtual address of the segment being loaded
@@ -88,69 +82,90 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, void *_args) {
        zero-filling a newly allocated frame.
 
     */  
-    assert(file_size <= segment_size);
+    // Get the arguments we use
+    // Segment size
+    unsigned long segment_size  = args->segment_size;
+    // ELF file size
+    unsigned long file_size     = args->file_size;
+    // Destination in user address space to copy to
+    unsigned long dst           = args->dst;
+    // Position in the current file, which is also used as the loop condition
+    unsigned long pos           = args->pos;
 
-    /* We work a page at a time in the destination vspace. */
-    if (args->pos < segment_size) {        
-        frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
-        alloc_args->map = KMAP;
-        alloc_args->cb = load_segment_into_vspace_cb;
-        alloc_args->cb_args = args;
+    // Address space of the process
+    addr_space *as = proc_table[pid];
+    // Make sure inputs are valid
+    assert(file_size <= segment_size);
+    // Check if we have reached end of segment
+    if (pos < segment_size) {    
+        // If multiple segments reside in a frame, it is possible a frame has already been allocated
+        // Page directory and page table indices
         seL4_Word dir_index = PT_TOP(dst);
         seL4_Word page_index = PT_BOTTOM(dst);
+        // Check if address is mapped in already
         if (as->page_directory[dir_index] == NULL || as->page_directory[dir_index][page_index] == 0) {
+            // Has not been mapped in, allocate a frame for the ELF file to be copied to
+            // Set up frame alloc args    
+            frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+            alloc_args->map = KMAP;
+            alloc_args->cb = (callback_ptr) load_segment_into_vspace_cb;
+            alloc_args->cb_args = args;
             frame_alloc_swap(pid, reply_cap, alloc_args);
         } else {
-            
+            // Already been mapped in, can skip frame allocation
             args->index = as->page_directory[dir_index][page_index];
             args->vaddr = index_to_vaddr(args->index);
             load_segment_into_vspace_cb_continue(pid, reply_cap, args);
-        }
-        
-        
+        }  
     } else {
+        // End of segment reeached, callback
         args->cb(pid, reply_cap, args->cb_args);
     }
     if (SOS_DEBUG) printf("load_segment_into_vspace end\n");
 }
 
-void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     if (SOS_DEBUG) printf("load_segment_into_vspace_cb\n");
-    // Get results and args from frame_alloc call
-    frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
-    int index = alloc_args->index;
-    load_segment_args *args = (load_segment_args *) alloc_args->cb_args;
-    args->index = alloc_args->index;
-    args->vaddr = alloc_args->vaddr;
+    // Get results from frame_alloc call
+    load_segment_args *load_args = (load_segment_args *) args->cb_args;
+    // Copy results from frame_alloc call to arguments for this call
+    load_args->index = args->index;
+    load_args->vaddr = args->vaddr;
+
     // Free frame alloc args
-    free(alloc_args);
+    free(args);
     // Get args we need for this call
-    seL4_ARM_PageDirectory dest_as = args->dest_as;
-    unsigned long dst = args->dst;
+    seL4_ARM_PageDirectory dest_as = load_args->dest_as;
+    unsigned long dst = load_args->dst;
+    int index = load_args->index;
+    // Debud print
     if (SOS_DEBUG) printf("index %p\n", (void *)index);
+    // 9242_TODO Remove this line and make sure it works, shouldn't need it
+    // as sos_map_page should do this already
     seL4_Word vpage  = PAGE_ALIGN(dst);
-    
-    
+    // Address space of this process
     addr_space *as = proc_table[pid];
     
     // Do sos_map_page_swap call
+    // 9242_TODO test here by using pid for address space etc.
     sos_map_page_swap(index, vpage, dest_as, as, pid, reply_cap,
-                      load_segment_into_vspace_cb_continue, args);
+                      (callback_ptr) load_segment_into_vspace_cb_continue, args);
    if (SOS_DEBUG) printf("load_segment_into_vspace_cb end\n");
 }
 
-void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, void *_args) {
+void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
     if (SOS_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
-    load_segment_args *args = (load_segment_args *) _args;
-    int index = args->index;
-    seL4_Word vaddr = args->vaddr;
-    unsigned long pos = args->pos;
-    unsigned long file_size = args->file_size;
-    unsigned long dst = args->dst;
-    char *src = args->src;
+    // Get the arguments we use
+    int index                   = args->index;
+    seL4_Word vaddr             = args->vaddr;
+    unsigned long pos           = args->pos;
+    unsigned long file_size     = args->file_size;
+    unsigned long dst           = args->dst;
+    char *src                   = args->src;
+    // Calculate nuber of bytes left to right
     int nbytes = PAGESIZE - (dst & PAGEMASK);
-    int offset = dst & OFST_MASK;
-    vaddr = vaddr + offset;
+    // Might not be copying to start of page, so add offset from user ptr
+    vaddr = vaddr + (dst & OFST_MASK);
     if (pos < file_size){     
         memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - args->pos));
     }   

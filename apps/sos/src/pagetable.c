@@ -24,63 +24,95 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args);
 void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args);
 void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args);
 void copy_page_cb(int pid, seL4_CPtr, void *args);
-void pd_init_cb(int pid, seL4_CPtr reply_cap, void *args);
-void pd_caps_init(int pid, seL4_CPtr reply_cap, void *_args);
-void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, void *_args);
+void pd_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
+void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *vm_args);
+void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
+int map_new_frame (seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 
-void pd_init(int pid, seL4_CPtr reply_cap, void *args) {
+// Call to initialise the SOS page directory, as well as the 
+// frames to store caps for the ARM page tables
+void vm_init(int pid, seL4_CPtr reply_cap, void *args) {
     if (SOS_DEBUG) printf("pd_init\n");
+    // Set up frame frame_alloc args
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
-    alloc_args->map = KMAP;
-    alloc_args->cb = pd_init_cb;
+    alloc_args->map     = KMAP;
+    alloc_args->cb      = (callback_ptr)pd_init_cb;
     alloc_args->cb_args = args;
+    // Get a frame for the page directory
     frame_alloc_swap(pid, reply_cap, alloc_args);
     if (SOS_DEBUG) printf("pd_init ended\n");
 }
 
-void pd_init_cb(int pid, seL4_CPtr reply_cap, void *args) {
+// Callback for SOS page directory setup
+void pd_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     if (SOS_DEBUG) printf("pd_init_cb\n");
-    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
-    vm_init_args *vm_args = (vm_init_args *) alloc_args->cb_args;
-    int index = alloc_args->index;
-    seL4_Word vaddr = alloc_args->vaddr;
+    // Get the return values from the frame_alloc call
+    vm_init_args *vm_args  = (vm_init_args *) args->cb_args;
+    int index                   = args->index;
+    seL4_Word vaddr             = args->vaddr;
+    // Set up args for callback
     vm_args->curr_page = 0;
-    free(alloc_args);
+    // Free args from frame_alloc cal
+    free(args);
+    // Set the page directory to the newly allocated page
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
+    // Make sure the page directory isn't swapped out
     frametable[index].frame_status |= FRAME_DONT_SWAP;
+    // Continue initialisation
     pd_caps_init(pid, reply_cap, vm_args);
     if (SOS_DEBUG) printf("pd_init_cb ended\n");
 }
 
-void pd_caps_init(int pid, seL4_CPtr reply_cap, void *_args) {
+// Initialisation for ARM page table cap storage frames
+void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
     if (SOS_DEBUG) printf("pd_caps_init\n");
-    vm_init_args *args = (vm_init_args *) _args;
+    // Get arguments we need
+    // loop counter for allocating pages
     int curr_page = args->curr_page;
+    // Check if we have allocated all the pages
     if (curr_page < CAP_TABLE_PAGES) {
+        // Haven't allocated pages yet, call frame_alloc
+        // And loop back to this function through
+        // the callback
+        // Set up frame_alloc args
         frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
-        alloc_args->map = KMAP;
-        alloc_args->cb = pd_caps_init_cb;
+        alloc_args->map     = KMAP;
+        alloc_args->cb      = (callback_ptr)pd_caps_init_cb;
         alloc_args->cb_args = args;
         frame_alloc_swap(pid, reply_cap, alloc_args);
     } else {
+        // Allocated all the frames, do callback
         start_process_args *process_args = (start_process_args *) args->cb_args;
         args->cb(pid, reply_cap, process_args);
     }
     if (SOS_DEBUG) printf("pd_caps_init ended\n");
 }
 
-void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     if (SOS_DEBUG) printf("pd_caps_init_cb\n");
-    frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
-    seL4_Word vaddr = alloc_args->vaddr;
-    seL4_Word index = alloc_args->index;
-    vm_init_args *vm_args = (vm_init_args *) alloc_args->cb_args;
-    free(alloc_args);
+    // Get the return values from the frame_alloc call
+    // Kernel vaddr of frame that was mapped
+    seL4_Word vaddr = args->vaddr;
+    // Frametable index of frame that was mapped
+    seL4_Word index = args->index;
+    // Arguments for this function call
+    vm_init_args *vm_args = (vm_init_args *) args->cb_args;
+
+    // Free frame_alloc args
+    free(args);
+
+    // Get arguments we need
+    // loop counter
+
     int curr_page = vm_args->curr_page;
+    // Set cap storage to the frame we just allocated
+    // This is an array of ARM page tables
     proc_table[pid]->cap_table[curr_page] = (seL4_ARM_PageTable*) vaddr;
-    memset((seL4_ARM_PageTable*) vaddr, 0, PAGE_SIZE);
+    // Don't swap these frames
     frametable[index].frame_status |= FRAME_DONT_SWAP;
+    // Increment loop counter
     vm_args->curr_page++;
+    // Call to start of loop
     pd_caps_init(pid, reply_cap, vm_args);
     if (SOS_DEBUG) printf("pd_caps_init_cb ended\n");
 }
@@ -297,6 +329,10 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
         }
     }    
 
+    return map_new_frame(vaddr, pid, cb, args, reply_cap);
+}
+
+int map_new_frame (seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap) {
     int err = 0;
     //int permissions = 0;
     if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
@@ -330,7 +366,6 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
     alloc_args->cb = map_if_valid_cb;
     alloc_args->cb_args = (void *) map_args;
     frame_alloc_swap(pid, reply_cap, alloc_args);
-    if (SOS_DEBUG) printf("map_if_valid ended\n");
     return 0;
 }
 

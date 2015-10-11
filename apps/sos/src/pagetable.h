@@ -58,10 +58,11 @@ typedef struct _copy_out_args {
 } copy_out_args;
 
 typedef struct  _sos_map_page_args {
+  // 9242_TODO Get rid of both of these, only need pid
   addr_space *as;
+  seL4_ARM_PageDirectory pd;
   seL4_Word vaddr;
   int ft_index;
-  seL4_ARM_PageDirectory pd;
   callback_ptr cb;
   void *cb_args;
 } sos_map_page_args;
@@ -99,7 +100,7 @@ void handle_vm_fault(seL4_Word badge, int pid);
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
-void pd_init(int pid, seL4_CPtr reply_cap, void *args);
+void vm_init(int pid, seL4_CPtr reply_cap, void *args);
 void copy_in(int pid
            ,seL4_CPtr reply_cap
            ,copy_in_args *args
