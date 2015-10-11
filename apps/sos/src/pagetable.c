@@ -197,6 +197,7 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
+    memset(alloc_args->vaddr, 0, PAGE_SIZE);
     assert(err==0);
     frametable[alloc_args->index].vaddr = -1;
     frametable[alloc_args->index].frame_status |= FRAME_DONT_SWAP;
@@ -219,6 +220,8 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
     assert(as->page_directory[dir_index] != NULL);
     if (SOS_DEBUG) printf("dir_index %d, page_index %d\n", dir_index, page_index);
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
+        printf("Page was swapped out from under us: %p, pid: %d, value %p", (void *) vaddr, pid, 
+                (void *) as->page_directory[dir_index][page_index]);
         assert(1==0);
     } else {
         as->page_directory[dir_index][page_index] = index;
@@ -231,8 +234,8 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
                                    );
             int err = map_page_user(cap, pd, vaddr, 
                         seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
-            printf("Err: %d\n", err);
-            assert(err == 0);
+            printf("Err: %d, vaddr: %p\n", err, (void *)vaddr);
+            assert(err == 0); 
             if (!err) {
                 seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE); 
                 frametable[index].mapping_cap = cap; 

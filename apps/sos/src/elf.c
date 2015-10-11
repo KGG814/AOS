@@ -162,6 +162,7 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_seg
     if (pos < file_size){     
         memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - args->pos));
     }   
+    printf("index: %d\n", index);
     seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
 
     args->pos += nbytes;
