@@ -161,7 +161,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
         if (write_args == NULL) {
             args->cb(pid, reply_cap, args);
         }
-        write_args->cb = frame_alloc_cb;
+        write_args->cb = (callback_ptr) frame_alloc_cb;
         write_args->cb_args = args;
         write_args->pid = pid;
         write_args->reply_cap = reply_cap;
@@ -206,11 +206,11 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
 // Memory has been ut_alloced and retyped, do frametable metadata update
 // and map into kernel virtual memory
 void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
-    if (SOS_DEBUG) printf("frame_alloc_cb\n");
     // Get arguments we need
     int map             = args->map;
     seL4_Word pt_addr   = args->pt_addr;
     int index           = args->index;
+    if (SOS_DEBUG) printf("frame_alloc_cb index %p\n", (void *) index);
     // Error value
     int err = 0;
     // If it needs to be mapped into kernel memory, do so
@@ -243,21 +243,20 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
             // Clear the buffer bits
             frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
             // Set the buffer bits
-            frametable[buffer_tail].frame_status |= args->index;
+            frametable[buffer_tail].frame_status |= index;
         }
         // Set the tail to the new buffer
         buffer_tail = index;
         // Make the new frame (which is now the tail), point to the head
-        frametable[args->index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
+        frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
     } else {
         // Already in the swap buffer, just set the pid and status bits
         // This saves us having to remove it from the list and put it at the end, 
         // which would require a doubly linked buffer
-        // 9242_TODO Pretty sure this is meant to be index not buffer tail
         // Clear the pid
-        frametable[buffer_tail].frame_status &= ~PROCESS_MASK;
+        frametable[index].frame_status &= ~PROCESS_MASK;
         // Set the pid and set it to a vlid frame
-        frametable[buffer_tail].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
+        frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     }
     // Set the vaddr in the return values
     args->vaddr = paddr_to_vaddr(pt_addr);
@@ -271,7 +270,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     }  
     // Debug print
     if (SOS_DEBUG) {
-        printf("Swap: Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
+        printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
             (void *) frame_num,(void *)  args->index, pid, 
             (void *)frametable[args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
     } 

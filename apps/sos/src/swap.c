@@ -95,6 +95,7 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p\n", (void *) frametable[index].vaddr);
 	    assert(frametable[index].vaddr != 0);
 	    // Set the process's page table entry to swapped and store the swap slot
+	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
 	    proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
 	    // Set the frame vaddr to 0, removing association with vmem
 	    frametable[index].vaddr = 0;
@@ -251,17 +252,18 @@ void read_from_swap_slot(int pid, seL4_CPtr reply_cap, read_swap_args *args) {
 // frame haw now been allocated so swap buffer must be manipulated
 void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot_cb\n");
-    read_swap_args *read_args = (read_swap_args *)args;
+    read_swap_args *read_args = (read_swap_args *)args->cb_args;
     // Copy the index from the frame_alloc return vars to the read args
     read_args->index = args->index;
-    // Free the args from the frame_alloc call
-    free(args);
     // Get the arguments we're using
     int index = read_args->index;
     seL4_Word vaddr = read_args->vaddr;
     // Get page directory entries
     int dir_index = PT_TOP(vaddr);
     int page_index = PT_BOTTOM(vaddr);
+    // Free the args from the frame_alloc call
+    free(args);
+    if (SOS_DEBUG) printf("Checking vaddr %p is swapped\n", (void *) vaddr);
     // Make sure the vaddr we're trying to handle is actually swapped out still
     assert(proc_table[pid]->page_directory[dir_index][page_index] & SWAPPED);
     // Get the swap slot from the page table
@@ -287,8 +289,7 @@ void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args
         frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
     }
     
-    sos_map_page_swap(read_args->index, vaddr, proc_table[pid]->vroot, 
-                      proc_table[pid], pid, reply_cap, (callback_ptr)read_from_swap_slot_cb2,
+    sos_map_page_swap(read_args->index, vaddr, pid, reply_cap, (callback_ptr)read_from_swap_slot_cb2,
                       read_args);
     if (SOS_DEBUG) printf("read_from_swap_slot_cb ended\n");
 

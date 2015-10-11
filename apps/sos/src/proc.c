@@ -114,20 +114,18 @@ void cleanup_as(int pid) {
 } 
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
-    if (SOS_DEBUG) printf("start_process\n");
+    if (TMP_DEBUG) printf("start_process\n");
 	start_process_args *args = (start_process_args *) _args;
-
-	
 	// Get new pid/make new address space
     new_as_args *as_args = malloc(sizeof(new_as_args));
     as_args->cb = start_process_cb1;
     as_args->cb_args = args;
     new_as(parent_pid, reply_cap, as_args);
-
-    if (SOS_DEBUG) printf("start_process end\n");
+    if (TMP_DEBUG) printf("start_process end\n");
 }
 
 void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
+    if (TMP_DEBUG) printf("start_process_cb1\n");
     start_process_args *args = (start_process_args *) _args;
     // Get args that we use
     char *app_name = args->app_name;
@@ -141,7 +139,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
             assert(0); 
         }
     }
-    if (SOS_DEBUG) printf("pid: %d\n", new_pid);
+    if (TMP_DEBUG) printf("pid: %d\n", new_pid);
     // Address space of process
     addr_space* as = proc_table[new_pid];
 
@@ -214,17 +212,18 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
 
     /* Get IPC buffer */
     frame_alloc_swap(new_pid, reply_cap, alloc_args);
+    if (TMP_DEBUG) printf("start_process_cb1 end\n");
 }
 
 void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
-    if (SOS_DEBUG) printf("start_process_cb2\n");
+    if (TMP_DEBUG) printf("start_process_cb2\n");
 	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
 	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
-
     if (alloc_args->index < 0) {
         free(process_args);
         free(alloc_args);
         cleanup_as(new_pid);
+        return;
     }
 
 	/* Get args */
@@ -253,7 +252,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     conditional_panic(err, "Unable to map IPC buffer for user app");
 
     /* Copy the fault endpoint to the user app to enable IPC */
-    printf("PID is %d\n", new_pid);
+   if (TMP_DEBUG) printf("PID is %d\n", new_pid);
     user_ep_cap = cspace_mint_cap(as->croot
                                  ,cur_cspace
                                  ,process_args->fault_ep
@@ -261,8 +260,6 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
                                  ,seL4_CapData_Badge_new(new_pid)
                                  );
 
-    free(process_args);
-    
     //???
     /* should be the first slot in the space, hack I know */
     //assert(user_ep_cap == 1);
@@ -295,17 +292,15 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     load_args->curr_header = 0;
     load_args->cb = start_process_cb_cont;
     load_args->cb_args = process_args;
+    printf("reply cap %p\n",(void *) reply_cap);
     elf_load(new_pid, reply_cap, load_args);
-    if (reply_cap) {
-        // 9242_TODO Possibly make this a callback later instead
-        // depending on how you want to do process create
-        send_seL4_reply(reply_cap, new_pid);
-    }
-    if (SOS_DEBUG) printf("start_process_cb2 end\n");
+    
+    if (TMP_DEBUG) printf("start_process_cb2 end\n");
 }
 
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {
-    if (SOS_DEBUG) printf("start_process_cb_cont\n");
+    if (TMP_DEBUG) printf("start_process_cb_cont\n");
+    printf("reply cap %p\n",(void *) reply_cap);
     start_process_args *args = (start_process_args *) _args;
     /* These required for setting up the TCB */
     seL4_UserContext context;
@@ -315,11 +310,10 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args) {
     context.pc = elf_getEntryPoint(args->elf_base);
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
-
-    if (reply_cap) {
-        send_seL4_reply(reply_cap, pid);
+    if (args->cb) {
+        args->cb(pid, reply_cap, args->cb_args);
     }
-    if (SOS_DEBUG) printf("start_process_cb_cont end\n");
+    if (TMP_DEBUG) printf("start_process_cb_cont end\n");
 }
 
 void process_status(seL4_CPtr reply_cap
@@ -370,4 +364,10 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *args) {
     free((void *) copy_args->src);
     free(args);
     printf("ps done\n");
+}
+
+void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args) {
+    if (TMP_DEBUG) printf("handle_process_create_cb\n");
+    send_seL4_reply(reply_cap, pid);
+    if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
 }

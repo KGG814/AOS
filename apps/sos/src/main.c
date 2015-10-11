@@ -55,7 +55,6 @@ sync endpoint. The badge that we receive will
 #define IRQ_BADGE_TIMER   (1 << 1)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
-#define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (1)
 #define seL4_MsgMaxLength    120
 
@@ -80,6 +79,7 @@ syscall_handler syscall_handlers[] =
 ,&handle_stat
 ,&handle_my_id
 ,&handle_process_status
+,&handle_process_create
 };
 
 struct {
@@ -131,7 +131,6 @@ void syscall_loop(seL4_CPtr ep) {
         seL4_Word label;
         seL4_MessageInfo_t message;
         message = seL4_Wait(ep, &badge);
-        if (SOS_DEBUG) printf("Syscall loop\n");
         label = seL4_MessageInfo_get_label(message);  
         //dprintf(0, "Badge: %d\n", badge);
         //dprintf(0, "Label: %p\n", label);
@@ -232,6 +231,8 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     process_args->app_name = app_name;
     process_args->fault_ep = fault_ep;
     process_args->priority = TTY_PRIORITY;
+    process_args->cb = NULL;
+    process_args->cb_args = NULL;
     start_process(0, 0, process_args);
 }
 

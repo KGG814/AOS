@@ -150,18 +150,16 @@ void pt_cleanup(int pid) {
     }
 } 
 
-void sos_map_page_swap(int ft_index, seL4_Word vaddr, seL4_ARM_PageDirectory pd
-                      ,addr_space* as, int pid, seL4_CPtr reply_cap
+void sos_map_page_swap(int ft_index, seL4_Word vaddr, int pid, seL4_CPtr reply_cap
                       ,callback_ptr cb, void *cb_args) {
     if (SOS_DEBUG) printf("sos_map_page_swap, %p\n", (void *) vaddr);
     sos_map_page_args *map_args = malloc(sizeof(sos_map_page_args));
+    addr_space *as = proc_table[pid];
     if (map_args == NULL) {
         send_seL4_reply(reply_cap, -1);
     } else {
-        map_args->as = as;
-        map_args->vaddr = vaddr;
+        map_args->vaddr = vaddr & PAGE_MASK;
         map_args->ft_index = ft_index;
-        map_args->pd = pd;
         map_args->cb = cb;
         map_args->cb_args = cb_args;
         seL4_Word dir_index = PT_TOP(vaddr);
@@ -191,7 +189,7 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     sos_map_page_args *map_args = alloc_args->cb_args;
     seL4_Word dir_index = PT_TOP(map_args->vaddr);
-    map_args->as->page_directory[dir_index] = (seL4_Word *) alloc_args->vaddr;
+    proc_table[pid]->page_directory[dir_index] = (seL4_Word *) alloc_args->vaddr;
     seL4_ARM_Page_Unmap(frametable[alloc_args->index].frame_cap);
     int err = map_page(frametable[alloc_args->index].frame_cap
                    ,seL4_CapInitThreadPD
@@ -211,8 +209,8 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
     // Get arguments we need 
     sos_map_page_args *map_args = (sos_map_page_args *) args;
     int index = map_args->ft_index;
-    addr_space *as = map_args->as;
-    seL4_ARM_PageDirectory pd = map_args->pd;
+    addr_space *as = proc_table[pid];
+    seL4_ARM_PageDirectory pd = as->vroot;
     seL4_Word vaddr = map_args->vaddr;
     
     if (SOS_DEBUG) printf("sos_map_page_cb at %p\n", (void *) map_args->vaddr);
@@ -233,6 +231,8 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
                                    );
             int err = map_page_user(cap, pd, vaddr, 
                         seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+            printf("Err: %d\n", err);
+            assert(err == 0);
             if (!err) {
                 seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE); 
                 frametable[index].mapping_cap = cap; 
@@ -295,6 +295,7 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
     if (proc_table[pid]->page_directory[dir_index] != NULL) {
         int index = proc_table[pid]->page_directory[dir_index][page_index];
         if (index & SWAPPED) {
+            if (SOS_DEBUG) printf("page was swapped\n");
             read_swap_args *swap_args = malloc(sizeof(read_swap_args));
             swap_args->cb = cb;
             swap_args->cb_args = args;
@@ -306,6 +307,7 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
         } else if (index != 0 && frametable[index].vaddr == vaddr && 
                    frametable[index].frame_status & FRAME_SWAP_MARKED) {
             // Was temporarily unmapped by clock algo, just map back in
+            if (SOS_DEBUG) printf("unmapped by clock, map back in\n");
             seL4_CPtr cap = cspace_copy_cap(cur_cspace
                                    ,cur_cspace
                                    ,frametable[index].frame_cap
@@ -322,6 +324,7 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
                 return 0;
             }
         } else if (index != 0) {
+            if (SOS_DEBUG) printf("page should be mapped in\n");
             if (cb != NULL) {
                 cb(pid, reply_cap, args);
                 return 0;
@@ -374,8 +377,7 @@ void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     map_if_valid_args *map_args = alloc_args->cb_args;
     map_args->ft_index = alloc_args->index;
-    sos_map_page_swap(map_args->ft_index, map_args->vaddr, proc_table[pid]->vroot, 
-                      proc_table[pid], pid, reply_cap, map_if_valid_cb_continue,
+    sos_map_page_swap(map_args->ft_index, map_args->vaddr, pid, reply_cap, map_if_valid_cb_continue,
                       map_args);
     free(alloc_args);
     if (SOS_DEBUG) printf("map_if_valid_cb ended\n");

@@ -59,8 +59,6 @@ typedef struct _copy_out_args {
 
 typedef struct  _sos_map_page_args {
   // 9242_TODO Get rid of both of these, only need pid
-  addr_space *as;
-  seL4_ARM_PageDirectory pd;
   seL4_Word vaddr;
   int ft_index;
   callback_ptr cb;
@@ -88,8 +86,6 @@ void pt_cleanup(int pid);
 
 void sos_map_page_swap(int ft_index
                       ,seL4_Word vaddr
-                      ,seL4_ARM_PageDirectory pd
-                      ,addr_space* as
                       ,int pid
                       ,seL4_CPtr reply_cap
                       ,callback_ptr cb

@@ -236,7 +236,17 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  * file).
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
-
+    seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
+    seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
+    printf("Starting process %s\n", (char *) kernel_path);
+    start_process_args *process_args = malloc(sizeof(start_process_args));
+    process_args->app_name = (char *)kernel_path;
+    process_args->fault_ep = _sos_ipc_ep_cap;
+    process_args->priority = TTY_PRIORITY;
+    printf("Setting callback %p\n", handle_process_create_cb);
+    process_args->cb = handle_process_create_cb;
+    process_args->cb_args = NULL;
+    start_process(pid, reply_cap, process_args);
 }
 
 /* Delete process (and close all its file descriptors).

@@ -59,7 +59,7 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
  * Inject data into the given vspace.
  */
 void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
-    if (SOS_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
+    if (TMP_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
     /* Overview of ELF segment loading
 
        dst: destination base virtual address of the segment being loaded
@@ -118,14 +118,15 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *a
             load_segment_into_vspace_cb_continue(pid, reply_cap, args);
         }  
     } else {
-        // End of segment reeached, callback
+        // End of segment reached, callback
+        printf("load_segment_into_vspace doing callback\n");
         args->cb(pid, reply_cap, args->cb_args);
     }
-    if (SOS_DEBUG) printf("load_segment_into_vspace end\n");
+    if (TMP_DEBUG) printf("load_segment_into_vspace end\n");
 }
 
 void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
-    if (SOS_DEBUG) printf("load_segment_into_vspace_cb\n");
+    if (TMP_DEBUG) printf("load_segment_into_vspace_cb\n");
     // Get results from frame_alloc call
     load_segment_args *load_args = (load_segment_args *) args->cb_args;
     // Copy results from frame_alloc call to arguments for this call
@@ -135,26 +136,18 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args 
     // Free frame alloc args
     free(args);
     // Get args we need for this call
-    seL4_ARM_PageDirectory dest_as = load_args->dest_as;
     unsigned long dst = load_args->dst;
     int index = load_args->index;
     // Debud print
-    if (SOS_DEBUG) printf("index %p\n", (void *)index);
-    // 9242_TODO Remove this line and make sure it works, shouldn't need it
-    // as sos_map_page should do this already
-    seL4_Word vpage  = PAGE_ALIGN(dst);
-    // Address space of this process
-    addr_space *as = proc_table[pid];
-    
+    if (TMP_DEBUG) printf("index %p\n", (void *)index);
     // Do sos_map_page_swap call
-    // 9242_TODO test here by using pid for address space etc.
-    sos_map_page_swap(index, vpage, dest_as, as, pid, reply_cap,
-                      (callback_ptr) load_segment_into_vspace_cb_continue, args);
-   if (SOS_DEBUG) printf("load_segment_into_vspace_cb end\n");
+    sos_map_page_swap(index, dst, pid, reply_cap,
+                      (callback_ptr) load_segment_into_vspace_cb_continue, load_args);
+   if (TMP_DEBUG) printf("load_segment_into_vspace_cb end\n");
 }
 
 void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
-    if (SOS_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
+    if (TMP_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
     // Get the arguments we use
     int index                   = args->index;
     seL4_Word vaddr             = args->vaddr;
@@ -175,11 +168,11 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_seg
     args->dst += nbytes;
     args->src += nbytes;
     load_segment_into_vspace(pid, reply_cap, args);
-    if (SOS_DEBUG) printf("load_segment_into_vspace_cb_continue end\n");
+    if (TMP_DEBUG) printf("load_segment_into_vspace_cb_continue end\n");
 }
 
 void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
-    if (SOS_DEBUG) printf("elf_load\n");
+    if (TMP_DEBUG) printf("elf_load\n");
     elf_load_args *args = (elf_load_args *) _args;
     char *elf_file = args->elf_file;
     int curr_header = args->curr_header;
@@ -191,6 +184,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         return;
     }
     int num_headers = elf_getNumProgramHeaders(elf_file);
+    printf("curr_header %d \n", curr_header);
     if (curr_header < num_headers) {
         char *source_addr;
         unsigned long flags, file_size, segment_size, vaddr;
@@ -199,36 +193,36 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         if (elf_getProgramHeaderType(elf_file, curr_header) != PT_LOAD) {
             args->curr_header++;
             elf_load(pid, reply_cap, args);
+        } else {
+            /* Fetch information about this segment. */
+            source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, curr_header);
+            file_size = elf_getProgramHeaderFileSize(elf_file, curr_header);
+            segment_size = elf_getProgramHeaderMemorySize(elf_file, curr_header);
+            vaddr = elf_getProgramHeaderVaddr(elf_file, curr_header);
+            flags = elf_getProgramHeaderFlags(elf_file, curr_header);
+
+            /* Copy it across into the vspace. */
+            dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
+            // Set up load segment arguments
+            args->curr_header++;
+            load_segment_args *segment_args = malloc(sizeof(load_segment_args));
+            segment_args->src = source_addr;
+            segment_args->dst = vaddr;
+            segment_args->pos = 0;
+            segment_args->dest_as = dest_as;
+            segment_args->segment_size = segment_size;
+            segment_args->file_size = file_size;
+            segment_args->permissions = get_sel4_rights_from_elf(flags) & seL4_AllRights;
+            segment_args->cb = elf_load;
+            segment_args->cb_args = args;
+            load_segment_into_vspace(pid, reply_cap, segment_args);
         }
-
-        /* Fetch information about this segment. */
-        source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, curr_header);
-        file_size = elf_getProgramHeaderFileSize(elf_file, curr_header);
-        segment_size = elf_getProgramHeaderMemorySize(elf_file, curr_header);
-        vaddr = elf_getProgramHeaderVaddr(elf_file, curr_header);
-        flags = elf_getProgramHeaderFlags(elf_file, curr_header);
-
-        /* Copy it across into the vspace. */
-        dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
-        // Set up load segment arguments
-        args->curr_header++;
-        load_segment_args *segment_args = malloc(sizeof(load_segment_args));
-        segment_args->src = source_addr;
-        segment_args->dst = vaddr;
-        segment_args->pos = 0;
-        segment_args->dest_as = dest_as;
-        segment_args->segment_size = segment_size;
-        segment_args->file_size = file_size;
-        segment_args->permissions = get_sel4_rights_from_elf(flags) & seL4_AllRights;
-        segment_args->cb = elf_load;
-        segment_args->cb_args = args;
-        load_segment_into_vspace(pid, 0, segment_args);
-        
+  
         //conditional_panic(err != 0, "Elf loading failed!\n");
     } else {
         // Do callback
         args->cb(pid, reply_cap, args->cb_args);
     }
-    if (SOS_DEBUG) printf("elf_load end\n");
+    if (TMP_DEBUG) printf("elf_load end\n");
 }
 

@@ -157,19 +157,15 @@ int sos_stat(const char *path, sos_stat_t *buf) {
 }
 
 pid_t sos_process_create(const char *path) {
-    printf("system call not implemented\n");
-    return -1;
-    /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, P_CREATE);
     seL4_SetMR(1, (seL4_Word)path);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     return seL4_GetMR(0);
-    */
 }
 int sos_process_delete(pid_t pid) {
-    printf("system call not implemented\n");
+    printf("delete system call not implemented\n");
     return -1;
     /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
@@ -200,7 +196,7 @@ int sos_process_status(sos_process_t *processes, unsigned max) {
 }
 
 pid_t sos_process_wait(pid_t pid) {
-    printf("system call not implemented\n");
+    printf("wait system call not implemented\n");
     return -1;
     /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
