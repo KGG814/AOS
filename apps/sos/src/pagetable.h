@@ -25,7 +25,19 @@
 #define PRM_BUF             0
 #define TMP_BUF             1
 
+typedef struct _pt_entry {
+  int index;
+  seL4_CPtr mapped_cap;
+} pt_entry;
+
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+
+typedef struct _vm_init_args {
+  callback_ptr cb;
+  void *cb_args;
+  // Not initialised
+  int curr_page;
+} vm_init_args;
 
 typedef struct _copy_in_args {
   seL4_Word usr_ptr;
@@ -46,11 +58,9 @@ typedef struct _copy_out_args {
 } copy_out_args;
 
 typedef struct  _sos_map_page_args {
-  addr_space *as;
+  // 9242_TODO Get rid of both of these, only need pid
   seL4_Word vaddr;
   int ft_index;
-  seL4_ARM_PageDirectory pd;
-  seL4_CPtr *frame_cap;
   callback_ptr cb;
   void *cb_args;
 } sos_map_page_args;
@@ -74,29 +84,19 @@ typedef struct _copy_page_args {
 int page_init(int pid);
 void pt_cleanup(int pid);
 
-seL4_CPtr sos_map_page(int ft_index
-                      ,seL4_Word vaddr
-                      ,seL4_ARM_PageDirectory pd
-                      ,addr_space* as
-                      ,int pid
-                      );
-
 void sos_map_page_swap(int ft_index
                       ,seL4_Word vaddr
-                      ,seL4_ARM_PageDirectory pd
-                      ,addr_space* as
                       ,int pid
                       ,seL4_CPtr reply_cap
                       ,callback_ptr cb
                       ,void *cb_args
-                      ,seL4_CPtr *frame_cap
                       );
 
 void handle_vm_fault(seL4_Word badge, int pid);
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
-
+void vm_init(int pid, seL4_CPtr reply_cap, void *args);
 void copy_in(int pid
            ,seL4_CPtr reply_cap
            ,copy_in_args *args

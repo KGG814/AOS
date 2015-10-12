@@ -7,7 +7,7 @@
 #include <clock/clock.h>
 #include <sos/sos.h>
 
-#define CAP_TABLE_PAGES 4
+#define CAP_TABLE_PAGES 8
 #define PROCESS_MAX_FILES 16
 #define MAX_PROCESSES     0xFF
 
@@ -16,6 +16,9 @@
 #define WAITING (1 << 0)
 #define KILLED  (1 << 1)
 
+#define TTY_PRIORITY         (0)
+
+typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _addr_space addr_space; 
 
@@ -59,7 +62,19 @@ typedef struct _start_process_args {
     char *app_name;
     seL4_CPtr fault_ep;
     int priority;
+    callback_ptr cb;
+    void *cb_args;
+    // not initialised
+    char* elf_base;
+    int parent_pid;
 } start_process_args;
+
+typedef struct _new_as_args {
+    callback_ptr cb;
+    void *cb_args;  
+    // Not initalised
+    int new_pid;
+} new_as_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];
 
@@ -68,7 +83,7 @@ seL4_CPtr _sos_ipc_ep_cap;
 
 void proc_table_init(void);
 
-int new_as();
+void new_as(int pid, seL4_CPtr reply_cap, void *args);
 void cleanup_as(int pid);
 
 void start_process(int pid, seL4_CPtr reply_cap, void *args);
@@ -79,4 +94,5 @@ void process_status(seL4_CPtr reply_cap
                    ,unsigned max_processes
                    );
 
+void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
 #endif /* _PROC_H_ */
