@@ -196,15 +196,11 @@ int sos_process_status(sos_process_t *processes, unsigned max) {
 }
 
 pid_t sos_process_wait(pid_t pid) {
-    printf("wait system call not implemented\n");
-    return -1;
-    /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, P_WAIT);
     seL4_SetMR(1, (seL4_Word)pid);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     return seL4_GetMR(0);
-    */
 }
 

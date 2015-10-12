@@ -4,7 +4,7 @@
 #include <sos/sos.h>
 
 //this is set to increase
-#define NUM_SYSCALLS 14
+#define NUM_SYSCALLS 16
 
 void handle_brk(seL4_CPtr reply_cap, int pid);
 

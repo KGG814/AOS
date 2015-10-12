@@ -76,6 +76,8 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     as->pid = new_pid;
     as->size = 0;
     as->create_time = time_stamp();
+    as->wait_cap = 0;
+    as->reader_status = NO_READ;
     next_pid = (next_pid % MAX_PROCESSES) + 1;
     num_processes++;
     vm_init_args* vm_args = malloc(sizeof(vm_init_args));
@@ -114,12 +116,14 @@ void cleanup_as(int pid) {
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     if (TMP_DEBUG) printf("start_process\n");
+    printf("starting process from pid %d\n", parent_pid);
 	start_process_args *args = (start_process_args *) _args;
 	// Get new pid/make new address space
     new_as_args *as_args = malloc(sizeof(new_as_args));
     as_args->cb = start_process_cb1;
     as_args->cb_args = args;
     new_as(parent_pid, reply_cap, as_args);
+
     if (TMP_DEBUG) printf("start_process end\n");
 }
 
@@ -367,6 +371,7 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *args) {
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args) {
     if (TMP_DEBUG) printf("handle_process_create_cb\n");
+    printf("Process %d created with parent pid %d\n", pid, proc_table[pid]->parent_pid);
     send_seL4_reply(reply_cap, pid);
     if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
 }

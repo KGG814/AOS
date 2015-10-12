@@ -230,4 +230,3 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
     }
     if (TMP_DEBUG) printf("elf_load end\n");
 }
-

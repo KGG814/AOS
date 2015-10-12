@@ -280,7 +280,7 @@ void handle_process_status(seL4_CPtr reply_cap, int pid) {
  * to exit. Returns the pid of the process which exited.
  */
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
-
+    proc_table[pid]->wait_cap = reply_cap;
 }
 
 

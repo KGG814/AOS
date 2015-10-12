@@ -18,6 +18,10 @@
 
 #define TTY_PRIORITY         (0)
 
+#define NO_READ 0
+#define CURR_READ 1
+#define CHILD_READ 2
+
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _addr_space {
@@ -46,7 +50,8 @@ typedef struct _addr_space {
     unsigned size;
     timestamp_t create_time;
     char command[N_NAME];
-
+    int reader_status;
+    seL4_CPtr wait_cap;
 } addr_space; 
 
 typedef struct _start_process_args {

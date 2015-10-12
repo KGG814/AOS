@@ -80,6 +80,8 @@ syscall_handler syscall_handlers[] =
 ,&handle_my_id
 ,&handle_process_status
 ,&handle_process_create
+,&handle_process_delete
+,&handle_process_wait
 };
 
 struct {
