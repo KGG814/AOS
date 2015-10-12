@@ -257,8 +257,11 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     int to_delete = (int) seL4_GetMR(1);
 
-    if (remove_child(pid, to_delete)) {
-        kill_child(pid, to_delete, reply_cap); 
+    if (to_delete == pid) {
+        kill_process(pid, pid, (seL4_CPtr) 0);
+    } else if (remove_child(pid, to_delete)) {
+        proc_table[pid]->status |= PROC_BLOCKED;
+        kill_process(pid, to_delete, reply_cap); 
     } else {
         send_seL4_reply(reply_cap, -1);
     }

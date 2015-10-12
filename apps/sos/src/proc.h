@@ -65,6 +65,9 @@ typedef struct _addr_space {
 
     //number of processes this process is waiting for to die
     int delete_wait;
+    //the reply cap and pid of a process waiting for this process to die
+    seL4_CPtr delete_reply_cap;
+    int delete_pid;
 
     char command[N_NAME];
 } addr_space; 
@@ -112,8 +115,8 @@ int is_child(int parent_pid, int child_pid);
 
 int remove_child(int parent_pid, int child_pid);
 
-void kill_child(int parent_pid, int child_pid, seL4_CPtr reply_cap);
+void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 
-void kill_child_cb(int pid, seL4_CPtr reply_cap, void *data);
+void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data);
 
 #endif /* _PROC_H_ */

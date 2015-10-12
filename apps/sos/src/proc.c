@@ -462,34 +462,46 @@ int remove_child(int parent_pid, int child_pid) {
     return 1;
 }
 
-void kill_child(int parent_pid, int child_pid, seL4_CPtr reply_cap) {
-    if (proc_table[child_pid] == NULL || proc_table[parent_pid] == NULL) {
+void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
+    if (proc_table[child_pid] == NULL) {
         return;
     }
 
-    //increment the wait count in the parent 
-    proc_table[parent_pid]->delete_wait++;
+    addr_space *as = proc_table[child_pid];
 
+    //increment the wait count in the parent 
+    if (proc_table[delete_pid]) {
+        proc_table[delete_pid]->delete_wait++;
+    }
     //kill all its children first 
-    child_proc *cur = proc_table[child_pid]->children;
+    child_proc *cur = as->children;
     while (cur != NULL) {
-        kill_child(parent_pid, cur->pid, reply_cap);
+        kill_process(delete_pid, cur->pid, reply_cap);
         cur = cur->next;
     }
 
-    //kill the child
-    if ((proc_table[child_pid]->status & PROC_BLOCKED)) {
-        proc_table[child_pid]->status |= PROC_DYING;
+    as->delete_reply_cap = reply_cap;
+    as->delete_pid = delete_pid;
+
+    //mark the process for deletion if it is currently blocked
+    if ((as->status & PROC_BLOCKED)) {
+        as->status |= PROC_DYING;
         return;
     } 
 
     //child is ready to be killed 
-    kill_child_cb(parent_pid, reply_cap, NULL);
+    kill_process_cb(delete_pid, reply_cap, (void *) child_pid);
 }
 
-void kill_child_cb(int parent_pid, seL4_CPtr reply_cap, void *data) {
-    
-    if (--proc_table[parent_pid]->delete_wait) {
+void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data) {
+    //destroy the address space of the process
+    cleanup_as((int) data);
+
+    //if we aren't trying to delete ourself and the parent is done waiting on 
+    //dying processes, reply to the parent
+    if (delete_pid //make sure parent is not the OS
+    && (delete_pid != (int) data)
+    && (--proc_table[delete_pid]->delete_wait == 0)) {
         send_seL4_reply(reply_cap, 0);
     } 
 }
