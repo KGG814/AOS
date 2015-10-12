@@ -24,7 +24,7 @@
 
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
-typedef struct _addr_space addr_space; 
+
 
 typedef struct _child_proc child_proc;
 
@@ -33,7 +33,7 @@ struct _child_proc {
     child_proc *next;
 };
 
-struct _addr_space {
+typedef struct _addr_space {
 	seL4_Word vroot_addr;
 	seL4_ARM_PageDirectory vroot;
 
@@ -60,13 +60,9 @@ struct _addr_space {
     timestamp_t create_time;
     child_proc *children;
     char command[N_NAME];
-<<<<<<< HEAD
     int reader_status;
     seL4_CPtr wait_cap;
 } addr_space; 
-=======
-}; 
->>>>>>> 112ce0ed36e70cf974a12d706b3bfb260e9a14df
 
 typedef struct _start_process_args {
     char *app_name;

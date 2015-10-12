@@ -78,13 +78,9 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     as->pid = new_pid;
     as->size = 0;
     as->create_time = time_stamp();
-<<<<<<< HEAD
     as->wait_cap = 0;
     as->reader_status = NO_READ;
     next_pid = (next_pid % MAX_PROCESSES) + 1;
-=======
-    
->>>>>>> 112ce0ed36e70cf974a12d706b3bfb260e9a14df
     num_processes++;
     vm_init_args* vm_args = malloc(sizeof(vm_init_args));
     args->new_pid = new_pid;
