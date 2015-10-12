@@ -165,16 +165,12 @@ pid_t sos_process_create(const char *path) {
     return seL4_GetMR(0);
 }
 int sos_process_delete(pid_t pid) {
-    printf("delete system call not implemented\n");
-    return -1;
-    /*
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
     seL4_SetTag(tag);
     seL4_SetMR(SYSCALL, P_DELETE);
     seL4_SetMR(1, (seL4_Word)pid);
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     return seL4_GetMR(0);
-    */
 }
 
 pid_t sos_my_id(void) {

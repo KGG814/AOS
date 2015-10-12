@@ -459,3 +459,16 @@ int remove_child(int parent_pid, int child_pid) {
 
     return 1;
 }
+
+void mark_as(int pid) {
+    if (proc_table[pid] == NULL) {
+        return;
+    }
+
+    proc_table[pid]->status |= PROC_DYING;
+    child_proc *cur = proc_table[pid]->children;
+    while (cur != NULL) {
+        mark_as(cur->pid);
+        cur = cur->next;
+    }
+}

@@ -13,9 +13,9 @@
 
 #define PROC_ERR (-1)
 
-#define READY   1
-#define BLOCKED 2
-#define DYING   4
+#define PROC_READY   1
+#define PROC_BLOCKED 2
+#define PROC_DYING   4
 
 #define TTY_PRIORITY         (0)
 
@@ -104,8 +104,10 @@ void process_status(seL4_CPtr reply_cap
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
 
-int get_child(int parent_pid, int child_pid);
+int is_child(int parent_pid, int child_pid);
 
 int remove_child(int parent_pid, int child_pid);
+
+void mark_as(int pid);
 
 #endif /* _PROC_H_ */
