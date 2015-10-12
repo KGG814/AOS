@@ -215,7 +215,6 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
     if (SOS_DEBUG) printf("newbrk: %p\n", (void *)newbrk);
     if (!newbrk) {
@@ -227,9 +226,7 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
     } else {
         ret = 0;
     }
-    seL4_SetMR(0, ret);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, ret);
 }
 
 /* Create a new process running the executable image "path".
@@ -259,10 +256,19 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
+
 }
 
 /* Returns ID of caller's process. */
 void handle_my_id(seL4_CPtr reply_cap, int pid) {
+    addr_space *as = proc_table[pid];
+    child_proc *cp = as->children;
+    int i = 0;
+    while (cp != NULL) {
+        printf("Child %i: %d\n", i, cp->pid);
+        cp = cp->next;
+        i++;
+    }
     send_seL4_reply(reply_cap, pid);
 }
 
@@ -296,6 +302,7 @@ void handle_process_wait(seL4_CPtr reply_cap, int pid) {
 
 /* Returns time in microseconds since booting.
  */
+//does not block
 void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
@@ -308,6 +315,7 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 
 /* Sleeps for the specified number of milliseconds.
  */
+//this blocks 
 void handle_usleep(seL4_CPtr reply_cap, int pid) {
     int usec = seL4_GetMR(1) * 1000;
     int ret = register_timer(usec, &wake_process, (void *)reply_cap);
@@ -321,8 +329,9 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
 //timer callback for usleep
 static void wake_process(uint32_t id, void* data) {
     //(void *) data;
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send((seL4_CPtr)data, reply);
+    //seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    //seL4_Send((seL4_CPtr)data, reply);
+    send_seL4_reply((seL4_CPtr) data, 0);
 }
 
 

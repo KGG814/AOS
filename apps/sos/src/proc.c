@@ -409,3 +409,15 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args) {
     send_seL4_reply(reply_cap, pid);
     if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
 }
+
+int is_child(int parent_pid, int child_pid) {
+    return 0;
+}
+
+int is_parent(int parent_pid, int child_pid) {
+    return 0;
+}
+
+void remove_child(int parent_pid, int child_pid) {
+
+}
