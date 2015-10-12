@@ -235,7 +235,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // If there was an error, reply
     if (err) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(err, reply_cap);
+        send_seL4_reply(reply_cap, err);
     }
     // Check if the frame is in the swap buffer
     if (!(frametable[index].frame_status & SWAP_BUFFER_MASK)) {

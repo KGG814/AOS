@@ -307,9 +307,14 @@ seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid) {
 }
 
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap) {
-    if (SOS_DEBUG) printf("map_if_valid: %p\n", (void * ) vaddr);
+    if (SOS_DEBUG) printf("map_if_valid: %p, pid = %d\n", (void * ) vaddr, pid);
     int dir_index = PT_TOP(vaddr);
     int page_index = PT_BOTTOM(vaddr);
+
+    printf("pd addr = %p\n", proc_table[pid]->page_directory);
+    if (proc_table[pid]->page_directory == NULL) {
+        assert(0);
+    }
     
     if (proc_table[pid]->page_directory[dir_index] != NULL) {
         int index = proc_table[pid]->page_directory[dir_index][page_index];

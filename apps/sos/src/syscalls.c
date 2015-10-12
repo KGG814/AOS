@@ -215,7 +215,6 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
     if (SOS_DEBUG) printf("newbrk: %p\n", (void *)newbrk);
     if (!newbrk) {
@@ -227,9 +226,7 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
     } else {
         ret = 0;
     }
-    seL4_SetMR(0, ret);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, ret);
 }
 
 /* Create a new process running the executable image "path".
@@ -238,8 +235,9 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
     seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
-    seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
 
+    //9242_TODO change this to a copy in
+    seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
 
     printf("Starting process %s\n", (char *) kernel_path);
     start_process_args *process_args = malloc(sizeof(start_process_args));
@@ -258,11 +256,28 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
-    // 9242_TODO Call delete stuff
+    int to_delete = (int) seL4_GetMR(1);
+
+    if (to_delete == pid) {
+        kill_process(pid, pid, (seL4_CPtr) 0);
+    } else if (remove_child(pid, to_delete)) {
+        proc_table[pid]->status |= PROC_BLOCKED;
+        kill_process(pid, to_delete, reply_cap); 
+    } else {
+        send_seL4_reply(reply_cap, -1);
+    }
 }
 
 /* Returns ID of caller's process. */
 void handle_my_id(seL4_CPtr reply_cap, int pid) {
+    addr_space *as = proc_table[pid];
+    child_proc *cp = as->children;
+    int i = 0;
+    while (cp != NULL) {
+        printf("Child %i: %d\n", i, cp->pid);
+        cp = cp->next;
+        i++;
+    }
     send_seL4_reply(reply_cap, pid);
 }
 
@@ -297,6 +312,7 @@ void handle_process_wait(seL4_CPtr reply_cap, int pid) {
 
 /* Returns time in microseconds since booting.
  */
+//does not block
 void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
@@ -309,6 +325,7 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 
 /* Sleeps for the specified number of milliseconds.
  */
+//this blocks 
 void handle_usleep(seL4_CPtr reply_cap, int pid) {
     int usec = seL4_GetMR(1) * 1000;
     int ret = register_timer(usec, &wake_process, (void *)reply_cap);
@@ -322,8 +339,9 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
 //timer callback for usleep
 static void wake_process(uint32_t id, void* data) {
     //(void *) data;
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send((seL4_CPtr)data, reply);
+    //seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    //seL4_Send((seL4_CPtr)data, reply);
+    send_seL4_reply((seL4_CPtr) data, 0);
 }
 
 

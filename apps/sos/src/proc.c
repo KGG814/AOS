@@ -83,6 +83,8 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     as->wait_cap = 0;
     as->reader_status = NO_READ;
 
+    as->delete_wait = 0;
+
     vm_init_args* vm_args = malloc(sizeof(vm_init_args));
     args->new_pid = new_pid;
     vm_args->cb = args->cb;
@@ -256,9 +258,17 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
 	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
 	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
     if (alloc_args->index < 0) {
-        free(process_args);
-        free(alloc_args);
+        if (!reply_cap) {
+            assert(!"couldn't allocate memory for first process");
+        }
+        if (process_args) {
+            free(process_args);
+        }
+        if (alloc_args) {
+            free(alloc_args);
+        }
         cleanup_as(new_pid);
+        send_seL4_reply(reply_cap, -1);
         return;
     }
 
@@ -269,7 +279,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
 	// Free frame_alloc args
 	int index = alloc_args->index;
 	free(alloc_args);
-
+    alloc_args = NULL;
 	
 	// Various local state
 	int err;
@@ -329,7 +339,18 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     /* parse the cpio image */
     dprintf(1, "\nStarting \"%s\"...\n", as->command);
     process_args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
-    conditional_panic(!process_args->elf_base, "Unable to locate cpio header");
+    printf("tried to do cpio_get_file\n");
+    if (!process_args->elf_base) {
+        if (!reply_cap) {
+            assert(!"Unable to load cpio header");
+        }
+        printf("trying to do cleanup\n");
+        free(process_args);
+        cleanup_as(new_pid);
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+
     /* load the elf image */
     elf_load_args *load_args = malloc(sizeof(elf_load_args));
     load_args->elf_file = process_args->elf_base;
@@ -415,4 +436,96 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args) {
     printf("Process %d created with parent pid %d\n", pid, proc_table[pid]->parent_pid);
     send_seL4_reply(reply_cap, pid);
     if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
+}
+
+int is_child(int parent_pid, int child_pid) {
+    if (proc_table[parent_pid] == NULL || proc_table[child_pid] == NULL) {
+        return 0;
+    } 
+
+    //determine if child's internal parent is indeed parent 
+    int ret = (proc_table[child_pid]->parent_pid == parent_pid) ? 1 : 0;
+
+    //determine if child is indeed a child of the parent
+    if (ret) {
+        child_proc *cur = proc_table[parent_pid]->children;
+        while (cur != NULL) {
+            if (cur->pid == child_pid) {
+                return 1; 
+            }
+            cur = cur->next;
+        }
+    }
+
+    return 0;
+}
+
+int remove_child(int parent_pid, int child_pid) {
+    if (!is_child(parent_pid, child_pid)) {
+        return 0;
+    }
+
+    //we know at this point the parent actually has children
+    child_proc *cur = proc_table[parent_pid]->children;
+    
+    //check if the head of the children is the child to delete
+    if (cur->pid == child_pid) {
+        proc_table[parent_pid]->children = cur->next; 
+        free(cur);
+        return 1;
+    }
+
+    //get the child before the child to delete
+    while (cur->next != NULL && cur->next->pid != child_pid) {
+        cur = cur->next; 
+    }
+    
+    //cur->next is the child to delete
+    child_proc *tmp = cur->next;
+    cur->next = tmp->next;
+    free(tmp);
+
+    return 1;
+}
+
+void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
+    if (proc_table[child_pid] == NULL) {
+        return;
+    }
+
+    addr_space *as = proc_table[child_pid];
+
+    as->status |= PROC_DYING;
+
+    //increment the wait count in the parent 
+    if (proc_table[delete_pid]) {
+        proc_table[delete_pid]->delete_wait++;
+    }
+    //kill all its children first 
+    child_proc *cur = as->children;
+    while (cur != NULL) {
+        kill_process(delete_pid, cur->pid, reply_cap);
+        cur = cur->next;
+    }
+
+    as->delete_reply_cap = reply_cap;
+    as->delete_pid = delete_pid;
+
+    //child is ready to be killed 
+    if (!(as->status & PROC_BLOCKED)) { 
+        kill_process_cb(delete_pid, reply_cap, (void *) child_pid);
+    }
+}
+
+void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data) {
+    //destroy the address space of the process
+    cleanup_as((int) data);
+
+    //if we aren't trying to delete ourself and the parent is done waiting on 
+    //dying processes, reply to the parent
+    if (delete_pid //make sure parent is not the OS
+    && (delete_pid != (int) data)
+    && (--proc_table[delete_pid]->delete_wait == 0)) {
+        send_seL4_reply(reply_cap, 0);
+    } 
 }

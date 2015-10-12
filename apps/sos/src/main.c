@@ -111,7 +111,6 @@ void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
 
-
     syscall_number = seL4_GetMR(0);
     //dprintf(0, "Syscall %d\n", syscall_number); 
     /* Save the caller */
@@ -136,7 +135,7 @@ void syscall_loop(seL4_CPtr ep) {
         label = seL4_MessageInfo_get_label(message);  
         //dprintf(0, "Badge: %d\n", badge);
         //dprintf(0, "Label: %p\n", label);
-        if(badge & IRQ_EP_BADGE){
+        if (badge & IRQ_EP_BADGE) {
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
                 network_irq();
@@ -147,18 +146,19 @@ void syscall_loop(seL4_CPtr ep) {
                 timer_interrupt();
             }
 
-        }else if(label == seL4_VMFault){
-            /* Page fault */
-            //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
-            //seL4_GetMR(0),
-            //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(badge, badge);
-        }else if(label == seL4_NoFault) {
-            if (SOS_DEBUG) printf("Syscall from process with badge: %d\n", badge);
-            /* System call */
-            handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
-        }else{
+        } else if (proc_table[badge]) {
+            if (label == seL4_VMFault) {
+                /* Page fault */
+                //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
+                //seL4_GetMR(0),
+                //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+                handle_vm_fault(badge, badge);
+            } else if (label == seL4_NoFault) {
+                if (SOS_DEBUG) printf("Syscall from process with badge: %d\n", badge);
+                /* System call */
+                handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+            }
+        } else {
             printf("Rootserver got an unknown message\n");
         }
     }

@@ -244,6 +244,26 @@ static int id(int argc, char *argv[]) {
     return 0;
 }
 
+//courtesy of karl krauth
+static int kill(int argc, char **argv) {
+    int err;
+
+    if (argc != 2) {
+        printf("Usage: kill pid\n");
+        return 1;
+    }
+
+    pid_t pid = atoi(argv[1]);
+    err = sos_process_delete(pid);
+    if (err != 0) {
+        printf("Failed!\n");
+    } else {
+        printf("Killed pid=%d\n", pid);
+    }
+
+    return 0;
+}
+
 struct command {
     char *name;
     int (*command)(int argc, char **argv);
@@ -251,7 +271,7 @@ struct command {
 
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
         "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time}, {"id", id} };
+        {"time", second_time}, {"mtime", micro_time}, {"id", id}, {"kill", kill}};
 
 int main(void) {
     char buf[BUF_SIZ];

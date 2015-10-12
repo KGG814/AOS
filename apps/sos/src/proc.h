@@ -13,8 +13,9 @@
 
 #define PROC_ERR (-1)
 
-#define WAITING (1 << 0)
-#define KILLED  (1 << 1)
+#define PROC_READY   1
+#define PROC_BLOCKED 2
+#define PROC_DYING   4
 
 #define TTY_PRIORITY         (0)
 
@@ -59,9 +60,16 @@ typedef struct _addr_space {
     unsigned size;
     timestamp_t create_time;
     child_proc *children;
-    char command[N_NAME];
     int reader_status;
     seL4_CPtr wait_cap;
+
+    //number of processes this process is waiting for to die
+    int delete_wait;
+    //the reply cap and pid of a process waiting for this process to die
+    seL4_CPtr delete_reply_cap;
+    int delete_pid;
+
+    char command[N_NAME];
 } addr_space; 
 
 typedef struct _start_process_args {
@@ -102,4 +110,13 @@ void process_status(seL4_CPtr reply_cap
                    );
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
+
+int is_child(int parent_pid, int child_pid);
+
+int remove_child(int parent_pid, int child_pid);
+
+void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
+
+void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data);
+
 #endif /* _PROC_H_ */
