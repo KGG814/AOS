@@ -63,8 +63,8 @@ typedef struct _addr_space {
     int reader_status;
     seL4_CPtr wait_cap;
 
-    //queue of processes this process is waiting on to die
-    child_proc *delete_queue;
+    //number of processes this process is waiting for to die
+    int delete_wait;
 
     char command[N_NAME];
 } addr_space; 
@@ -112,7 +112,7 @@ int is_child(int parent_pid, int child_pid);
 
 int remove_child(int parent_pid, int child_pid);
 
-void kill_child(int pid);
+void kill_child(int parent_pid, int child_pid, seL4_CPtr reply_cap);
 
 void kill_child_cb(int pid, seL4_CPtr reply_cap, void *data);
 

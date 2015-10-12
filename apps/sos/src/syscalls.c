@@ -258,7 +258,9 @@ void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     int to_delete = (int) seL4_GetMR(1);
 
     if (remove_child(pid, to_delete)) {
-        kill_child(to_delete); 
+        kill_child(pid, to_delete, reply_cap); 
+    } else {
+        send_seL4_reply(reply_cap, -1);
     }
 }
 
