@@ -57,6 +57,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     }
 
     next_pid = (next_pid % MAX_PROCESSES) + 1;
+    num_processes++;
 
     addr_space *as = malloc(sizeof(addr_space)); 
     memset(as, 0, sizeof(addr_space));
@@ -74,6 +75,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
         args->new_pid = PROC_ERR;
         return;
     }
+
     as->status = 0;
     as->pid = new_pid;
     as->size = 0;
@@ -81,8 +83,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     
     as->wait_cap = 0;
     as->reader_status = NO_READ;
-    next_pid = (next_pid % MAX_PROCESSES) + 1;
-    num_processes++;
+
     vm_init_args* vm_args = malloc(sizeof(vm_init_args));
     args->new_pid = new_pid;
     vm_args->cb = args->cb;
