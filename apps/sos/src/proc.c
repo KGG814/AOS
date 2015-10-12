@@ -411,13 +411,51 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 int is_child(int parent_pid, int child_pid) {
+    if (proc_table[parent_pid] == NULL || proc_table[child_pid] == NULL) {
+        return 0;
+    } 
+
+    //determine if child's internal parent is indeed parent 
+    int ret = (proc_table[child_pid]->parent_pid == parent_pid) ? 1 : 0;
+
+    //determine if child is indeed a child of the parent
+    if (ret) {
+        child_proc *cur = proc_table[parent_pid]->children;
+        while (cur != NULL) {
+            if (cur->pid == child_pid) {
+                return 1; 
+            }
+            cur = cur->next;
+        }
+    }
+
     return 0;
 }
 
-int is_parent(int parent_pid, int child_pid) {
-    return 0;
-}
+int remove_child(int parent_pid, int child_pid) {
+    if (!is_child(parent_pid, child_pid)) {
+        return 0;
+    }
 
-void remove_child(int parent_pid, int child_pid) {
+    //we know at this point the parent actually has children
+    child_proc *cur = proc_table[parent_pid]->children;
+    
+    //check if the head of the children is the child to delete
+    if (cur->pid == child_pid) {
+        proc_table[parent_pid]->children = cur->next; 
+        free(cur);
+        return 1;
+    }
 
+    //get the child before the child to delete
+    while (cur->next != NULL && cur->next->pid != child_pid) {
+        cur = cur->next; 
+    }
+    
+    //cur->next is the child to delete
+    child_proc *tmp = cur->next;
+    cur->next = tmp->next;
+    free(tmp);
+
+    return 1;
 }

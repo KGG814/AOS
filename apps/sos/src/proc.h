@@ -104,9 +104,8 @@ void process_status(seL4_CPtr reply_cap
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
 
-int is_child(int parent_pid, int child_pid);
-int is_parent(int parent_pid, int child_pid);
+int get_child(int parent_pid, int child_pid);
 
-void remove_child(int parent_pid, int child_pid);
+int remove_child(int parent_pid, int child_pid);
 
 #endif /* _PROC_H_ */
