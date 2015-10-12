@@ -161,6 +161,7 @@ vnode* vfs_open(const char* path
     *err = VFS_OK; 
     if (strcmp(path, "console") == 0) {         
         vn = console_open(mode, err);
+        proc_table[pid]->reader_status = CURR_READ;
     } else if (strcmp(path, "null") == 0) {
         vn = nul_open(mode, err);
     } else {
