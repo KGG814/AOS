@@ -17,7 +17,16 @@
 #define KILLED  (1 << 1)
 
 
-typedef struct _addr_space {
+typedef struct _addr_space addr_space; 
+
+typedef struct _child_proc child_proc;
+
+struct _child_proc {
+    int pid;
+    child_proc *next;
+};
+
+struct _addr_space {
 	seL4_Word vroot_addr;
 	seL4_ARM_PageDirectory vroot;
 
@@ -33,7 +42,7 @@ typedef struct _addr_space {
     cspace_t *croot;
     seL4_Word brk;
     int file_table[PROCESS_MAX_FILES];
-    int n_files_open;
+    int n_files_open; 
 
     /* process properties */
     int status;
@@ -42,9 +51,9 @@ typedef struct _addr_space {
     int pid;
     unsigned size;
     timestamp_t create_time;
+    child_proc *children;
     char command[N_NAME];
-
-} addr_space; 
+}; 
 
 typedef struct _start_process_args {
     char *app_name;

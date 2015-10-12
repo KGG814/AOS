@@ -51,6 +51,7 @@ int new_as() {
     }
 
     pid = next_pid;
+    next_pid = (next_pid % MAX_PROCESSES) + 1;
 
     addr_space *as = malloc(sizeof(addr_space)); 
     memset(as, 0, sizeof(addr_space));
@@ -81,7 +82,6 @@ int new_as() {
     as->size = 0;
     as->create_time = time_stamp();
     
-    next_pid = (next_pid % MAX_PROCESSES) + 1;
     num_processes++;
     return pid;
 }
@@ -101,11 +101,7 @@ void cleanup_as(int pid) {
     //clean shit up here
     fdt_cleanup(pid);
     pt_cleanup(pid);
-    //9242_TODO 
-    //cleanup vroot 
-    //cleanup ipc 
-    //cleanup tcb 
-    //cleanup croot 
+    //9242_TODO, cleanup vroot, ipc, tcb, croot
 
     free(as);
 
@@ -115,8 +111,19 @@ void cleanup_as(int pid) {
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
 	start_process_args *args = (start_process_args *) _args;
+    if (args == NULL && reply_cap) {
+        send_seL4_reply(reply_cap, -1);
+    }
 
-	// Get args that we use
+    //check parent exists 
+    addr_space *parent_as = proc_table[parent_pid];
+
+    if (parent_pid > 0 && parent_as == NULL) {
+        //this shouldn't happen
+        assert(0);
+    }
+	
+    // Get args that we use
 	char *app_name = args->app_name;
 	// Get new pid/make new address space
     int new_pid = new_as(app_name);
@@ -140,6 +147,25 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     as->pid = new_pid; 
     as->size = 0;
     as->create_time = time_stamp();
+    as->children = NULL;
+
+    if (parent_pid) {
+        child_proc *new = malloc(sizeof(child_proc));
+        if (new == NULL) {
+            if (reply_cap) {
+                free(args);
+                cleanup_as(new_pid);
+                send_seL4_reply(reply_cap, -1);
+            } else {
+                assert(!"somehow managed to try and add a child to rootserver");
+            }
+        }
+
+        new->pid = new_pid;
+        new->next = parent_as->children;
+        parent_as->children = new;
+    }
+
     memset(as->command, 0, N_NAME);
     strncpy(as->command, app_name, N_NAME - 1);
 
