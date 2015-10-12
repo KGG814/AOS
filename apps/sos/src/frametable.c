@@ -156,8 +156,9 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // Get some memory from ut_alloc
     args->pt_addr = ut_alloc(seL4_PageBits);
     // Check if we need to swap
+    printf("frame_num %d\n", frame_num);
     if (args->pt_addr < low || frame_num >= MAX_FRAMES) {
-        printf("frame_num %d\n", frame_num);
+        
         // No frames available, need to swap
         // This may not be valid if memory runs out, but is fine for artificially limiting physical memory
         ut_free(args->pt_addr, PAGE_BITS);

@@ -82,8 +82,8 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	} else {
 		// Swap file has been initialised
 		// Get all the arguments we use
-
 		int index = args->index;
+		printf("index %d\n", index);
 		// Get the next free swap slot
 		int slot = get_next_swap_slot();
 		// Get the pid of the process owning the frame to be swapped
