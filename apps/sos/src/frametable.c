@@ -26,7 +26,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          200
+#define MAX_FRAMES          120
 #define verbose 5
 #define FT_INITIALISED      1
 int ft_initialised = 0;
@@ -157,6 +157,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     args->pt_addr = ut_alloc(seL4_PageBits);
     // Check if we need to swap
     if (args->pt_addr < low || frame_num >= MAX_FRAMES) {
+        printf("frame_num %d\n", frame_num);
         // No frames available, need to swap
         // This may not be valid if memory runs out, but is fine for artificially limiting physical memory
         ut_free(args->pt_addr, PAGE_BITS);
@@ -194,11 +195,13 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
         if (err) { 
             // Retype failed, free memory and callback
             //9242_TODO More cleanup needed?
+            assert(RTN_ON_FAIL);
             ut_free(args->pt_addr, PAGE_BITS);
             args->index = FRAMETABLE_ERR;
             args->cb(pid, reply_cap, args);
             return;
         }
+        frame_num++;
         // Continue with frame_alloc call
         frame_alloc_cb(pid, reply_cap, args);
     }
@@ -219,6 +222,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // If it needs to be mapped into kernel memory, do so
     if (map == KMAP) {
         // Calculate the virtual memory for this physical address
+        printf("Kernel map\n");
         seL4_Word vaddr = paddr_to_vaddr(pt_addr);
         // Map it in, using the cap in the frametable
         err = map_page(frametable[index].frame_cap
@@ -228,9 +232,11 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
                       ,seL4_ARM_Default_VMAttributes
                       );
         // If we are mapping it into kernel, clear the memory
+        assert(err == 0);
         if (!err) {
             memset(vaddr, 0, PAGE_SIZE);
         }
+        printf("touching page %d\n", *((int *) vaddr));
     }
     // If there was an error, reply
     if (err) {
@@ -284,7 +290,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     } 
     // Do callback
     // Increment number of allocated frames
-    frame_num++;
+    
     // Increment counter for process
     proc_table[pid]->size += PAGE_SIZE;
     args->cb(pid, reply_cap, args);
@@ -325,6 +331,9 @@ int frame_free(int index) {
     frametable[index].mapping_cap = 0;
     frametable[index].vaddr = 0;
     frame_num--;
+    if (frame_num < 0) {
+        frame_num = 0;
+    }
 	return FRAMETABLE_OK;
 }
 
@@ -336,11 +345,18 @@ int get_next_frame_to_swap(void) {
     while (1) {
         if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
-          //9242_TODO Fix this sporadic bug
-          assert(1==0);  
+            //9242_TODO Fix this sporadic bug
+            curr_frame = buffer_tail;
+            next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
+            break;
         }
         
         int status = frametable[next_frame].frame_status;
+        int swap_pid = (status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
+        if (!(status & FRAME_IN_USE) || (proc_table[swap_pid] == NULL) ||(proc_table[swap_pid]->status != PROC_READY)) {
+            //9242_TODO Remove from buffer
+            break;
+        }
         if (status & FRAME_DONT_SWAP) {
         } else {
             if (status & FRAME_SWAP_MARKED) {     
@@ -378,9 +394,7 @@ int get_next_frame_to_swap(void) {
     frametable[next_frame].frame_status |= FRAME_DONT_SWAP;
     assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);*/
     buffer_tail = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
-    assert(buffer_tail != 0);
     buffer_head = frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK;
-    assert(buffer_head != 0);
     if (SOS_DEBUG) printf("get_next_frame_to_swap ended\n");
     return next_frame;
 }

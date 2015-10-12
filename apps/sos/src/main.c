@@ -146,7 +146,7 @@ void syscall_loop(seL4_CPtr ep) {
                 timer_interrupt();
             }
 
-        } else if (proc_table[badge]) {
+        } else if (proc_table[badge] && proc_table[badge]->status == PROC_READY) {
             if (label == seL4_VMFault) {
                 /* Page fault */
                 //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),

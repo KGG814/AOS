@@ -242,7 +242,7 @@ void read_from_swap_slot(int pid, seL4_CPtr reply_cap, read_swap_args *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot\n");
 	// Initialise arguments to frame alloc
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
-    alloc_args->map = NOMAP;
+    alloc_args->map = KMAP;
     alloc_args->cb = (callback_ptr)read_from_swap_slot_cb;
     alloc_args->cb_args = args;
     // Allocate a frame to put the swapped in frame into
@@ -340,6 +340,7 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 	} else {
 		// NFS call succeeded
 		// Copy from the temporary NFS buffer to memory
+		printf("index %d\n", index);
 		memcpy((void *) index_to_vaddr(index), data, count);
 		// Check if we are done
 		if (bytes_read == PAGE_SIZE) {

@@ -134,6 +134,7 @@ void pt_cleanup(int pid) {
     assert(pid > 0 && pid <= MAX_PROCESSES);
     //free all the pages + revoke/delete the corresponding cap 
     //9242_TODO unmark swapped out pages
+    printf("Starting pt_cleanup\n");
     seL4_Word** pd = proc_table[pid]->page_directory;
     seL4_ARM_PageTable **ct = proc_table[pid]->cap_table;
     for (int i = 0; i < PD_MAX_ENTRIES; i++) {
@@ -142,7 +143,12 @@ void pt_cleanup(int pid) {
                 if (pd[i][j]) {
                     if (pd[i][j] & SWAPPED) {
                     } else {
-                        frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                        int page_pid = (pd[i][j] & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
+                        int swapped = pd[i][j] & SWAPPED;
+                        if ((page_pid == pid) & !swapped) {
+                            printf("pid %d\n", pid);
+                            frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                        }      
                     }
                 }
             }
@@ -151,7 +157,7 @@ void pt_cleanup(int pid) {
     }
 
     frame_free(vaddr_to_index((seL4_Word) pd));
-
+    printf("pt cleaned\n");
     //free the cap table 
     for (int i = 0; i < CAP_TABLE_PAGES; i++) {
         for (int j = 0; j < CT_MAX_ENTRIES; j++) {
@@ -161,6 +167,7 @@ void pt_cleanup(int pid) {
         }
         frame_free(vaddr_to_index((seL4_Word) ct[i])); 
     }
+    printf("pt cleanup ended\n");
 } 
 
 void sos_map_page_swap(int ft_index, seL4_Word vaddr, int pid, seL4_CPtr reply_cap

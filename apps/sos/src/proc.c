@@ -169,7 +169,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
     as->size = 0;
     as->create_time = time_stamp();
     as->children = NULL;
-
+    as->status = PROC_READY;
     if (as->parent_pid != 0) {
         child_proc *new = malloc(sizeof(child_proc));
         if (new == NULL) {
