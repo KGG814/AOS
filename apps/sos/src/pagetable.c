@@ -238,7 +238,7 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if (SOS_DEBUG) printf("dir_index %d, page_index %d\n", dir_index, page_index);
 
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
-        printf("Page was swapped out from under us: %p, pid: %d, value %p", (void *) vaddr, pid, 
+        printf("Page was swapped out from under us: %p, pid: %d, value %p\n", (void *) vaddr, pid, 
                 (void *) as->page_directory[dir_index][page_index]);
         assert(1==0);
     } else {

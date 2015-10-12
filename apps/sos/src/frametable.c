@@ -322,6 +322,8 @@ int frame_free(int index) {
     //set status bits here.
     frametable[index].frame_status &= ~STATUS_MASK;
     frametable[index].frame_cap = 0;
+    frametable[index].mapping_cap = 0;
+    frametable[index].vaddr = 0;
     frame_num--;
 	return FRAMETABLE_OK;
 }
