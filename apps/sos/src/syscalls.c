@@ -258,7 +258,13 @@ void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
     int to_delete = (int) seL4_GetMR(1);
 
+    
+    
     if (to_delete == pid) {
+        int parent_pid = proc_table[to_delete]->parent_pid;
+        if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+        }
         kill_process(pid, pid, (seL4_CPtr) 0);
     } else if (remove_child(pid, to_delete)) {
         proc_table[pid]->status |= PROC_BLOCKED;
@@ -303,10 +309,10 @@ void handle_process_status(seL4_CPtr reply_cap, int pid) {
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO add pid -1 case, with global list
     proc_table[pid]->wait_cap = reply_cap;
-    if (proc_table[pid]->reader_status == CURR_READ) {
+    /*if (proc_table[pid]->reader_status == CURR_READ) {
         proc_table[pid]->reader_status = CHILD_READ;
         console_status = CONSOLE_READ_CLOSE;
-    }
+    }*/
 }
 
 

@@ -155,7 +155,7 @@ int con_close(vnode *vn) {
     if (vn == NULL) {
         return -1;
     }
-    if (vn->fmode & FM_READ) {
+    if (vn->fmode != O_WRONLY) {
         console_status = CONSOLE_READ_CLOSE;
     }
 
