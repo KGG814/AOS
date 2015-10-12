@@ -259,9 +259,17 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
 	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
 	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
     if (alloc_args->index < 0) {
-        free(process_args);
-        free(alloc_args);
+        if (!reply_cap) {
+            assert(!"couldn't allocate memory for first process");
+        }
+        if (process_args) {
+            free(process_args);
+        }
+        if (alloc_args) {
+            free(alloc_args);
+        }
         cleanup_as(new_pid);
+        send_seL4_reply(reply_cap, -1);
         return;
     }
 
@@ -272,7 +280,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
 	// Free frame_alloc args
 	int index = alloc_args->index;
 	free(alloc_args);
-
+    alloc_args = NULL;
 	
 	// Various local state
 	int err;
@@ -324,7 +332,18 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     /* parse the cpio image */
     dprintf(1, "\nStarting \"%s\"...\n", as->command);
     process_args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
-    conditional_panic(!process_args->elf_base, "Unable to locate cpio header");
+    printf("tried to do cpio_get_file\n");
+    if (!process_args->elf_base) {
+        if (!reply_cap) {
+            assert(!"Unable to load cpio header");
+        }
+        printf("trying to do cleanup\n");
+        free(process_args);
+        cleanup_as(new_pid);
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+
     /* load the elf image */
     elf_load_args *load_args = malloc(sizeof(elf_load_args));
     load_args->elf_file = process_args->elf_base;
@@ -469,6 +488,8 @@ void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
 
     addr_space *as = proc_table[child_pid];
 
+    as->status |= PROC_DYING;
+
     //increment the wait count in the parent 
     if (proc_table[delete_pid]) {
         proc_table[delete_pid]->delete_wait++;
@@ -483,14 +504,10 @@ void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
     as->delete_reply_cap = reply_cap;
     as->delete_pid = delete_pid;
 
-    //mark the process for deletion if it is currently blocked
-    if ((as->status & PROC_BLOCKED)) {
-        as->status |= PROC_DYING;
-        return;
-    } 
-
     //child is ready to be killed 
-    kill_process_cb(delete_pid, reply_cap, (void *) child_pid);
+    if (!(as->status & PROC_BLOCKED)) { 
+        kill_process_cb(delete_pid, reply_cap, (void *) child_pid);
+    }
 }
 
 void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data) {

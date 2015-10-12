@@ -50,7 +50,7 @@ int main( void ) {
     free(buf2);
     printf("Heap test success\n");
     printf("Starting sleep test\n");
-    sos_sys_usleep(50000);
+    sos_sys_usleep(5000);
     printf("Sleep test success\n");
 
     return 0;
