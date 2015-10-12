@@ -80,6 +80,7 @@ typedef struct _new_as_args {
     void *cb_args;  
     // Not initalised
     int new_pid;
+    int parent_pid;
 } new_as_args;
 
 addr_space* proc_table[MAX_PROCESSES + 1];

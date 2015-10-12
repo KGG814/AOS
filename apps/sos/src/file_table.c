@@ -31,8 +31,10 @@ int fdt_init(int pid) {
     proc_table[pid]->n_files_open = 0;
     // 9242_TODO If parent pid exists, check if parent is reader and copy their fd stuff instead
     //open stdin as null
+    int parent_pid = proc_table[pid]->parent_pid;
+
     if (fh_open(pid, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
-        return -1;
+    return -1;
     }
 
     if (fh_open(pid, "console", O_WRONLY, (seL4_CPtr) 0) != 1) {
@@ -45,7 +47,7 @@ int fdt_init(int pid) {
         fd_close(pid, 1);
         return -1;
     }
-    proc_table[pid]->reader_status = CURR_READ;
+    
     return 0;
 }
 

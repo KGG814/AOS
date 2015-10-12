@@ -44,6 +44,7 @@ void proc_table_init(void) {
 }
 
 void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
+    printf("new as called with parent %d \n", pid);
     new_as_args *args = (new_as_args *) _args;
     if (num_processes == MAX_PROCESSES) {
         args->new_pid = PROC_ERR;
@@ -55,7 +56,6 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
         next_pid = (next_pid % MAX_PROCESSES) + 1;
     }
 
-    pid = next_pid;
     next_pid = (next_pid % MAX_PROCESSES) + 1;
     num_processes++;
 
@@ -68,7 +68,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     }
     memset(as, 0, sizeof(addr_space));
     proc_table[new_pid] = as;
-    
+    as->parent_pid = pid;
     int err = fdt_init(new_pid);
     if (err) {
         free(as);
@@ -80,6 +80,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     as->pid = new_pid;
     as->size = 0;
     as->create_time = time_stamp();
+    
     as->wait_cap = 0;
     as->reader_status = NO_READ;
 
@@ -163,7 +164,6 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
     //do some preliminary initialisation
     as->status = 0;
     as->priority = args->priority;
-    as->parent_pid = args->parent_pid;
     as->pid = new_pid; 
     as->size = 0;
     as->create_time = time_stamp();

@@ -5,9 +5,6 @@
 #include <serial/serial.h>
 #include <string.h>
 
-#define CONSOLE_READ_OPEN   1
-#define CONSOLE_READ_CLOSE  0
-
 #define READ_CB_DELAY 100000
 #define CONSOLE_BUFFER_SIZE 4096
 

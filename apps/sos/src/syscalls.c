@@ -1,7 +1,7 @@
 #include "syscalls.h"
 #include "file_table.h"
 #include "pagetable.h"
-
+#include "devices.h"
 #include <string.h>
 #include <clock/clock.h>
 #include <sos/sos.h>
@@ -13,6 +13,7 @@
 #include <sys/debug.h>
 #include "debug.h"
 
+extern int console_status;
 //callback for waking sleeping processes
 static void wake_process(uint32_t id, void* data); 
 
@@ -286,6 +287,10 @@ void handle_process_status(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
     proc_table[pid]->wait_cap = reply_cap;
+    if (proc_table[pid]->reader_status == CURR_READ) {
+        proc_table[pid]->reader_status = CHILD_READ;
+        console_status = CONSOLE_READ_CLOSE;
+    }
 }
 
 
