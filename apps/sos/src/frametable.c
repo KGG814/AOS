@@ -26,7 +26,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          20000
+#define MAX_FRAMES          200
 #define verbose 5
 #define FT_INITIALISED      1
 int ft_initialised = 0;
@@ -50,6 +50,10 @@ static seL4_Word paddr_to_vaddr(seL4_Word paddr) {
 // Convert from frametable index to physical address
 seL4_Word index_to_paddr(int index) {
     return index * PAGE_SIZE + low;
+}
+
+int paddr_to_index(seL4_Word paddr) {
+    return (paddr - low) / PAGE_SIZE;
 }
 
 // Convert from frametable index to kernel virtual address
@@ -126,6 +130,7 @@ int frame_init(void) {
     int index = 0;
     for (int i = 0; i < frame_table_size; i++) {
         index = real_indices[i].frame_status;
+        printf("Setting index %p to don't swap\n", (void *) index);
         frametable[index].frame_status = FRAME_IN_USE | FRAME_DONT_SWAP;
         frametable[index].frame_cap = real_indices[i].frame_cap;
     }
@@ -176,8 +181,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     } else {
         // Don't need to swap can retype memory
         // Calculate the index
-        // 9242_TODO Put this in a function
-        args->index = (args->pt_addr - low) / PAGE_SIZE;
+        args->index = paddr_to_index(args->pt_addr);
         // Retype the cap so we can use it
         // Also put the cap in the frameable
         err |= cspace_ut_retype_addr(args->pt_addr
@@ -195,8 +199,6 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
             args->cb(pid, reply_cap, args);
             return;
         }
-        // Increment number of allocated frames
-        frame_num++;
         // Continue with frame_alloc call
         frame_alloc_cb(pid, reply_cap, args);
     }
@@ -225,6 +227,10 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
                       ,seL4_AllRights
                       ,seL4_ARM_Default_VMAttributes
                       );
+        // If we are mapping it into kernel, clear the memory
+        if (!err) {
+            memset(vaddr, 0, PAGE_SIZE);
+        }
     }
     // If there was an error, reply
     if (err) {
@@ -233,7 +239,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     }
     // Check if the frame is in the swap buffer
     if (!(frametable[index].frame_status & SWAP_BUFFER_MASK)) {
-        if (SOS_DEBUG) printf("Not in swap buffer\n");
+        
         // Not in the swap buffer, need to put it in
         // Check if swap buffer has been initialised
         if (buffer_head == -1) {
@@ -244,12 +250,17 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
             // Clear the buffer bits
             frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
             // Set the buffer bits
+            assert(index != 0);
             frametable[buffer_tail].frame_status |= index;
         }
+        if (SOS_DEBUG) printf("Not in swap buffer %d, %d\n", index, buffer_head);
         // Set the tail to the new buffer
         buffer_tail = index;
         // Make the new frame (which is now the tail), point to the head
-        frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
+        frametable[index].frame_status &= ~PROCESS_MASK;
+        frametable[index].frame_status &= ~SWAP_BUFFER_MASK;
+        frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
+        if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
     } else {
         // Already in the swap buffer, just set the pid and status bits
         // This saves us having to remove it from the list and put it at the end, 
@@ -259,16 +270,11 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
         // Set the pid and set it to a vlid frame
         frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     }
+    if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
+    assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
     // Set the vaddr in the return values
     args->vaddr = paddr_to_vaddr(pt_addr);
-    // If we are mapping it into kernel, clear the memory
-    // 9242_TODO Move this up the top? Also get rid of this shitty zeroing code and replace with something better
-    if (map == KMAP) {
-        seL4_Word *tmp = (seL4_Word *) args->vaddr;
-        for (int i = 0; i < 1024; i++) {
-            tmp[i] = 0;
-        }
-    }  
+    
     // Debug print
     if (SOS_DEBUG) {
         printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p, vaddr %p\n", 
@@ -277,6 +283,10 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
             (void *) args->vaddr);
     } 
     // Do callback
+    // Increment number of allocated frames
+    frame_num++;
+    // Increment counter for process
+    proc_table[pid]->size += PAGE_SIZE;
     args->cb(pid, reply_cap, args);
     if (SOS_DEBUG) printf("frame_alloc_cb ended, index %p\n", (void *) args->index);
 }
@@ -320,6 +330,7 @@ int get_next_frame_to_swap(void) {
     if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
+    assert((next_frame & SWAP_BUFFER_MASK) != 0);
     while (1) {
         if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
@@ -330,14 +341,15 @@ int get_next_frame_to_swap(void) {
         int status = frametable[next_frame].frame_status;
         if (status & FRAME_DONT_SWAP) {
         } else {
-            if (status & FRAME_SWAP_MARKED) {            
+            if (status & FRAME_SWAP_MARKED) {     
+                frametable[next_frame].frame_status &= ~FRAME_SWAP_MARKED;       
                 break;
             } else if (status & FRAME_IN_USE) {
                 frametable[next_frame].frame_status |= FRAME_SWAP_MARKED;
                 /* Unmap and map back into kernel only */
                 seL4_ARM_Page_Unify_Instruction(frametable[next_frame].mapping_cap, 0, PAGESIZE);
-                cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
                 seL4_ARM_Page_Unmap(frametable[next_frame].frame_cap);
+                cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
                 int err = map_page(frametable[next_frame].frame_cap
                    ,seL4_CapInitThreadPD
                    ,index_to_vaddr(next_frame)
@@ -354,12 +366,19 @@ int get_next_frame_to_swap(void) {
     }
     if (SOS_DEBUG) printf("Swapping frame index %p\n", (void *) next_frame);
 
+    /*assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);
     buffer_tail = curr_frame;
     buffer_head = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
     frametable[curr_frame].frame_status &= ~SWAP_BUFFER_MASK;
-    frametable[curr_frame].frame_status |= frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
+    frametable[curr_frame].frame_status |= buffer_head;
+    assert(buffer_head & SWAP_BUFFER_MASK != 0);
     frametable[next_frame].frame_status &= ~FRAME_STATUS_MASK;
     frametable[next_frame].frame_status |= FRAME_DONT_SWAP;
+    assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);*/
+    buffer_tail = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
+    assert(buffer_tail != 0);
+    buffer_head = frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK;
+    assert(buffer_head != 0);
     if (SOS_DEBUG) printf("get_next_frame_to_swap ended\n");
     return next_frame;
 }

@@ -15,7 +15,7 @@
 #define FRAMETABLE_CALLBACK			(-4)
 
 /* Frame status bits */
-#define FRAME_INVALID    	(1 << 31) //not managed by our frame table 
+#define FRAME_PINNED		(1 << 31)
 #define FRAME_IN_USE        (1 << 30) //frame is in use and managed by us
 #define FRAME_DONT_SWAP     (1 << 29) //frame is not to be swapped
 //this bit is 1 if the frame should be swapped on the next pass of the clock

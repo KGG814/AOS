@@ -4,6 +4,7 @@
 #include "pagetable.h"
 #include <serial/serial.h>
 #include <string.h>
+#include "debug.h"
 
 #define READ_CB_DELAY 100000
 #define CONSOLE_BUFFER_SIZE 4096
@@ -68,9 +69,10 @@ vnode_ops nul_ops = {
 };
 
 vnode *console_open(fmode_t mode, int *err) {
-    
+    if (SOS_DEBUG) printf("console_open\n");
     if (mode == O_RDONLY || mode == O_RDWR) { 
         if (console_status == CONSOLE_READ_OPEN) {
+            assert(RTN_ON_FAIL);
             *err = VFS_ERR;
             return NULL;
         } 

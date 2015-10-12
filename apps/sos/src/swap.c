@@ -130,7 +130,7 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 
 // NFS callback for writing
 void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count) {
-	if (SOS_DEBUG) printf("swap_write_nfs_cb, wrote %d\n", count);
+	
 	// Get the args struct form the token
 	write_swap_args* args = (write_swap_args*) token;
 	// Increment the write state so we're writing to the correct place in the swap file
@@ -146,7 +146,8 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 	int bytes_written 	= args->bytes_written;
 	seL4_Word addr 		= args->addr;
 	
-
+	if (SOS_DEBUG) printf("swap_write_nfs_cb, wrote %d, written %d, offset %p\n", 
+		                  count, bytes_written, (void *)offset);
 	// Check the NFS call worked as expected
 	if (status != NFS_OK) {
 		// NFS call failed

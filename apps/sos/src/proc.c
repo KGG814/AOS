@@ -60,7 +60,6 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     num_processes++;
 
     addr_space *as = malloc(sizeof(addr_space)); 
-    memset(as, 0, sizeof(addr_space));
     if (as == NULL) {
         //really nothing to be done
         args->new_pid = PROC_ERR;
@@ -280,12 +279,20 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     unsigned long elf_size;
 	
 	as->ipc_buffer_addr = index_to_paddr(index);
-    as->ipc_buffer_cap = frametable[index].frame_cap;
     /* Map IPC buffer*/
+    as->ipc_buffer_cap = cspace_copy_cap(cur_cspace
+                                   ,cur_cspace
+                                   ,frametable[index].frame_cap
+                                   ,seL4_AllRights
+                                   );
+
     err = map_page_user(as->ipc_buffer_cap, as->vroot,
                    PROCESS_IPC_BUFFER,
                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+    printf("Setting index %p to don't swap\n", (void *) index);
     frametable[index].frame_status |= FRAME_DONT_SWAP;
+    printf("cap: %p\n", (void *)as->ipc_buffer_cap);
+    printf("err :%d\n", err);
     conditional_panic(err, "Unable to map IPC buffer for user app");
 
     /* Copy the fault endpoint to the user app to enable IPC */

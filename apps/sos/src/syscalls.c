@@ -238,8 +238,6 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
     seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
-
-    //9242_TODO changed this to a copy in
     seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
 
 
@@ -259,6 +257,8 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
+    // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
+    // 9242_TODO Call delete stuff
 }
 
 /* Returns ID of caller's process. */
@@ -286,6 +286,7 @@ void handle_process_status(seL4_CPtr reply_cap, int pid) {
  * to exit. Returns the pid of the process which exited.
  */
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
+    // 9242_TODO add pid -1 case, with global list
     proc_table[pid]->wait_cap = reply_cap;
     if (proc_table[pid]->reader_status == CURR_READ) {
         proc_table[pid]->reader_status = CHILD_READ;

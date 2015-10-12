@@ -58,7 +58,6 @@ typedef struct _copy_out_args {
 } copy_out_args;
 
 typedef struct  _sos_map_page_args {
-  // 9242_TODO Get rid of both of these, only need pid
   seL4_Word vaddr;
   int ft_index;
   callback_ptr cb;

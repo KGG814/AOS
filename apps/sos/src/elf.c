@@ -104,12 +104,12 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *a
         seL4_Word dir_index = PT_TOP(dst);
         seL4_Word page_index = PT_BOTTOM(dst);
         // Check if address is mapped in already
-        
+        if (TMP_DEBUG) printf("pd addr %p\n",  as->page_directory[0]);
+        if (TMP_DEBUG) printf("page_index %p\n", (void *)page_index);
         if (as->page_directory[dir_index] == NULL || as->page_directory[dir_index][page_index] == 0) {
             // Has not been mapped in, allocate a frame for the ELF file to be copied to
             // Set up frame alloc args    
-            if (TMP_DEBUG) printf("dir index %p\n", (void *)dir_index);
-            if (TMP_DEBUG) printf("page_index %p\n", (void *)page_index);
+            
             frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
             alloc_args->map = KMAP;
             alloc_args->cb = (callback_ptr) load_segment_into_vspace_cb;
@@ -145,7 +145,7 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args 
     // Get args we need for this call
     unsigned long dst = load_args->dst;
     int index = load_args->index;
-    // Debud print
+    // Debug print
     if (TMP_DEBUG) printf("index %p\n", (void *)index);
     // Do sos_map_page_swap call
     sos_map_page_swap(index, dst, pid, reply_cap,
@@ -183,7 +183,6 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
     char *elf_file = args->elf_file;
     int curr_header = args->curr_header;
     addr_space *as = proc_table[pid];
-    seL4_ARM_PageDirectory dest_as = as->vroot;
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
         assert(0==1);
@@ -214,7 +213,6 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
             segment_args->src = source_addr;
             segment_args->dst = vaddr;
             segment_args->pos = 0;
-            segment_args->dest_as = dest_as;
             segment_args->segment_size = segment_size;
             segment_args->file_size = file_size;
             segment_args->permissions = get_sel4_rights_from_elf(flags) & seL4_AllRights;

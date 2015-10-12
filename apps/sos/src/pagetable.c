@@ -32,7 +32,7 @@ int map_new_frame (seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_C
 // Call to initialise the SOS page directory, as well as the 
 // frames to store caps for the ARM page tables
 void vm_init(int pid, seL4_CPtr reply_cap, void *args) {
-    if (SOS_DEBUG) printf("pd_init\n");
+    if (SOS_DEBUG) printf("vm_init\n");
     // Set up frame frame_alloc args
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
     alloc_args->map     = KMAP;
@@ -40,7 +40,7 @@ void vm_init(int pid, seL4_CPtr reply_cap, void *args) {
     alloc_args->cb_args = args;
     // Get a frame for the page directory
     frame_alloc_swap(pid, reply_cap, alloc_args);
-    if (SOS_DEBUG) printf("pd_init ended\n");
+    if (SOS_DEBUG) printf("vm_init ended\n");
 }
 
 // Callback for SOS page directory setup
@@ -56,7 +56,15 @@ void pd_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     free(args);
     // Set the page directory to the newly allocated page
     proc_table[pid]->page_directory = (seL4_Word**) vaddr;
+    memset((void *)vaddr, 0, PAGE_SIZE);
+    if (frametable[index].mapping_cap) {
+       seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE); 
+    }
+    
+    if (TMP_DEBUG) printf("pd addr %p\n",  proc_table[pid]->page_directory[0]);
+
     // Make sure the page directory isn't swapped out
+    printf("Setting index %p to don't swap\n", (void *) index);
     frametable[index].frame_status |= FRAME_DONT_SWAP;
     // Continue initialisation
     pd_caps_init(pid, reply_cap, vm_args);
@@ -75,8 +83,7 @@ void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
         // And loop back to this function through
         // the callback
         // Set up frame_alloc args
-        printf("Args at %p\n", args);
-        printf("curr page %d\n", curr_page);
+        printf("curr page %d, max pages %d\n", curr_page, CAP_TABLE_PAGES);
         frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
         alloc_args->map     = KMAP;
         alloc_args->cb      = (callback_ptr)pd_caps_init_cb;
@@ -106,13 +113,15 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
 
     // Get arguments we need
     // loop counter
-
+    memset((void *)vaddr, 0, PAGE_SIZE);
+    seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated
     // This is an array of ARM page tables
     printf("pid %d, curr_page %d\n", pid, curr_page);
     proc_table[pid]->cap_table[curr_page] = (seL4_ARM_PageTable*) vaddr;
     // Don't swap these frames
+    printf("Setting index %p to don't swap\n", (void *) index);
     frametable[index].frame_status |= FRAME_DONT_SWAP;
     // Increment loop counter
     vm_args->curr_page++;
@@ -204,9 +213,10 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
-    memset(alloc_args->vaddr, 0, PAGE_SIZE);
+    memset((void *)alloc_args->vaddr, 0, PAGE_SIZE);
     assert(err==0);
     frametable[alloc_args->index].vaddr = -1;
+    printf("Setting index %p to don't swap\n", (void *)alloc_args->index);
     frametable[alloc_args->index].frame_status |= FRAME_DONT_SWAP;
     free(alloc_args);
     sos_map_page_cb(pid, reply_cap, map_args);
@@ -244,12 +254,9 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
                         seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
             printf("Err: %d, vaddr: %p\n", err, (void *)vaddr);
             assert(err == 0); 
-            if (!err) {
-                seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE); 
-                frametable[index].mapping_cap = cap; 
-                if (SOS_DEBUG) printf("setting mapping cap: %d\n", cap);
-            }
-
+            seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE); 
+            frametable[index].mapping_cap = cap; 
+            if (SOS_DEBUG) printf("setting mapping cap: %d\n", cap);
             frametable[map_args->ft_index].vaddr = map_args->vaddr;
         }     
     }

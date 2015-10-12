@@ -29,9 +29,6 @@ int fdt_init(int pid) {
         proc_table[pid]->file_table[i] = INVALID_FD;
     }
     proc_table[pid]->n_files_open = 0;
-    // 9242_TODO If parent pid exists, check if parent is reader and copy their fd stuff instead
-    //open stdin as null
-    int parent_pid = proc_table[pid]->parent_pid;
 
     if (fh_open(pid, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
     return -1;
