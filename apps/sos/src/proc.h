@@ -60,9 +60,13 @@ typedef struct _addr_space {
     unsigned size;
     timestamp_t create_time;
     child_proc *children;
-    char command[N_NAME];
     int reader_status;
     seL4_CPtr wait_cap;
+
+    //queue of processes this process is waiting on to die
+    child_proc *delete_queue;
+
+    char command[N_NAME];
 } addr_space; 
 
 typedef struct _start_process_args {
@@ -108,6 +112,8 @@ int is_child(int parent_pid, int child_pid);
 
 int remove_child(int parent_pid, int child_pid);
 
-void mark_as(int pid);
+void kill_child(int pid);
+
+void kill_child_cb(int pid, seL4_CPtr reply_cap, void *data);
 
 #endif /* _PROC_H_ */

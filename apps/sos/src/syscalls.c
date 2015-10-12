@@ -257,8 +257,8 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     int to_delete = (int) seL4_GetMR(1);
 
-    if (is_child(pid, to_delete)) {
-        mark_as(to_delete); 
+    if (remove_child(pid, to_delete)) {
+        kill_child(to_delete); 
     }
 }
 

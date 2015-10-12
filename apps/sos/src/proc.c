@@ -460,15 +460,27 @@ int remove_child(int parent_pid, int child_pid) {
     return 1;
 }
 
-void mark_as(int pid) {
+void kill_child(int pid) {
     if (proc_table[pid] == NULL) {
         return;
     }
 
-    proc_table[pid]->status |= PROC_DYING;
+    //kill all its children first 
     child_proc *cur = proc_table[pid]->children;
     while (cur != NULL) {
-        mark_as(cur->pid);
+        kill_child(cur->pid);
         cur = cur->next;
     }
+
+    //kill the child
+    if (proc_table[pid]->status & PROC_BLOCKED) {
+        proc_table[pid]->status |= PROC_DYING;
+        return;
+    }
+
+    //child is ready to be killed 
+}
+
+void kill_child_cb(int pid, seL4_CPtr reply_cap, void *data) {
+    
 }
