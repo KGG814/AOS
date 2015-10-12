@@ -24,7 +24,16 @@
 
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
-typedef struct _addr_space {
+typedef struct _addr_space addr_space; 
+
+typedef struct _child_proc child_proc;
+
+struct _child_proc {
+    int pid;
+    child_proc *next;
+};
+
+struct _addr_space {
 	seL4_Word vroot_addr;
 	seL4_ARM_PageDirectory vroot;
 
@@ -40,7 +49,7 @@ typedef struct _addr_space {
     cspace_t *croot;
     seL4_Word brk;
     int file_table[PROCESS_MAX_FILES];
-    int n_files_open;
+    int n_files_open; 
 
     /* process properties */
     int status;
@@ -49,10 +58,15 @@ typedef struct _addr_space {
     int pid;
     unsigned size;
     timestamp_t create_time;
+    child_proc *children;
     char command[N_NAME];
+<<<<<<< HEAD
     int reader_status;
     seL4_CPtr wait_cap;
 } addr_space; 
+=======
+}; 
+>>>>>>> 112ce0ed36e70cf974a12d706b3bfb260e9a14df
 
 typedef struct _start_process_args {
     char *app_name;
@@ -60,9 +74,9 @@ typedef struct _start_process_args {
     int priority;
     callback_ptr cb;
     void *cb_args;
+    int parent_pid;
     // not initialised
     char* elf_base;
-    int parent_pid;
 } start_process_args;
 
 typedef struct _new_as_args {
