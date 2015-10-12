@@ -126,7 +126,6 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     }
 	
     // Get args that we use
-	char *app_name = args->app_name;
 	// Get new pid/make new address space
     new_as_args *as_args = malloc(sizeof(new_as_args));
     as_args->cb = start_process_cb1;
@@ -153,6 +152,8 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
     if (TMP_DEBUG) printf("pid: %d\n", new_pid);
     // Address space of process
     addr_space* as = proc_table[new_pid];
+    // Address space of parent 
+    addr_space* parent_as = proc_table[args->parent_pid];
 
     //do some preliminary initialisation
     as->status = 0;
@@ -163,13 +164,14 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
     as->create_time = time_stamp();
     as->children = NULL;
 
-    if (parent_pid) {
+    if (as->parent_pid != 0) {
         child_proc *new = malloc(sizeof(child_proc));
         if (new == NULL) {
             if (reply_cap) {
                 free(args);
                 cleanup_as(new_pid);
                 send_seL4_reply(reply_cap, -1);
+                return;
             } else {
                 assert(!"somehow managed to try and add a child to rootserver");
             }

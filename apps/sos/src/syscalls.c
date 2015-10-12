@@ -237,7 +237,11 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
     seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
+
+    //9242_TODO changed this to a copy in
     seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
+
+
     printf("Starting process %s\n", (char *) kernel_path);
     start_process_args *process_args = malloc(sizeof(start_process_args));
     process_args->app_name = (char *)kernel_path;
@@ -246,6 +250,7 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
     printf("Setting callback %p\n", handle_process_create_cb);
     process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
+    process_args->parent_pid = pid;
     start_process(pid, reply_cap, process_args);
 }
 

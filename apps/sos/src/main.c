@@ -233,6 +233,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     process_args->priority = TTY_PRIORITY;
     process_args->cb = NULL;
     process_args->cb_args = NULL;
+    process_args->parent_pid = 0;
     start_process(0, 0, process_args);
 }
 

@@ -64,9 +64,9 @@ typedef struct _start_process_args {
     int priority;
     callback_ptr cb;
     void *cb_args;
+    int parent_pid;
     // not initialised
     char* elf_base;
-    int parent_pid;
 } start_process_args;
 
 typedef struct _new_as_args {
