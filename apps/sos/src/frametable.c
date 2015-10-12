@@ -26,7 +26,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          80
+#define MAX_FRAMES          20000
 #define verbose 5
 #define FT_INITIALISED      1
 int ft_initialised = 0;
@@ -169,7 +169,8 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
         write_args->index = get_next_frame_to_swap();
         // Put the index in the frame_alloc args so that we can continue after callback
         args->index = write_args->index;
-        // 9242_TODO set vaddr and pt_addr too?
+        args->vaddr = index_to_vaddr(args->index);
+        args->pt_addr = index_to_paddr(args->index);
         // Write frame to current free swap slot
         write_to_swap_slot(pid, reply_cap, write_args);
     } else {
@@ -270,9 +271,10 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     }  
     // Debug print
     if (SOS_DEBUG) {
-        printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
+        printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p, vaddr %p\n", 
             (void *) frame_num,(void *)  args->index, pid, 
-            (void *)frametable[args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
+            (void *)frametable[args->index].frame_status, (void *) buffer_head, (void *) buffer_tail,
+            (void *) args->vaddr);
     } 
     // Do callback
     args->cb(pid, reply_cap, args);

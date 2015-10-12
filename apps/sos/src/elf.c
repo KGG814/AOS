@@ -96,6 +96,7 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *a
     addr_space *as = proc_table[pid];
     // Make sure inputs are valid
     assert(file_size <= segment_size);
+    if (TMP_DEBUG) printf("dst %p\n", (void *)dst);
     // Check if we have reached end of segment
     if (pos < segment_size) {    
         // If multiple segments reside in a frame, it is possible a frame has already been allocated
@@ -103,9 +104,12 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *a
         seL4_Word dir_index = PT_TOP(dst);
         seL4_Word page_index = PT_BOTTOM(dst);
         // Check if address is mapped in already
+        
         if (as->page_directory[dir_index] == NULL || as->page_directory[dir_index][page_index] == 0) {
             // Has not been mapped in, allocate a frame for the ELF file to be copied to
             // Set up frame alloc args    
+            if (TMP_DEBUG) printf("dir index %p\n", (void *)dir_index);
+            if (TMP_DEBUG) printf("page_index %p\n", (void *)page_index);
             frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
             alloc_args->map = KMAP;
             alloc_args->cb = (callback_ptr) load_segment_into_vspace_cb;
@@ -113,13 +117,16 @@ void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *a
             frame_alloc_swap(pid, reply_cap, alloc_args);
         } else {
             // Already been mapped in, can skip frame allocation
+            if (TMP_DEBUG) printf("pid %d\n", pid);
+            if (TMP_DEBUG) printf("dir index %p\n", (void *)dir_index);
+            if (TMP_DEBUG) printf("page_index %p\n", (void *)page_index);
             args->index = as->page_directory[dir_index][page_index];
             args->vaddr = index_to_vaddr(args->index);
+            if (TMP_DEBUG) printf("vaddr %p\n", (void *)args->vaddr);
             load_segment_into_vspace_cb_continue(pid, reply_cap, args);
         }  
     } else {
         // End of segment reached, callback
-        printf("load_segment_into_vspace doing callback\n");
         args->cb(pid, reply_cap, args->cb_args);
     }
     if (TMP_DEBUG) printf("load_segment_into_vspace end\n");
@@ -132,7 +139,7 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args 
     // Copy results from frame_alloc call to arguments for this call
     load_args->index = args->index;
     load_args->vaddr = args->vaddr;
-
+    if (TMP_DEBUG) printf("vaddr %p\n", (void *)args->vaddr);
     // Free frame alloc args
     free(args);
     // Get args we need for this call
@@ -162,9 +169,7 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_seg
     if (pos < file_size){     
         memcpy((void*)vaddr, (void*)src, MIN(nbytes, file_size - args->pos));
     }   
-    printf("index: %d\n", index);
     seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
-
     args->pos += nbytes;
     args->dst += nbytes;
     args->src += nbytes;
@@ -185,7 +190,6 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         return;
     }
     int num_headers = elf_getNumProgramHeaders(elf_file);
-    printf("curr_header %d \n", curr_header);
     if (curr_header < num_headers) {
         char *source_addr;
         unsigned long flags, file_size, segment_size, vaddr;

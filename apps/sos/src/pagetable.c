@@ -75,6 +75,8 @@ void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
         // And loop back to this function through
         // the callback
         // Set up frame_alloc args
+        printf("Args at %p\n", args);
+        printf("curr page %d\n", curr_page);
         frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
         alloc_args->map     = KMAP;
         alloc_args->cb      = (callback_ptr)pd_caps_init_cb;
@@ -82,8 +84,9 @@ void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
         frame_alloc_swap(pid, reply_cap, alloc_args);
     } else {
         // Allocated all the frames, do callback
-        start_process_args *process_args = (start_process_args *) args->cb_args;
-        args->cb(pid, reply_cap, process_args);
+        printf("curr_page %d, max pages, %d\n",curr_page, CAP_TABLE_PAGES );
+        args->cb(pid, reply_cap, args->cb_args);
+        free(args);
     }
     if (SOS_DEBUG) printf("pd_caps_init ended\n");
 }
@@ -97,7 +100,7 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     seL4_Word index = args->index;
     // Arguments for this function call
     vm_init_args *vm_args = (vm_init_args *) args->cb_args;
-
+    printf("Args at %p\n", vm_args);
     // Free frame_alloc args
     free(args);
 
@@ -107,6 +110,7 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated
     // This is an array of ARM page tables
+    printf("pid %d, curr_page %d\n", pid, curr_page);
     proc_table[pid]->cap_table[curr_page] = (seL4_ARM_PageTable*) vaddr;
     // Don't swap these frames
     frametable[index].frame_status |= FRAME_DONT_SWAP;
@@ -166,6 +170,7 @@ void sos_map_page_swap(int ft_index, seL4_Word vaddr, int pid, seL4_CPtr reply_c
         /* Check that the page table exists */
         assert(as->page_directory != NULL);
         if (as->page_directory[dir_index] == NULL) {
+            printf("Making page directory\n");
             frame_alloc_args *args = malloc(sizeof(frame_alloc_args));
             if (args == NULL) {
                 free(map_args);
@@ -189,6 +194,8 @@ void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     sos_map_page_args *map_args = alloc_args->cb_args;
     seL4_Word dir_index = PT_TOP(map_args->vaddr);
+    printf("directory index %p, pagetable addr %p\n",(void *)dir_index, (void *)alloc_args->vaddr);
+    printf("index %d\n",alloc_args->index);
     proc_table[pid]->page_directory[dir_index] = (seL4_Word *) alloc_args->vaddr;
     seL4_ARM_Page_Unmap(frametable[alloc_args->index].frame_cap);
     int err = map_page(frametable[alloc_args->index].frame_cap
@@ -219,6 +226,7 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
     seL4_Word page_index = PT_BOTTOM(vaddr);
     assert(as->page_directory[dir_index] != NULL);
     if (SOS_DEBUG) printf("dir_index %d, page_index %d\n", dir_index, page_index);
+
     if ((as->page_directory[dir_index][page_index] & SWAPPED) == SWAPPED) {
         printf("Page was swapped out from under us: %p, pid: %d, value %p", (void *) vaddr, pid, 
                 (void *) as->page_directory[dir_index][page_index]);
@@ -241,6 +249,7 @@ void sos_map_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
                 frametable[index].mapping_cap = cap; 
                 if (SOS_DEBUG) printf("setting mapping cap: %d\n", cap);
             }
+
             frametable[map_args->ft_index].vaddr = map_args->vaddr;
         }     
     }

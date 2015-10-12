@@ -92,7 +92,8 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    seL4_Word dir_index = PT_TOP(frametable[index].vaddr);
 	    seL4_Word page_index = PT_BOTTOM(frametable[index].vaddr);
 	    // DEBUG
-	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p\n", (void *) frametable[index].vaddr);
+	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p, pid :%d\n", 
+	    	(void *) frametable[index].vaddr, swapped_frame_pid);
 	    assert(frametable[index].vaddr != 0);
 	    // Set the process's page table entry to swapped and store the swap slot
 	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
