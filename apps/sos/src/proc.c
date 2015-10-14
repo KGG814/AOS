@@ -107,6 +107,7 @@ void cleanup_as(int pid) {
     //clean shit up here
     fdt_cleanup(pid);
     pt_cleanup(pid);
+    //9242_TODO, cleanup vm?
     //9242_TODO, cleanup vroot, ipc, tcb, croot
 
     free(as);
@@ -505,6 +506,7 @@ void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
     child_proc *cur = as->children;
     while (cur != NULL) {
         kill_process(delete_pid, cur->pid, reply_cap);
+        free(cur);
         cur = cur->next;
     }
 
