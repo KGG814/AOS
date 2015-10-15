@@ -110,6 +110,13 @@ void cleanup_as(int pid) {
     //9242_TODO, cleanup vm?
     //9242_TODO, cleanup vroot, ipc, tcb, croot
 
+    child_proc *next = as->children;
+    while (as->children != NULL) {
+         free(as->children);
+         next = next->next;
+         as->children = next;
+    }
+
     free(as);
 
     proc_table[pid] = NULL;
