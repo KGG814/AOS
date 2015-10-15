@@ -65,6 +65,8 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
         args->new_pid = PROC_ERR;
         return;
     }
+
+    //initialise all values to 0
     memset(as, 0, sizeof(addr_space));
     proc_table[new_pid] = as;
     as->parent_pid = pid;
@@ -109,13 +111,30 @@ void cleanup_as(int pid) {
     pt_cleanup(pid);
     //9242_TODO, cleanup vm?
     //9242_TODO, cleanup vroot, ipc, tcb, croot
-
-    child_proc *next = as->children;
-    while (as->children != NULL) {
-         free(as->children);
-         next = next->next;
-         as->children = next;
+    
+    if (as->tcb_addr) {
+    
     }
+
+    //ipc is cleaned up in the pagetable cleanup
+
+    if (as->croot) {
+    
+    }
+    
+    if (as->vroot_addr) {
+    
+    }
+
+
+    child_proc *cur_child = as->children;
+    while (as->children != NULL) {
+         as->children = cur_child->next;
+         free(cur_child);
+         cur_child = as->children;
+    }
+
+    clear_args(pid);
 
     free(as);
 
@@ -494,6 +513,52 @@ int remove_child(int parent_pid, int child_pid) {
     free(tmp);
 
     return 1;
+}
+
+int push_args(int pid, void *args) {
+    if (!proc_table[pid]) {
+        return -1;
+    }
+
+    arg_node *new_node = malloc(sizeof(arg_node));
+    if (!new_node) {
+        return -1;
+    }
+
+    new_node->args = args; 
+    new_node->next = proc_table[pid]->arg_stack;
+    proc_table[pid]->arg_stack = new_node;
+    return 0;
+}
+
+void *pop_args(int pid) {
+    arg_node *args = NULL;
+
+    if (!proc_table[pid]) {
+        return NULL;
+    }
+
+    args = proc_table[pid]->arg_stack;
+    
+    if (args) {
+        proc_table[pid]->arg_stack = args->next;
+        void *ret = args->args;
+        free(args);
+        return ret;
+    }
+
+    return NULL;
+} 
+
+void clear_args(int pid) {
+    addr_space *as = proc_table[pid];
+    if (!as) {
+        return;
+    }
+
+    for (void *v = pop_args(pid); v != NULL; v = pop_args(pid)) {
+        free(v);
+    }
 }
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
