@@ -320,8 +320,11 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     int err = map_if_valid(fault_vaddr, pid, handle_vm_fault_cb, NULL, reply_cap);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
         // 9242_TODO Kill process
-        printf("Err: %d\n", err);
-        assert(!"process kill not implemented yet.");
+        int parent_pid = proc_table[pid]->parent_pid;
+        if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+        }
+        kill_process(pid, pid, 0);
     }
     if (SOS_DEBUG) printf("handle_vm_fault finished\n");
 }

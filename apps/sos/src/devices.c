@@ -35,8 +35,8 @@ typedef struct _con_read_args {
     int pid;
 } con_read_args;
 
-void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args);
-void con_read_cb(int pid, seL4_CPtr reply_cap, void *args);
+void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args, int err);
+void con_read_cb(int pid, seL4_CPtr reply_cap, void *args, int err);
 void con_read_cb_wrapper(seL4_Uint32 id, void *data);
 //console specific stuff
 void serial_cb(struct serial* s, char c);
@@ -139,12 +139,12 @@ vnode *nul_open(fmode_t mode, int *err) {
 void nul_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap
         ,int *offset, int pid)
 { 
-    send_seL4_reply(reply_cap, 0);
+    send_seL4_reply(reply_cap, pid, 0);
 }
 void nul_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap
         ,int *offset, int pid)
 { 
-    send_seL4_reply(reply_cap, 0);
+    send_seL4_reply(reply_cap, pid, 0);
 }
 int nul_close(vnode *vn)
 { 
@@ -179,12 +179,12 @@ void con_read(vnode *vn
              ) 
 {
     if (vn == NULL || (vn->fmode == O_WRONLY) || nbyte == 0 || buf == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
     }
     
     con_read_args *args = malloc(sizeof(con_read_args));
     if (args == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
     
@@ -201,19 +201,24 @@ void con_read(vnode *vn
                           ,reply_cap
                           );
     if (err) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         free(args);
         return;
     }
 }
 
-void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (_args == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
 
     con_read_args *args = (con_read_args *) _args;
+    if (err) {
+        send_seL4_reply(reply_cap, pid, args->nread);
+        free(args);
+        return;
+    }
 
     char* cur = (char*) user_to_kernel_ptr(args->buf, pid);
     int bytes = 0;
@@ -239,32 +244,32 @@ void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args) {
                 //this should only happen if the user buffer was across a page 
                 //boundary, i.e. still more to read 
                 args->nread += bytes;
-                int err = map_if_valid(args->buf & PAGE_MASK
+                err = map_if_valid(args->buf & PAGE_MASK
                                       ,pid
                                       ,con_read_cb
                                       ,args
                                       ,reply_cap
                                       );
                 if (err) {
-                    send_seL4_reply(reply_cap, args->nread);
+                    send_seL4_reply(reply_cap, pid, args->nread);
                     free(args);
                     return;
                 }
             } else {
                 //we have read all that we wanted to. just return 
-                send_seL4_reply(reply_cap, args->nbyte);
+                send_seL4_reply(reply_cap, pid, args->nbyte);
                 free(args);
                 return;
             }
         } else {
-            send_seL4_reply(reply_cap, bytes + args->nread);
+            send_seL4_reply(reply_cap, pid, bytes + args->nread);
             free(args);
             return;
         }
     } else {
         int t_id = register_timer(READ_CB_DELAY, &con_read_cb_wrapper, args);
         if (t_id == 0) {
-            send_seL4_reply(reply_cap, args->nread);
+            send_seL4_reply(reply_cap, pid, args->nread);
             free(args);
             return;
         }
@@ -273,7 +278,7 @@ void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args) {
 
 void con_read_cb_wrapper(seL4_Uint32 id, void *data) {
     con_read_args *args = (con_read_args *) data;
-    con_read_cb(args->pid, args->reply_cap, data);
+    con_read_cb(args->pid, args->reply_cap, data, 0);
 }
 
 void con_write(vnode *vn
@@ -285,13 +290,13 @@ void con_write(vnode *vn
               ) 
 {
     if (vn == NULL || (vn->fmode == O_RDONLY) || nbyte == 0) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
 
     con_write_args *args = malloc(sizeof(con_write_args));
     if (args == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
 
@@ -307,18 +312,25 @@ void con_write(vnode *vn
                           );
 
     if (err) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         free(args);   
         return;
     }
 }
 
-void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args) {
+void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (_args == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
+    
     con_write_args *args = (con_write_args*) _args;
+
+    if (err) {
+        send_seL4_reply(reply_cap, pid, args->bytes_written);
+        free(args);
+        return;
+    }
     
     int to_write = args->nbyte - args->bytes_written; 
     if ((args->buf & ~PAGE_MASK) + to_write > PAGE_SIZE) {
@@ -331,19 +343,19 @@ void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args) {
     args->buf += to_write;
     
     if (args->bytes_written == args->nbyte) {
-        send_seL4_reply(reply_cap, args->nbyte);
+        send_seL4_reply(reply_cap, pid, args->nbyte);
         free(args);
         return;
     }
 
-    int err = map_if_valid(args->buf & PAGE_MASK
+    err = map_if_valid(args->buf & PAGE_MASK
                           ,pid
                           ,con_write_cb
                           ,args
                           ,reply_cap
                           );
     if (err) {
-        send_seL4_reply(reply_cap, args->bytes_written);
+        send_seL4_reply(reply_cap, pid, args->bytes_written);
         free(args);
         return;
     }

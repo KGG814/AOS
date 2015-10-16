@@ -101,6 +101,8 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     args->new_pid = new_pid;
     vm_args->cb = args->cb;
     vm_args->cb_args = args->cb_args;
+
+    //this can block
     vm_init(new_pid, reply_cap, vm_args);
 }
 
@@ -242,11 +244,12 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args) {
         }
     }   
 
-    int err = cspace_ut_retype_addr(as->vroot_addr,
-                                seL4_ARM_PageDirectoryObject,
-                                seL4_PageDirBits,
-                                cur_cspace,
-                                &(as->vroot));
+    int err = cspace_ut_retype_addr(as->vroot_addr
+                                   ,seL4_ARM_PageDirectoryObject
+                                   ,seL4_PageDirBits
+                                   ,cur_cspace
+                                   ,&(as->vroot)
+                                   );
     if (err) {
         if (reply_cap) {
             cleanup_as(new_pid);
@@ -397,7 +400,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args) {
     load_args->cb = start_process_cb_cont;
     load_args->cb_args = process_args;
     printf("reply cap %p\n",(void *) reply_cap);
-    elf_load(new_pid, reply_cap, load_args);
+    elf_load(new_pid, reply_cap, load_args, 0);
     
     if (TMP_DEBUG) printf("start_process_cb2 end\n");
 }

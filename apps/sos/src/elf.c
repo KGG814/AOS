@@ -58,7 +58,12 @@ static inline seL4_Word get_sel4_rights_from_elf(unsigned long permissions) {
 /*
  * Inject data into the given vspace.
  */
-void load_segment_into_vspace(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
+void load_segment_into_vspace(int pid
+                             ,seL4_CPtr reply_cap
+                             ,load_segment_args *args
+                             ,int err
+                             ) 
+{
     if (TMP_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
     /* Overview of ELF segment loading
 
@@ -153,9 +158,20 @@ void load_segment_into_vspace_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args 
    if (TMP_DEBUG) printf("load_segment_into_vspace_cb end\n");
 }
 
-void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_segment_args *args) {
+void load_segment_into_vspace_cb_continue(int pid
+                                         ,seL4_CPtr reply_cap
+                                         ,load_segment_args *args
+                                         ,int err
+                                         ) 
+{
     if (TMP_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
     // Get the arguments we use
+    if (err) {
+        args->cb(pid, reply_cap, args->cb_args, err);
+        free(args);
+        return;
+    }
+
     int index                   = args->index;
     seL4_Word vaddr             = args->vaddr;
     unsigned long pos           = args->pos;
@@ -173,21 +189,30 @@ void load_segment_into_vspace_cb_continue(int pid, seL4_CPtr reply_cap, load_seg
     args->pos += nbytes;
     args->dst += nbytes;
     args->src += nbytes;
-    load_segment_into_vspace(pid, reply_cap, args);
+    load_segment_into_vspace(pid, reply_cap, args, err);
     if (TMP_DEBUG) printf("load_segment_into_vspace_cb_continue end\n");
 }
 
-void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
+void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (TMP_DEBUG) printf("elf_load\n");
+
     elf_load_args *args = (elf_load_args *) _args;
+    if (err) {
+        args->cb(pid, reply_cap, args->cb_args, err);
+        free(args);
+        return;  
+    }
+
     char *elf_file = args->elf_file;
     int curr_header = args->curr_header;
     addr_space *as = proc_table[pid];
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
-        assert(0==1);
+        args->cb(pid, reply_cap, args->cb_args, -1);
+        free(args);
         return;
     }
+
     int num_headers = elf_getNumProgramHeaders(elf_file);
     if (curr_header < num_headers) {
         char *source_addr;
@@ -196,7 +221,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
         /* Skip non-loadable segments (such as debugging data). */
         if (elf_getProgramHeaderType(elf_file, curr_header) != PT_LOAD) {
             args->curr_header++;
-            elf_load(pid, reply_cap, args);
+            elf_load(pid, reply_cap, args, 0);
         } else {
             /* Fetch information about this segment. */
             source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, curr_header);
@@ -210,6 +235,13 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
             // Set up load segment arguments
             args->curr_header++;
             load_segment_args *segment_args = malloc(sizeof(load_segment_args));
+            
+            if (segment_args == NULL) {
+                args->cb(pid, reply_cap, args->cb_args, -1);
+                free(args);
+                return;
+            }
+
             segment_args->src = source_addr;
             segment_args->dst = vaddr;
             segment_args->pos = 0;
@@ -218,13 +250,16 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args) {
             segment_args->permissions = get_sel4_rights_from_elf(flags) & seL4_AllRights;
             segment_args->cb = elf_load;
             segment_args->cb_args = args;
-            load_segment_into_vspace(pid, reply_cap, segment_args);
+
+            load_segment_into_vspace(pid, reply_cap, segment_args, 0);
         }
   
         //conditional_panic(err != 0, "Elf loading failed!\n");
     } else {
         // Do callback
-        args->cb(pid, reply_cap, args->cb_args);
+        args->cb(pid, reply_cap, args->cb_args, 0);
+        free(args);
     }
+
     if (TMP_DEBUG) printf("elf_load end\n");
 }

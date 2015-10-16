@@ -4,6 +4,9 @@
 #include <sel4/types.h>
 #include <limits.h>
 #include <sos/vmem_layout.h>
+
+#include "callback.h"
+
 //"warnings"
 #define FRAMETABLE_INITIALISED      1
 #define FRAMETABLE_OK               0
@@ -32,7 +35,6 @@
 #define NOMAP				0
 #define KMAP				1
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _ft_entry {
     seL4_Word frame_status;

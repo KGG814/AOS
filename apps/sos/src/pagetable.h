@@ -1,9 +1,11 @@
 #ifndef _PAGETABLE_H_
 #define _PAGETABLE_H_
 
+#include <sel4/sel4.h>
+
+#include "callback.h"
 #include "frametable.h"
 #include "proc.h"
-#include <sel4/sel4.h>
 
 #define PAGE_MASK   		0xFFFFF000
 #define SWAPPED     		0x80000000
@@ -29,8 +31,6 @@ typedef struct _pt_entry {
   int index;
   seL4_CPtr mapped_cap;
 } pt_entry;
-
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _vm_init_args {
   callback_ptr cb;

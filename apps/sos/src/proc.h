@@ -7,6 +7,8 @@
 #include <clock/clock.h>
 #include <sos/sos.h>
 
+#include "callback.h"
+
 #define CAP_TABLE_PAGES 8
 #define PROCESS_MAX_FILES 16
 #define MAX_PROCESSES     0xFF
@@ -22,8 +24,6 @@
 #define NO_READ 0
 #define CURR_READ 1
 #define CHILD_READ 2
-
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _child_proc child_proc;
 

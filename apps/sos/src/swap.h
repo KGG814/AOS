@@ -1,7 +1,7 @@
 #ifndef _SWAP_H_
 #define _SWAP_H_
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+#include "callback.h"
 
 typedef struct _write_swap_args {
 	callback_ptr cb;

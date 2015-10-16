@@ -236,7 +236,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
             assert(0);
             frame_free(index);
             args->index = 0;
-            args->cb_args(pid, reply_cap, args);
+            args->cb(pid, reply_cap, args);
             return;
         }
 
