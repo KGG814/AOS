@@ -111,11 +111,6 @@ static inline void send_seL4_reply(seL4_CPtr reply_cap, int ret) {
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
-static inline void send_seL4_error(seL4_CPtr reply_cap, int pid, int ret) {
-    clear_args(pid);
-    send_seL4_reply(reply_cap, ret);
-}
-
 /*************************************************************************/
 /*                                   */
 /* Optional (bonus) system calls                     */

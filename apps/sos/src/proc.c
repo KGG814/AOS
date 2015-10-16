@@ -31,8 +31,10 @@
 extern char _cpio_archive[];
 
 addr_space* proc_table[MAX_PROCESSES + 1];
+int free_pids[MAX_PROCESSES + 1];
+int next_pid = 1;
+
 int num_processes = 0;
-int next_pid = MAX_PROCESSES;
 
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args);
 void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *args);
@@ -41,6 +43,11 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
+    for (int i = 1; i < MAX_PROCESSES; i++) {
+        free_pids[i] = i+1;
+    }
+    free_pids[0] = 0;
+    free_pids[MAX_PROCESSES] = 0;
 }
 
 void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
@@ -52,11 +59,14 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
     }
 
     int new_pid = next_pid;
-    for (int i = 0; i < MAX_PROCESSES && proc_table[next_pid] != NULL; i++) {
-        next_pid = (next_pid % MAX_PROCESSES) + 1;
+    if (!new_pid) {
+        args->new_pid = PROC_ERR;
+        return;
     }
 
-    next_pid = (next_pid % MAX_PROCESSES) + 1;
+    //pop the stack of pids
+    next_pid = free_pids[next_pid];
+    free_pids[new_pid] = 0;
     num_processes++;
 
     addr_space *as = malloc(sizeof(addr_space)); 
@@ -134,11 +144,13 @@ void cleanup_as(int pid) {
          cur_child = as->children;
     }
 
-    clear_args(pid);
-
     free(as);
 
     proc_table[pid] = NULL;
+    
+    free_pids[pid] = next_pid;
+    next_pid = pid;
+
     num_processes--;
 } 
 
@@ -513,52 +525,6 @@ int remove_child(int parent_pid, int child_pid) {
     free(tmp);
 
     return 1;
-}
-
-int push_args(int pid, void *args) {
-    if (!proc_table[pid]) {
-        return -1;
-    }
-
-    arg_node *new_node = malloc(sizeof(arg_node));
-    if (!new_node) {
-        return -1;
-    }
-
-    new_node->args = args; 
-    new_node->next = proc_table[pid]->arg_stack;
-    proc_table[pid]->arg_stack = new_node;
-    return 0;
-}
-
-void *pop_args(int pid) {
-    arg_node *args = NULL;
-
-    if (!proc_table[pid]) {
-        return NULL;
-    }
-
-    args = proc_table[pid]->arg_stack;
-    
-    if (args) {
-        proc_table[pid]->arg_stack = args->next;
-        void *ret = args->args;
-        free(args);
-        return ret;
-    }
-
-    return NULL;
-} 
-
-void clear_args(int pid) {
-    addr_space *as = proc_table[pid];
-    if (!as) {
-        return;
-    }
-
-    for (void *v = pop_args(pid); v != NULL; v = pop_args(pid)) {
-        free(v);
-    }
 }
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {

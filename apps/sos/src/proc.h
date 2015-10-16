@@ -26,12 +26,6 @@
 typedef void (*callback_ptr)(int, seL4_CPtr, void*);
 
 typedef struct _child_proc child_proc;
-typedef struct _arg_node arg_node;
-
-struct _arg_node {
-    void* args;
-    arg_node *next;
-};
 
 struct _child_proc {
     int pid;
@@ -66,9 +60,6 @@ typedef struct _addr_space {
     child_proc *children;
     int reader_status;
     seL4_CPtr wait_cap;
-
-    //for tracking things that need freeing
-    arg_node *arg_stack;
 
     //number of processes this process is waiting for to die
     int delete_wait;
@@ -121,12 +112,6 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
 int is_child(int parent_pid, int child_pid);
 
 int remove_child(int parent_pid, int child_pid);
-
-int push_args(int pid, void *args);
-
-void *pop_args(int pid);
-
-void clear_args(int pid);
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 
