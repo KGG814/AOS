@@ -200,3 +200,9 @@ pid_t sos_process_wait(pid_t pid) {
     return seL4_GetMR(0);
 }
 
+void sos_sys_exit(void) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_EXIT);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+}

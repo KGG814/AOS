@@ -114,6 +114,13 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // Get arguments we need
     // loop counter
     memset((void *)vaddr, 0, PAGE_SIZE);
+    
+    if (!frametable[index].mapping_cap) {
+        printf("Mapping cap was 0\n");
+    } else {
+        printf("Mapping cap ok\n");
+    }
+    //assert(frametable[index].mapping_cap);
     seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated

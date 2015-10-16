@@ -96,6 +96,8 @@ typedef struct {
 #define P_DELETE            14
 #define P_WAIT              15
 
+#define P_EXIT              16
+
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */
@@ -187,6 +189,7 @@ void sos_sys_usleep(int msec);
 /* Sleeps for the specified number of milliseconds.
  */
 
+void sos_sys_exit(void);
 
 /*************************************************************************/
 /*                                   */
