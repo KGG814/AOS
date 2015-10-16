@@ -218,31 +218,31 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     seL4_Word pt_addr   = args->pt_addr;
     int index           = args->index;
     if (SOS_DEBUG) printf("frame_alloc_cb index %p\n", (void *) index);
-    // Error value
-    int err = 0;
     // If it needs to be mapped into kernel memory, do so
     if (map == KMAP) {
         // Calculate the virtual memory for this physical address
         printf("Kernel map\n");
         seL4_Word vaddr = paddr_to_vaddr(pt_addr);
         // Map it in, using the cap in the frametable
-        err = map_page(frametable[index].frame_cap
-                      ,seL4_CapInitThreadPD
-                      ,vaddr
-                      ,seL4_AllRights
-                      ,seL4_ARM_Default_VMAttributes
-                      );
-        // If we are mapping it into kernel, clear the memory
-        assert(err == 0);
-        if (!err) {
-            memset(vaddr, 0, PAGE_SIZE);
+        int err = map_page(frametable[index].frame_cap
+                          ,seL4_CapInitThreadPD
+                          ,vaddr
+                          ,seL4_AllRights
+                          ,seL4_ARM_Default_VMAttributes
+                          );
+
+        // If there was an error, reply to the callback
+        if (err) {
+            assert(0);
+            frame_free(index);
+            args->index = 0;
+            args->cb_args(pid, reply_cap, args);
+            return;
         }
+
         printf("touching page %d\n", *((int *) vaddr));
-    }
-    // If there was an error, reply
-    if (err) {
-        assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, err);
+        // If we are mapping it into kernel, clear the memory
+        memset(vaddr, 0, PAGE_SIZE);
     }
     // Check if the frame is in the swap buffer
     if (!(frametable[index].frame_status & SWAP_BUFFER_MASK)) {

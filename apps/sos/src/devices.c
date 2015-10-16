@@ -20,12 +20,20 @@ char *console_data_start = console_buf;
 char *console_data_end = console_buf;
 const char *console_buf_end = console_buf + CONSOLE_BUFFER_SIZE - 1;
 
-typedef struct _con_read_args con_read_args;
 typedef struct _con_write_cb_args {
     seL4_Word buf;
     size_t nbyte;
     size_t bytes_written;
 } con_write_args;
+
+//arguments for the console read callback 
+typedef struct _con_read_args {
+    seL4_Word buf;
+    size_t nbyte;
+    size_t nread;
+    seL4_CPtr reply_cap;
+    int pid;
+} con_read_args;
 
 void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args);
 void con_read_cb(int pid, seL4_CPtr reply_cap, void *args);
@@ -47,14 +55,7 @@ void con_init(void) {
     serial_handle = serial_init();
     serial_register_handler(serial_handle, serial_cb); 
 }
-//arguments for the console read callback 
-struct _con_read_args {
-    seL4_Word buf;
-    size_t nbyte;
-    size_t nread;
-    seL4_CPtr reply_cap;
-    int pid;
-};
+
 vnode_ops console_ops = 
 {
     ._vfs_write  = &con_write, 
@@ -250,7 +251,7 @@ void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args) {
                     return;
                 }
             } else {
-                //read all that we wanted to. just return 
+                //we have read all that we wanted to. just return 
                 send_seL4_reply(reply_cap, args->nbyte);
                 free(args);
                 return;

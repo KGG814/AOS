@@ -63,7 +63,12 @@ void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
     char* path = (char *) copy_args->cb_arg_1;
     fmode_t mode = (fmode_t) copy_args->cb_arg_2;
     free(args);
-    fh_open(pid, path, mode, reply_cap);
+    
+    int fd = fh_open(pid, path, mode, reply_cap);
+    
+    if (fd >= 0) {
+        send_seL4_reply(reply_cap, fd);
+    }
 }
 
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
@@ -90,9 +95,6 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     }
 
     proc_table[pid]->n_files_open++;
-    if (reply_cap != 0) {
-        send_seL4_reply(reply_cap, fd);
-    }
     if (SOS_DEBUG) printf("fh_open end\n");
     return fd;
 } 

@@ -220,26 +220,45 @@ void sos_map_page_swap(int ft_index, seL4_Word vaddr, int pid, seL4_CPtr reply_c
 
 void sos_map_page_dir_cb(int pid, seL4_CPtr reply_cap, void *args) {
     if (SOS_DEBUG) printf("sos_map_page_dir_cb\n");
+
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     sos_map_page_args *map_args = alloc_args->cb_args;
+
+    if (!alloc_args->index) {
+        free(alloc_args);
+        
+        sos_map_page_cb(pid, reply_cap, map_args);
+    }
+
     seL4_Word dir_index = PT_TOP(map_args->vaddr);
+
     printf("directory index %p, pagetable addr %p\n",(void *)dir_index, (void *)alloc_args->vaddr);
-    printf("index %d\n",alloc_args->index);
+    printf("index %d\n", alloc_args->index);
+
     proc_table[pid]->page_directory[dir_index] = (seL4_Word *) alloc_args->vaddr;
+
     seL4_ARM_Page_Unmap(frametable[alloc_args->index].frame_cap);
     int err = map_page(frametable[alloc_args->index].frame_cap
-                   ,seL4_CapInitThreadPD
-                   ,alloc_args->vaddr
-                   ,seL4_AllRights
-                   ,seL4_ARM_Default_VMAttributes
-                   );
+                      ,seL4_CapInitThreadPD
+                      ,alloc_args->vaddr
+                      ,seL4_AllRights
+                      ,seL4_ARM_Default_VMAttributes
+                      );
+
+    if (err) {
+        free(alloc_args);
+    
+    }
+
     memset((void *)alloc_args->vaddr, 0, PAGE_SIZE);
-    assert(err==0);
+
     frametable[alloc_args->index].vaddr = -1;
     printf("Setting index %p to don't swap\n", (void *)alloc_args->index);
     frametable[alloc_args->index].frame_status |= FRAME_DONT_SWAP;
     free(alloc_args);
+
     sos_map_page_cb(pid, reply_cap, map_args);
+
     if (SOS_DEBUG) printf("sos_map_page_dir_cb ended\n");
 }
 
