@@ -67,7 +67,7 @@ void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
     int fd = fh_open(pid, path, mode, reply_cap);
     
     if (fd >= FILE_TABLE_ERR) {
-        send_seL4_reply(reply_cap, fd);
+        send_seL4_reply(reply_cap, pid, fd);
     }
 }
 
