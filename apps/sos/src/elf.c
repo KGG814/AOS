@@ -145,7 +145,7 @@ void load_segment_into_vspace(int pid
             alloc_args->map = KMAP;
             alloc_args->cb = (callback_ptr) load_segment_into_vspace_cb;
             alloc_args->cb_args = args;
-            frame_alloc_swap(pid, reply_cap, alloc_args);
+            frame_alloc_swap(pid, reply_cap, alloc_args, 0);
         } else {
             // Already been mapped in, can skip frame allocation
             if (TMP_DEBUG) printf("pid %d\n", pid);
@@ -183,7 +183,7 @@ void load_segment_into_vspace_cb(int pid
 
     if (TMP_DEBUG) printf("vaddr %p\n", (void *)args->vaddr);
 
-    if (err || !load_args->index) {
+    if (err || load_args->index == FRAMETABLE_ERR) {
         load_args->cb(pid, reply_cap, load_args->cb_args, -1);
         free(load_args);
         return;
