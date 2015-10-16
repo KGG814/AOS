@@ -293,7 +293,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // Increment number of allocated frames
     
     // Increment counter for process
-    proc_table[pid]->size += PAGE_SIZE;
+    proc_table[pid]->size++;
     args->cb(pid, reply_cap, args);
     if (SOS_DEBUG) printf("frame_alloc_cb ended, index %p\n", (void *) args->index);
 }

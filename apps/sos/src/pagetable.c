@@ -115,13 +115,17 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     // loop counter
     memset((void *)vaddr, 0, PAGE_SIZE);
     
+    //this always seems to be the case
     if (!frametable[index].mapping_cap) {
-        printf("Mapping cap was 0\n");
-    } else {
-        printf("Mapping cap ok\n");
+        seL4_CPtr cap =  cspace_copy_cap(cur_cspace
+                                        ,cur_cspace
+                                        ,frametable[index].frame_cap
+                                        ,seL4_AllRights
+                                        );
+        frametable[index].mapping_cap = cap;
     }
     //assert(frametable[index].mapping_cap);
-    seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
+    //seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated
     // This is an array of ARM page tables
@@ -155,6 +159,8 @@ void pt_cleanup(int pid) {
                         if ((page_pid == pid) & !swapped) {
                             printf("pid %d\n", pid);
                             frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                        } else if (swapped) {
+                            free_swap_slot(pd[i][j] & SWAP_SLOT_MASK); 
                         }      
                     }
                 }
