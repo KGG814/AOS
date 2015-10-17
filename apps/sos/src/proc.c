@@ -502,10 +502,7 @@ int is_child(int parent_pid, int child_pid) {
     return 0;
 }
 
-int remove_child(int parent_pid, int child_pid) {
-    if (!is_child(parent_pid, child_pid)) {
-        return 0;
-    }
+void remove_child(int parent_pid, int child_pid) {
 
     //we know at this point the parent actually has children
     child_proc *cur = proc_table[parent_pid]->children;
@@ -530,18 +527,34 @@ int remove_child(int parent_pid, int child_pid) {
     return 1;
 }
 
-void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
-    if (proc_table[child_pid] == NULL) {
+void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
+    //check we have something to delete 
+    if (proc_table[to_delete] == NULL) {
+        send_seL4_reply(reply_cap, pid, -1);
         return;
     }
 
-    addr_space *as = proc_table[child_pid];
+    if (to_delete == pid) {
+        int parent_pid = proc_table[to_delete]->parent_pid;
+        if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+            proc_table[parent_pid]->wait_cap = 0;
+        }
+    } else if (is_child(pid, to_delete)) {
+        remove_child(pid, to_delete);
+        proc_table[pid]->status |= PROC_BLOCKED;
+    } else {
+        send_seL4_reply(reply_cap, -1);
+        return;
+    }
+
+    addr_space *as = proc_table[to_delete];
 
     as->status |= PROC_DYING;
 
     //increment the wait count in the parent 
-    if (proc_table[delete_pid]) {
-        proc_table[delete_pid]->delete_wait++;
+    if (proc_table[pid]) {
+        proc_table[pid]->delete_wait++;
     }
     //kill all its children first 
     child_proc *cur = as->children;
@@ -552,11 +565,11 @@ void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap) {
     }
 
     as->delete_reply_cap = reply_cap;
-    as->delete_pid = delete_pid;
+    as->delete_pid = pid;
 
     //child is ready to be killed 
     if (!(as->status & PROC_BLOCKED)) { 
-        kill_process_cb(delete_pid, reply_cap, (void *) child_pid);
+        kill_process_cb(pid, reply_cap, (void *) to_delete);
     }
 }
 

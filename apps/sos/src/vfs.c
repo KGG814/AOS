@@ -68,6 +68,7 @@ struct _file_read_args {
     vnode *vn;
     seL4_CPtr reply_cap;
     seL4_Word buf;
+    char * kbuf;
     int *offset;
     int pid;
     size_t nbyte;
@@ -363,6 +364,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     if(SOS_DEBUG) printf("file_read %s\n", vn->name);
     args->reply_cap = reply_cap;
     args->buf = (seL4_Word) buf;
+    args->kbuf = NULL;
     args->offset = offset;
     args->pid = pid;
     args->nbyte = nbyte;
@@ -383,11 +385,11 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
 }
 
 void file_read_nfs_cb(uintptr_t token
-                 ,nfs_stat_t status
-                 ,fattr_t *fattr
-                 ,int count
-                 ,void *data
-                 )
+                     ,nfs_stat_t status
+                     ,fattr_t *fattr
+                     ,int count
+                     ,void *data
+                     )
 {
     if(SOS_DEBUG) printf("file_read_nfs_cb\n");
     file_read_args* args = (file_read_args*) token;
@@ -400,9 +402,9 @@ void file_read_nfs_cb(uintptr_t token
         return;
     }
     vn->atime = fattr->atime;
-    char *read_buf = malloc(sizeof(char)*count);  
+    args->kbuf = malloc(sizeof(char)*count);  
     memcpy(read_buf, data, count);
-    copy_page(args->buf, count, (seL4_Word) read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
+    copy_page(args->buf, count, (seL4_Word) read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap);
     if(SOS_DEBUG) printf("file_read_nfs_cb ended\n");
 }
 
@@ -413,6 +415,8 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
     *(read_args->offset) += read_args->count;
     read_args->bytes_read += read_args->count;
     read_args->buf += read_args->count;
+    free(read_args->kbuf);
+
     if (read_args->bytes_read == read_args->nbyte || read_args->count < read_args->to_read) {
         send_seL4_reply(reply_cap, read_args->bytes_read);
         free(read_args); 
@@ -587,6 +591,7 @@ void vfs_stat_cb(uintptr_t token
         return;
     }
 
+    //9242_TODO change this to a malloc
     sos_stat_t temp = 
         {.st_type = 0
         ,.st_fmode = fattr->mode
@@ -603,6 +608,7 @@ void vfs_stat_cb(uintptr_t token
     }
     copy_out_args *copy_args = malloc(sizeof(copy_out_args));
     copy_args->usr_ptr = (seL4_Word) args->buf;
+    //9242_TODO duffer this
     copy_args->src = (seL4_Word) &temp;
     copy_args->nbyte = sizeof(sos_stat_t);
     copy_args->count = 0;
@@ -670,6 +676,7 @@ void vfs_getdirent_cb(uintptr_t token
         }
         copy_out_args *copy_args = malloc(sizeof(copy_out_args));
         copy_args->usr_ptr = (seL4_Word) args->buf;
+        /* 9242_TODO duffer this */
         copy_args->src = (seL4_Word) file_names[index];
         copy_args->nbyte = args->nbyte;
         copy_args->cb = vfs_getdirent_reply;

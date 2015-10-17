@@ -111,7 +111,7 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
 
 int is_child(int parent_pid, int child_pid);
 
-int remove_child(int parent_pid, int child_pid);
+void remove_child(int parent_pid, int child_pid);
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 

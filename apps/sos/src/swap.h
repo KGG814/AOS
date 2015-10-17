@@ -30,8 +30,8 @@ typedef struct _read_swap_args {
 } read_swap_args;
 
 int swap_init(void);
-void write_to_swap_slot(int pid, seL4_CPtr reply_cap, write_swap_args *args);
-void read_from_swap_slot (int pid, seL4_CPtr reply_cap, read_swap_args *args);
+void write_to_swap_slot(int pid, seL4_CPtr reply_cap, write_swap_args *args, int err);
+void read_from_swap_slot (int pid, seL4_CPtr reply_cap, read_swap_args *args, int err);
 void free_swap_slot(int slot);
 
 #endif /* _SWAP_H_ */

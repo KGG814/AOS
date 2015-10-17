@@ -188,7 +188,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         args->pt_addr = index_to_paddr(args->index);
 
         // Write frame to current free swap slot
-        write_to_swap_slot(pid, reply_cap, write_args);
+        write_to_swap_slot(pid, reply_cap, write_args, 0);
     } else {
         // Don't need to swap can retype memory
         // Calculate the index

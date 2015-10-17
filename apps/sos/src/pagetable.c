@@ -381,19 +381,32 @@ void handle_vm_fault(seL4_Word badge, int pid) {
 
     int err = map_if_valid(fault_vaddr, pid, handle_vm_fault_cb, NULL, reply_cap);
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
-        // 9242_TODO Kill process
+
+        //kill the process as it has faulted invalid memory
         int parent_pid = proc_table[pid]->parent_pid;
         if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, pid);
         }
         kill_process(pid, pid, 0);
     }
     if (SOS_DEBUG) printf("handle_vm_fault finished\n");
 }
 
-void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args) {
+void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args, int err) {
     /* Reply */
     if (SOS_DEBUG) printf("handle_vm_fault_cb\n");
+    if (err) {
+        //this could happen. in this case the process needs to be killed 
+        //9242_TODO move this into a function
+        int parent_pid = proc_table[pid]->parent_pid;
+        if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, pid);
+        }
+        kill_process(pid, pid, 0);
+
+        return;
+    }
+
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetMR(0, 0);
     seL4_Send(cap, reply);
@@ -417,7 +430,10 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
 
     printf("pd addr = %p\n", proc_table[pid]->page_directory);
     if (proc_table[pid]->page_directory == NULL) {
-        assert(0);
+        //assert(0);
+        //cb(pid, reply_cap, args, -1);
+        eprintf("Error caught in map_if_valid\n");
+        return -1;
     }
     
     if (proc_table[pid]->page_directory[dir_index] != NULL) {
@@ -425,12 +441,16 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
         if (index & SWAPPED) {
             if (SOS_DEBUG) printf("page was swapped\n");
             read_swap_args *swap_args = malloc(sizeof(read_swap_args));
+            if (swap_args == NULL) {
+                eprintf("Error caught in map_if_valid\n");
+                return -1;
+            }
             swap_args->cb = cb;
             swap_args->cb_args = args;
             swap_args->vaddr = vaddr;
             swap_args->pid = pid = pid;
             swap_args->reply_cap = reply_cap;
-            read_from_swap_slot(pid, reply_cap, swap_args);
+            read_from_swap_slot(pid, reply_cap, swap_args, 0);
             return 0;
         } else if (index != 0 && frametable[index].vaddr == vaddr && 
                    frametable[index].frame_status & FRAME_SWAP_MARKED) {
@@ -443,18 +463,22 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
                                    );
             int err = map_page_user(cap, proc_table[pid]->vroot, vaddr, 
                     seL4_AllRights, seL4_ARM_Default_VMAttributes, proc_table[pid]);
-            assert(err == 0);
+            if (err) {
+                eprintf("Error caught in map_if_valid\n");
+                return -1;
+            }
+
             frametable[index].frame_status &= ~FRAME_SWAP_MARKED;
             seL4_ARM_Page_Unify_Instruction(cap, 0, PAGESIZE);
             frametable[index].mapping_cap = cap;
             if (cb != NULL) {
-                cb(pid, reply_cap, args);
+                cb(pid, reply_cap, args, 0);
                 return 0;
             }
         } else if (index != 0) {
             if (SOS_DEBUG) printf("page should be mapped in\n");
             if (cb != NULL) {
-                cb(pid, reply_cap, args);
+                cb(pid, reply_cap, args, 0);
                 return 0;
             }
         }
@@ -487,35 +511,58 @@ int map_new_frame (seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_C
     }
     // map_if_valid args 
     map_if_valid_args *map_args = malloc(sizeof(map_if_valid_args));
+    if (map_args == NULL) {
+        eprintf("Error caught in map_new_frame\n");
+        return -1;
+    }
     map_args->vaddr = vaddr;
     map_args->cb = cb;
     map_args->cb_args = args;
 
     // alloc_args
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    if (alloc_args == NULL) {
+        eprintf("Error caught in map_new_frame\n");
+        free(map_args);
+        return -1;
+    }
     alloc_args->map = KMAP;
     alloc_args->cb = map_if_valid_cb;
     alloc_args->cb_args = (void *) map_args;
-    frame_alloc_swap(pid, reply_cap, alloc_args);
+    frame_alloc_swap(pid, reply_cap, alloc_args, 0);
     return 0;
 }
 
-void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args) {
+void map_if_valid_cb (int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (SOS_DEBUG) printf("map_if_valid_cb\n");
     frame_alloc_args *alloc_args = (frame_alloc_args *) args;
     map_if_valid_args *map_args = alloc_args->cb_args;
     map_args->ft_index = alloc_args->index;
-    sos_map_page_swap(map_args->ft_index, map_args->vaddr, pid, reply_cap, map_if_valid_cb_continue,
-                      map_args);
+
+    if (err || alloc_args->index == FRAMETABLE_ERR) {
+        eprintf("Error caught in map_if_valid_cb\n");
+        map_args->cb(pid, reply_cap, map_args->cb_args, -1);
+        free(map_args);
+        free(alloc_args);
+        return;
+    }
+
+    sos_map_page_swap(map_args->ft_index
+                     ,map_args->vaddr
+                     ,pid
+                     ,reply_cap
+                     ,map_if_valid_cb_continue
+                     ,map_args
+                     );
     free(alloc_args);
     if (SOS_DEBUG) printf("map_if_valid_cb ended\n");
 }
 
-void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args) {
+void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (SOS_DEBUG) printf("map_if_valid_cb_continue\n");
     map_if_valid_args *map_args = (map_if_valid_args *)args;
     frametable[map_args->ft_index].vaddr = map_args->vaddr;
-    map_args->cb(pid, reply_cap, map_args->cb_args);
+    map_args->cb(pid, reply_cap, map_args->cb_args, err);
     free(map_args);
     if (SOS_DEBUG) printf("map_if_valid_cb_continue ended\n");
 }
@@ -535,64 +582,88 @@ int check_region(seL4_Word start, seL4_Word size) {
     return 0;
 }
 
-void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args) {
+void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err) {
     
     copy_in_args *copy_args = (copy_in_args *) args;
     if (SOS_DEBUG) printf("copy_in, usr_ptr: %p\n", (void *) copy_args->usr_ptr);
-    if (copy_args->count == args->nbyte) {
-        copy_args->cb(pid, reply_cap, args);
+    
+    if (err || copy_args->count == args->nbyte) {
+        copy_args->cb(pid, reply_cap, copy_args->cb_args, err);
+        free(args);
+        return;
     } else {
-        int err = map_if_valid(copy_args->usr_ptr & PAGE_MASK, pid, copy_in_cb, args, reply_cap);
+        err = map_if_valid(copy_args->usr_ptr & PAGE_MASK
+                          ,pid
+                          ,copy_in_cb
+                          ,args
+                          ,reply_cap
+                          );
         if (err) {
-            copy_args->cb(pid, reply_cap, args);
+            copy_args->cb(pid, reply_cap, copy_args->cb_args, err);
+            free(args);
         }
     }
     if (SOS_DEBUG) printf("copy_in ended\n");
 }
 
-void copy_in_cb(int pid, seL4_CPtr reply_cap, void *args) {
+void copy_in_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (SOS_DEBUG) printf("copy_in_cb\n");
-    copy_in_args *copy_args = args;
-    int to_copy = copy_args->nbyte - copy_args->count;
-    if ((copy_args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
-        to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
+    
+    copy_in_args *args = _args;
+    
+    if (err) {
+        eprintf("Error caught in copy_in_cb\n");
+        args->cb(pid, reply_cap, args->cb_args, err);
+        free(args);
+        return;   
+    }
+
+    //only copy up the end of a user page
+    int to_copy = args->nbyte - args->count;
+    if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
+        to_copy = PAGE_SIZE - (args->usr_ptr & ~PAGE_MASK);
     } 
-    seL4_Word src = user_to_kernel_ptr(copy_args->usr_ptr, pid);
-    memcpy((void *) (copy_args->k_ptr), (void *) src, to_copy);
-    copy_args->count += to_copy;
-    copy_args->usr_ptr += to_copy;
-    copy_args->k_ptr += to_copy;
-    copy_in(pid, reply_cap, args);
+
+    //get the actual mapping of the user page
+    seL4_Word src = user_to_kernel_ptr(args->usr_ptr, pid);
+
+    //copy in the data
+    memcpy((void *) (args->k_ptr + args->count), (void *) src, to_copy);
+
+    //increment the pointers etc. 
+    args->count += to_copy;
+    args->usr_ptr += to_copy;
+
+    copy_in(pid, reply_cap, args, 0);
     if (SOS_DEBUG) printf("copy_in_cb ended\n");
 }
 
 //copy from kernel ptr to usr ptr 
-void copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args) {
+void copy_out(int pid, seL4_CPtr reply_cap, copy_out_args* args, int err) {
     if (SOS_DEBUG) printf("copy_out\n");
-    if (args->count == args->nbyte) {
-        args->cb(pid, reply_cap, args);
+    if (err || args->count == args->nbyte) {
+        args->cb(pid, reply_cap, args, err);
     } else {
         int to_copy = args->nbyte - args->count;
         if ((args->usr_ptr & ~PAGE_MASK) + to_copy > PAGE_SIZE) {
             to_copy = PAGE_SIZE - (args->usr_ptr & ~PAGE_MASK);
         } 
-        int err = copy_page(args->usr_ptr + args->count
-                           ,to_copy
-                           ,args->src + args->count
-                           ,pid
-                           ,copy_out_cb
-                           ,args
-                           ,reply_cap
-                           ,PRM_BUF
-                           );
+        err = copy_page(args->usr_ptr + args->count
+                       ,to_copy
+                       ,args->src + args->count
+                       ,pid
+                       ,copy_out_cb
+                       ,args
+                       ,reply_cap
+                       );
         if (err) {
-            args->cb(pid, reply_cap, args);
+            args->cb(pid, reply_cap, args, err);
         }
     }
     if (SOS_DEBUG) printf("copy out ended\n");
 } 
 
-void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args) {
+void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (SOS_DEBUG) printf("copy_out_cb\n");
     copy_out_args *copy_args = args;
     int to_copy = copy_args->nbyte - copy_args->count;
@@ -600,9 +671,7 @@ void copy_out_cb (int pid, seL4_CPtr reply_cap, void *args) {
         to_copy = PAGE_SIZE - (copy_args->usr_ptr & ~PAGE_MASK);
     }
     copy_args->count += to_copy;
-    //copy_args->usr_ptr += to_copy;
-    //copy_args->src += to_copy;
-    copy_out(pid, reply_cap, args);
+    copy_out(pid, reply_cap, args, err);
     if (SOS_DEBUG) printf("copy_out_cb ended\n");
 }
 
@@ -614,32 +683,33 @@ int copy_page(seL4_Word dst
              ,callback_ptr cb
              ,void *cb_args
              ,seL4_CPtr reply_cap
-             ,int src_type
              ) 
 {
     copy_page_args *copy_args = malloc(sizeof(copy_page_args));
+    if (copy_args == NULL) {
+        eprintf("Error caught in copy_page\n");
+        return -1;
+    }
+
     copy_args->dst = dst;
     copy_args->src = src;
     copy_args->count = count;
     copy_args->cb = cb;
     copy_args->cb_args = cb_args;
-    copy_args->src_type = src_type;
     int err = map_if_valid(dst & PAGE_MASK, pid, copy_page_cb, copy_args, reply_cap);
     if (err) {
-        return err;
+        eprintf("Error caught in copy_page\n");
+        return -1;
     }
     return 0;
 }
 
-void copy_page_cb(int pid, seL4_CPtr reply_cap, void *args) {
+void copy_page_cb(int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (SOS_DEBUG) printf("copy_page_cb\n");
     copy_page_args *copy_args = (copy_page_args *) args;
     seL4_Word kptr = user_to_kernel_ptr(copy_args->dst, pid);
     memcpy((void *)kptr, (void *)copy_args->src , copy_args->count);
-    if(copy_args->src_type == TMP_BUF) {
-        free((void *)copy_args->src);;
-    }
-    copy_args->cb(pid, reply_cap, copy_args->cb_args);
+    copy_args->cb(pid, reply_cap, copy_args->cb_args, err);
 
     free(args);
     if (SOS_DEBUG) printf("copy_page_cb ended\n");

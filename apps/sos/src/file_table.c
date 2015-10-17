@@ -58,16 +58,22 @@ void fdt_cleanup(int pid) {
     }
 }
 
-void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
-    copy_in_args *copy_args = (copy_in_args *)args;
-    char* path = (char *) copy_args->cb_arg_1;
-    fmode_t mode = (fmode_t) copy_args->cb_arg_2;
+void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* _args, int err) {
+    file_open_args * args = (file_open_args *) _args;
+    char* path = args->path;
+    fmode_t mode = args->mode;
     free(args);
     
+    if (err) {
+        send_seL4_reply(reply_cap, pid, FILE_TABLE_ERR);
+        free(path);
+        return;
+    }
+
     int fd = fh_open(pid, path, mode, reply_cap);
+    free(path);
     
     if (fd >= FILE_TABLE_ERR) {
-        printf("Valid file handle found\n");
         send_seL4_reply(reply_cap, pid, fd);
     }
 }

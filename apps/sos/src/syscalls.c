@@ -67,17 +67,33 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     char *kpath = malloc(MAXNAMLEN + 1);
     if (kpath == NULL) {
         send_seL4_reply(reply_cap, -1); 
+        return;
     }
     memset(kpath, 0, MAXNAMLEN + 1);
+    file_open_args *fo_args = malloc(sizeof(file_open_args));
+    if (fo_args == NULL) {
+        free(kpath);
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
+    fo_args->path = kpath;
+    fo_args->mode = mode;
+
     copy_in_args *args = malloc(sizeof(copy_in_args));
+    if (args == NULL) {
+        free(kpath);
+        free(fo_args);
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
+    
     args->count = 0;
     args->nbyte = MAXNAMLEN;
     args->usr_ptr = (seL4_Word) path;
     args->k_ptr = (seL4_Word) kpath;
     args->cb = fh_open_wrapper;
-    args->cb_arg_1 = (seL4_Word) kpath;
-    args->cb_arg_2 = (seL4_Word) mode;
-    copy_in(pid, reply_cap, args);
+    args->cb_args = fo_args;
+    copy_in(pid, reply_cap, args, 0);
 }
 
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
@@ -258,20 +274,7 @@ void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
     int to_delete = (int) seL4_GetMR(1);
 
-    
-    
-    if (to_delete == pid) {
-        int parent_pid = proc_table[to_delete]->parent_pid;
-        if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
-        }
-        kill_process(pid, pid, (seL4_CPtr) 0);
-    } else if (remove_child(pid, to_delete)) {
-        proc_table[pid]->status |= PROC_BLOCKED;
-        kill_process(pid, to_delete, reply_cap); 
-    } else {
-        send_seL4_reply(reply_cap, -1);
-    }
+    kill_process(pid, to_delete, reply_cap); 
 }
 
 /* Returns ID of caller's process. */

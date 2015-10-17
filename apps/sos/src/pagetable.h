@@ -45,8 +45,7 @@ typedef struct _copy_in_args {
   seL4_Word count;
   int nbyte;
   callback_ptr cb;
-  seL4_Word cb_arg_1;
-  seL4_Word cb_arg_2;
+  void *cb_args;
 } copy_in_args;
 
 typedef struct _copy_out_args {
@@ -77,7 +76,6 @@ typedef struct _copy_page_args {
   int count;
   callback_ptr cb;
   void *cb_args;
-  int src_type;
 }copy_page_args;
 
 int page_init(int pid);
@@ -107,7 +105,6 @@ int copy_page(seL4_Word dst
              ,callback_ptr cb
              ,void *cb_args
              ,seL4_CPtr reply_cap
-             ,int src_type
              );
 
 void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args, int err);
