@@ -161,7 +161,7 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     printf("starting process from pid %d\n", parent_pid);
 	start_process_args *args = (start_process_args *) _args;
     if (args == NULL && reply_cap) {
-        send_seL4_reply(reply_cap, -1);
+        send_seL4_reply(reply_cap, pid, -1);
     }
 
     //check parent exists 
@@ -175,6 +175,12 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     // Get args that we use
 	// Get new pid/make new address space
     new_as_args *as_args = malloc(sizeof(new_as_args));
+    if (as_args == NULL) {
+                
+        free(args);
+        return;
+    }
+
     as_args->cb = start_process_cb1;
     as_args->cb_args = args;
     new_as(parent_pid, reply_cap, as_args);
