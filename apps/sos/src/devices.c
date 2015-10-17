@@ -201,6 +201,7 @@ void con_read(vnode *vn
                           ,reply_cap
                           );
     if (err) {
+        eprintf("Error caught in con_read\n");
         send_seL4_reply(reply_cap, pid, 0);
         free(args);
         return;
@@ -251,6 +252,7 @@ void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
                                       ,reply_cap
                                       );
                 if (err) {
+                    eprintf("Error caught in con_read_cb\n");
                     send_seL4_reply(reply_cap, pid, args->nread);
                     free(args);
                     return;
@@ -269,6 +271,7 @@ void con_read_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     } else {
         int t_id = register_timer(READ_CB_DELAY, &con_read_cb_wrapper, args);
         if (t_id == 0) {
+            eprintf("Error caught in con_read_cb\n");
             send_seL4_reply(reply_cap, pid, args->nread);
             free(args);
             return;
@@ -312,6 +315,7 @@ void con_write(vnode *vn
                           );
 
     if (err) {
+        eprintf("Error caught in con_write\n");
         send_seL4_reply(reply_cap, pid, 0);
         free(args);   
         return;
@@ -327,6 +331,7 @@ void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     con_write_args *args = (con_write_args*) _args;
 
     if (err) {
+        eprintf("Error caught in con_write_cb\n");
         send_seL4_reply(reply_cap, pid, args->bytes_written);
         free(args);
         return;
@@ -355,6 +360,7 @@ void con_write_cb(int pid, seL4_CPtr reply_cap, void *_args, int err) {
                           ,reply_cap
                           );
     if (err) {
+        eprintf("Error caught in con_write_cb\n");
         send_seL4_reply(reply_cap, pid, args->bytes_written);
         free(args);
         return;

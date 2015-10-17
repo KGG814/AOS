@@ -75,6 +75,7 @@ void load_segment_into_vspace(int pid
     if (TMP_DEBUG) printf("load_segment_into_vspace pid: %d\n", pid);
 
     if (err) {
+        eprintf("Error caught in load_segment_into_vspace\n");
         args->cb(pid, reply_cap, args->cb_args, err);
         free(args);
         return;
@@ -137,6 +138,7 @@ void load_segment_into_vspace(int pid
             
             frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
             if (alloc_args == NULL) {
+                eprintf("Error caught in load_segment_into_vspace\n");
                 args->cb(pid, reply_cap, args->cb_args, -1);
                 free(args); 
                 return;
@@ -151,8 +153,10 @@ void load_segment_into_vspace(int pid
             if (TMP_DEBUG) printf("pid %d\n", pid);
             if (TMP_DEBUG) printf("dir index %p\n", (void *)dir_index);
             if (TMP_DEBUG) printf("page_index %p\n", (void *)page_index);
+
             args->index = as->page_directory[dir_index][page_index];
             args->vaddr = index_to_vaddr(args->index);
+
             if (TMP_DEBUG) printf("vaddr %p\n", (void *)args->vaddr);
             load_segment_into_vspace_cb_continue(pid, reply_cap, args, 0);
         }  
@@ -184,6 +188,7 @@ void load_segment_into_vspace_cb(int pid
     if (TMP_DEBUG) printf("vaddr %p\n", (void *)args->vaddr);
 
     if (err || load_args->index == FRAMETABLE_ERR) {
+        eprintf("Error caught in load_segment_into_vspace_cb\n");
         load_args->cb(pid, reply_cap, load_args->cb_args, -1);
         free(load_args);
         return;
@@ -209,6 +214,7 @@ void load_segment_into_vspace_cb_continue(int pid
     if (TMP_DEBUG) printf("load_segment_into_vspace_cb_continue\n");
     // Get the arguments we use
     if (err) {
+        eprintf("Error caught in load_segment_into_vspace_cb_continue\n");
         args->cb(pid, reply_cap, args->cb_args, err);
         free(args);
         return;
@@ -240,6 +246,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err) {
 
     elf_load_args *args = (elf_load_args *) _args;
     if (err) {
+        eprintf("Error caught in elf_load\n");
         args->cb(pid, reply_cap, args->cb_args, err);
         free(args);
         return;  
@@ -250,6 +257,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     //addr_space *as = proc_table[pid];
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file)){
+        eprintf("Error caught in elf_load\n");
         args->cb(pid, reply_cap, args->cb_args, -1);
         free(args);
         return;
@@ -279,6 +287,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err) {
             load_segment_args *segment_args = malloc(sizeof(load_segment_args));
             
             if (segment_args == NULL) {
+                eprintf("Error caught in elf_load\n");
                 args->cb(pid, reply_cap, args->cb_args, -1);
                 free(args);
                 return;

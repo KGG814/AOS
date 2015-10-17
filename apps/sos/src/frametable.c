@@ -130,7 +130,7 @@ int frame_init(void) {
     int index = 0;
     for (int i = 0; i < frame_table_size; i++) {
         index = real_indices[i].frame_status;
-        printf("Setting index %p to don't swap\n", (void *) index);
+        //printf("Setting index %p to don't swap\n", (void *) index);
         frametable[index].frame_status = FRAME_IN_USE | FRAME_DONT_SWAP;
         frametable[index].frame_cap = real_indices[i].frame_cap;
     }
@@ -148,6 +148,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
     /* Check frame table has been initialised */;
     if (!ft_initialised || err) {
         // Frame table has not been initialised
+        eprintf("Error caught in frame_alloc_swap\n");
         args->index = FRAMETABLE_ERR;
         args->cb(pid, reply_cap, args, -1);
         return;
@@ -167,6 +168,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         write_swap_args *write_args = malloc(sizeof(write_swap_args));
         if (write_args == NULL) {
             args->index = FRAMETABLE_ERR;
+            eprintf("Error caught in frame_alloc_swap\n");
             //don't free the args here, the caller of frame alloc should do that 
             args->cb(pid, reply_cap, args, -1);
             return;
@@ -203,7 +205,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         if (err) { 
             // Retype failed, free memory and callback
             //9242_TODO More cleanup needed?
-            assert(RTN_ON_FAIL);
+            eprintf("Error caught in frame_alloc_swap\n");
 
             //9242_TODO confirm this is the right thing to do
             ut_free(args->pt_addr, PAGE_BITS);
@@ -224,6 +226,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
 // and map into kernel virtual memory
 void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err) {
     if (err) {
+        eprintf("Error caught in frame_alloc_cb\n");
         args->index = FRAMETABLE_ERR;
         args->cb(pid, reply_cap, args, err);
         return;
@@ -252,6 +255,8 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
         if (err) {
             //9242_TODO is this the right thing to do?
             frame_free(index);
+            
+            eprintf("Error caught in frame_alloc_cb\n");
 
             args->index = 0;
             args->cb(pid, reply_cap, args, err);
@@ -395,6 +400,7 @@ int get_next_frame_to_swap(void) {
                                   ,index_to_vaddr(next_frame)
                                   ,seL4_AllRights
                                   ,seL4_ARM_Default_VMAttributes
+                                  );
                 //this should always work
                 assert(err == 0);
                 frametable[next_frame].mapping_cap = 0;
