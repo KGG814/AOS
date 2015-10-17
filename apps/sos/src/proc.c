@@ -33,6 +33,7 @@ extern char _cpio_archive[];
 addr_space* proc_table[MAX_PROCESSES + 1];
 int free_pids[MAX_PROCESSES + 1];
 int next_pid = 1;
+wait_list *wait_head;
 
 int num_processes = 0;
 
@@ -48,6 +49,7 @@ void proc_table_init(void) {
     }
     free_pids[0] = 0;
     free_pids[MAX_PROCESSES] = 0;
+    wait_head = NULL;
 }
 
 void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
@@ -698,4 +700,27 @@ void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data, int err) {
     && (--proc_table[delete_pid]->delete_wait == 0)) {
         send_seL4_reply(reply_cap, delete_pid, 0);
     } 
+}
+
+void add_to_wait_list(int pid) {
+    wait_list *new_wait = malloc(sizeof(wait_list));
+    new_wait->pid;
+    new_wait->next = wait_head;
+    wait_head = new_wait;
+}
+
+void wake_wait_list(int pid) {
+    wait_list *curr_wait = wait_head;
+    wait_list *next_wait;
+    int wake_pid;
+    //9242_TODO Check for dead process
+    while (curr_wait != NULL) {
+        wake_pid = wait_head->pid;
+        next_wait = wait_head->next;
+        send_seL4_reply(proc_table[wake_pid]->wait_cap, wake_pid, pid);
+        proc_table[wake_pid]->wait_cap = 0;
+        free(curr_wait);
+        curr_wait = next_wait;
+    }
+    wait_head = NULL;
 }

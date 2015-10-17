@@ -25,11 +25,19 @@
 #define CURR_READ 1
 #define CHILD_READ 2
 
+
+
 typedef struct _child_proc child_proc;
+typedef struct _wait_list wait_list;
 
 struct _child_proc {
     int pid;
     child_proc *next;
+};
+
+struct _wait_list {
+    int pid;
+    wait_list *next;
 };
 
 typedef struct _addr_space {
@@ -117,4 +125,7 @@ void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 
 void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err);
 
+void add_to_wait_list(int pid);
+
+void wake_wait_list(int pid);
 #endif /* _PROC_H_ */

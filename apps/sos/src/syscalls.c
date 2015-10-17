@@ -311,7 +311,11 @@ void handle_process_status(seL4_CPtr reply_cap, int pid) {
  */
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO add pid -1 case, with global list
+    if (pid == -1) {
+        add_to_wait_list(pid);
+    }
     proc_table[pid]->wait_cap = reply_cap;
+    
     /*if (proc_table[pid]->reader_status == CURR_READ) {
         proc_table[pid]->reader_status = CHILD_READ;
         console_status = CONSOLE_READ_CLOSE;
