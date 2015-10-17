@@ -49,8 +49,7 @@ sattr_t get_new_file_attr(void);
 typedef struct _file_open_args file_open_args;
 typedef struct _file_read_args file_read_args;
 typedef struct _file_write_nfs_args file_write_nfs_args;
-typedef struct _vfs_stat_args vfs_stat_args;
-typedef struct _getdirent_args getdirent_args;
+
 typedef struct _file_write_args file_write_args;
 
 vnode_ops file_ops = 
@@ -97,20 +96,7 @@ struct _file_write_args {
     file_write_nfs_args* nfs_args;
 };
 
-struct _vfs_stat_args {
-    seL4_CPtr reply_cap;
-    seL4_Word buf;
-    int pid;
-};
 
-struct _getdirent_args {
-    seL4_CPtr reply_cap;
-    seL4_Word to_get;
-    seL4_Word entries_received;
-    seL4_Word buf;
-    int pid;
-    size_t nbyte;
-};
 
 vnode_ops nfs_ops;
 
@@ -632,6 +618,7 @@ void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
     args->buf = buf;
     args->pid = pid;
     nfs_lookup(&mnt_point, path, vfs_stat_cb, (uintptr_t)args);
+    free(path);
     if(SOS_DEBUG) printf("vfs_stat ended\n");
 }
 
@@ -770,12 +757,14 @@ void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
 }
 
 // Wrapper for vfs_stat call
-void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
+void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args, int err) {
     if(SOS_DEBUG) printf("vfs_stat_wrapper\n");
     copy_in_args *copy_args = (copy_in_args *)args;
-    char *path = (char *) copy_args->cb_arg_1;
-    seL4_Word buf = copy_args->cb_arg_2;
+    vfs_stat_args *stat_args = copy_args->cb_args; 
+    char *path = (char *) stat_args->kpath;
+    seL4_Word buf = stat_args->buf;
     free(args);
+    free(stat_args);
     vfs_stat(path, buf, reply_cap, pid); 
     if(SOS_DEBUG) printf("vfs_stat_wrapper_ended\n");
 }
