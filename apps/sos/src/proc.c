@@ -292,39 +292,37 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
                                    ,&(as->vroot)
                                    );
     if (err) {
-        if (reply_cap) {
-            cleanup_as(new_pid);
-            free(args);
-            send_seL4_reply(reply_cap, args->parent_pid, -1);
-        } else {
-            assert(!"Failed to allocate page directory cap for client");
-        }
+        eprintf("Error caught in start_process_cb1\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        free(args);
+        cleanup_as(new_pid);
+        return;
     }
 
     /* Create a simple 1 level CSpace */
     as->croot = cspace_create(1);
     if (as->croot == NULL) {
-        if (reply_cap) {
-            cleanup_as(new_pid);
-            free(args);
-            send_seL4_reply(reply_cap, args->parent_pid, -1);
-        } else {
-            assert(!"Failed to allocate page directory cap for client");
-        }
+        eprintf("Error caught in start_process_cb1\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        free(args);
+        cleanup_as(new_pid);
+        return;
     }
 
     // Set up frame_alloc_swap args
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
     if (alloc_args == NULL) {
-        if (reply_cap) {
-            cleanup_as(new_pid);
-            free(args);
-            send_seL4_reply(reply_cap, args->parent_pid, -1);
-        } else {
-            //this will only be entered if we are in start_first_process and 
-            //malloc fails
-            assert(0); 
-        }
+        eprintf("Error caught in start_process_cb1\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        free(args);
+        cleanup_as(new_pid);
+        return;
     }
 
     alloc_args->map = NOMAP;
@@ -332,39 +330,35 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     alloc_args->cb_args = args;
 
     /* Get IPC buffer */
-    frame_alloc_swap(new_pid, reply_cap, alloc_args);
+    frame_alloc_swap(new_pid, reply_cap, alloc_args, 0);
     if (TMP_DEBUG) printf("start_process_cb1 end\n");
 }
 
-void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args, int err) {
+void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (TMP_DEBUG) printf("start_process_cb2\n");
-	frame_alloc_args *alloc_args = (frame_alloc_args *) args;
-	start_process_args *process_args = (start_process_args *) alloc_args->cb_args;
-    if (alloc_args->index < 0) {
-        if (!reply_cap) {
-            assert(!"couldn't allocate memory for first process");
-        }
-
-        //9242_TODO figure out the execution path here
-
-        free(process_args);
-        free(alloc_args);
-        cleanup_as(new_pid);
-        
-        return;
-    }
-
-	/* Get args */
-	// Address space of the new process
-	addr_space *as = proc_table[new_pid];
+	frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
+	start_process_args *args = (start_process_args *) alloc_args->cb_args;
 
 	// Free frame_alloc args
 	int index = alloc_args->index;
+
 	free(alloc_args);
     alloc_args = NULL;
 	
+    if (err || index == FRAMETABLE_ERR) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
 	// Various local state
-	int err;
+	// Address space of the new process
+	addr_space *as = proc_table[new_pid];
 	seL4_CPtr user_ep_cap;
 
 	// These required for loading program sections
@@ -381,17 +375,29 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args, int err) {
     err = map_page_user(as->ipc_buffer_cap, as->vroot,
                    PROCESS_IPC_BUFFER,
                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
-    printf("Setting index %p to don't swap\n", (void *) index);
-    frametable[index].frame_status |= FRAME_DONT_SWAP;
+    
     printf("cap: %p\n", (void *)as->ipc_buffer_cap);
     printf("err :%d\n", err);
-    conditional_panic(err, "Unable to map IPC buffer for user app");
+
+    if (err) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
+    printf("Setting index %p to don't swap\n", (void *) index);
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
 
     /* Copy the fault endpoint to the user app to enable IPC */
-   if (TMP_DEBUG) printf("PID is %d\n", new_pid);
+    if (TMP_DEBUG) printf("PID is %d\n", new_pid);
     user_ep_cap = cspace_mint_cap(as->croot
                                  ,cur_cspace
-                                 ,process_args->fault_ep
+                                 ,args->fault_ep
                                  ,seL4_AllRights 
                                  ,seL4_CapData_Badge_new(new_pid)
                                  );
@@ -403,42 +409,81 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *args, int err) {
     
     /* Create a new TCB object */
     as->tcb_addr = ut_alloc(seL4_TCBBits);
-    conditional_panic(!as->tcb_addr, "No memory for new TCB");
+    if (!as->tcb_addr) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
     err =  cspace_ut_retype_addr(as->tcb_addr,
                                  seL4_TCBObject,
                                  seL4_TCBBits,
                                  cur_cspace,
                                  &(as->tcb_cap));
-    conditional_panic(err, "Failed to create TCB");
+    if (err) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
 
     /* Configure the TCB */
     err = seL4_TCB_Configure(as->tcb_cap, user_ep_cap, as->priority,
                              as->croot->root_cnode, seL4_NilData,
                              as->vroot, seL4_NilData, PROCESS_IPC_BUFFER,
                              as->ipc_buffer_cap);
-    conditional_panic(err, "Unable to configure new TCB");
+
+    if (err) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
 
     /* parse the cpio image */
     dprintf(1, "\nStarting \"%s\"...\n", as->command);
-    process_args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
+    args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
     printf("tried to do cpio_get_file\n");
-    if (!process_args->elf_base) {
-        if (!reply_cap) {
-            assert(!"Unable to load cpio header");
-        }
-        printf("trying to do cleanup\n");
-        free(process_args);
+    if (!args->elf_base) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
         cleanup_as(new_pid);
-        //send_seL4_reply(reply_cap,  -1);
         return;
     }
 
     /* load the elf image */
     elf_load_args *load_args = malloc(sizeof(elf_load_args));
-    load_args->elf_file = process_args->elf_base;
+    if (load_args == NULL) {
+        eprintf("Error caught in start_process_cb2\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    load_args->elf_file = args->elf_base;
     load_args->curr_header = 0;
     load_args->cb = start_process_cb_cont;
-    load_args->cb_args = process_args;
+    load_args->cb_args = args;
     printf("reply cap %p\n",(void *) reply_cap);
     elf_load(new_pid, reply_cap, load_args, 0);
     
@@ -449,6 +494,18 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (TMP_DEBUG) printf("start_process_cb_cont\n");
     printf("reply cap %p\n",(void *) reply_cap);
     start_process_args *args = (start_process_args *) _args;
+
+    if (err) {
+        eprintf("Error caught in start_process_cb_cont\n");
+
+        assert(!args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+
+        free(args);
+        cleanup_as(pid);
+        return;
+    }   
+
     /* These required for setting up the TCB */
     seL4_UserContext context;
     /* Start the new process */
@@ -457,9 +514,10 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     context.pc = elf_getEntryPoint(args->elf_base);
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
-    if (args->cb) {
-        args->cb(pid, reply_cap, args->cb_args);
-    }
+    
+    args->cb(args->parent_pid, reply_cap, args->cb_args, 0);
+    free(args);
+
     if (TMP_DEBUG) printf("start_process_cb_cont end\n");
 }
 
@@ -469,19 +527,19 @@ void process_status(seL4_CPtr reply_cap
                    ,unsigned max_processes
                    ) {
     if (processes == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
     }
     
     //change this to a min between max and current
     sos_process_t* k_ptr = malloc(sizeof(sos_process_t) * max_processes);
     if (k_ptr == NULL) {
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
     }
     
     copy_out_args *cpa = malloc(sizeof(copy_out_args));
     if (cpa == NULL) {
         free(k_ptr);
-        send_seL4_reply(reply_cap, 0); 
+        send_seL4_reply(reply_cap, pid, 0); 
     }
 
     int count = 0;
@@ -502,7 +560,7 @@ void process_status(seL4_CPtr reply_cap
     cpa->count = 0;
     cpa->cb = process_status_cb;
 
-    copy_out(pid, reply_cap, cpa);
+    copy_out(pid, reply_cap, cpa, 0);
 }
 
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *args, int err) {
@@ -560,7 +618,7 @@ void remove_child(int parent_pid, int child_pid) {
     if (cur->pid == child_pid) {
         proc_table[parent_pid]->children = cur->next; 
         free(cur);
-        return 1;
+        return;
     }
 
     //get the child before the child to delete
@@ -570,10 +628,11 @@ void remove_child(int parent_pid, int child_pid) {
     
     //cur->next is the child to delete
     child_proc *tmp = cur->next;
-    cur->next = tmp->next;
-    free(tmp);
 
-    return 1;
+    if (tmp != NULL) {
+        cur->next = tmp->next;
+        free(tmp);
+    }
 }
 
 void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
@@ -586,7 +645,7 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     if (to_delete == pid) {
         int parent_pid = proc_table[to_delete]->parent_pid;
         if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid, 0);
             proc_table[parent_pid]->wait_cap = 0;
         }
     } else if (is_child(pid, to_delete)) {
@@ -618,7 +677,7 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
 
     //child is ready to be killed 
     if (!(as->status & PROC_BLOCKED)) { 
-        kill_process_cb(pid, reply_cap, (void *) to_delete);
+        kill_process_cb(pid, reply_cap, (void *) to_delete, 0);
     }
 }
 
