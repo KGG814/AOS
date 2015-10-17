@@ -230,10 +230,11 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     // Set up start_process cb args
     start_process_args *process_args = malloc(sizeof(start_process_args));
+    assert(process_args);
     process_args->app_name = app_name;
     process_args->fault_ep = fault_ep;
     process_args->priority = TTY_PRIORITY;
-    process_args->cb = NULL;
+    process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
     process_args->parent_pid = 0;
     start_process(0, 0, process_args);

@@ -3,13 +3,13 @@
 
 #define SOS_DEBUG 1
 #define TMP_DEBUG 1
-#define RTN_ON_FAIL 0
+#define RTN_ON_FAIL 1
 
 //a little hacky
 #if RTN_ON_FAIL
-    #define CB_DEBUG (assert(0), 1)
-#else 
     #define CB_DEBUG 1
+#else 
+    #define CB_DEBUG (assert(0), 1)
 #endif
 
 #define eprintf(...) if (CB_DEBUG) printf(__VA_ARGS__)
