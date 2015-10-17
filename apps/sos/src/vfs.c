@@ -590,8 +590,7 @@ void vfs_stat_cb(uintptr_t token
         free(args);
         return;
     }
-
-    //9242_TODO change this to a malloc
+    copy_args->src = (seL4_Word) malloc(sizeof(sos_stat_t));
     sos_stat_t temp = 
         {.st_type = 0
         ,.st_fmode = fattr->mode
@@ -599,17 +598,15 @@ void vfs_stat_cb(uintptr_t token
         ,.st_ctime = fattr->ctime.seconds * 1000 + fattr->ctime.useconds / 1000
         ,.st_atime = fattr->atime.seconds * 1000 + fattr->atime.useconds / 1000
         };
-
     if (fattr->type == NFREG) {
 
         temp.st_type = ST_FILE;
     } else {
         temp.st_type = ST_SPECIAL;
     }
+    memcpy((void *)copy_args->src, &temp, sizeof(sos_stat_t));
     copy_out_args *copy_args = malloc(sizeof(copy_out_args));
     copy_args->usr_ptr = (seL4_Word) args->buf;
-    //9242_TODO duffer this
-    copy_args->src = (seL4_Word) &temp;
     copy_args->nbyte = sizeof(sos_stat_t);
     copy_args->count = 0;
     copy_args->cb = vfs_stat_reply;
