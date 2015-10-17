@@ -704,7 +704,7 @@ void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data, int err) {
 
 void add_to_wait_list(int pid) {
     wait_list *new_wait = malloc(sizeof(wait_list));
-    new_wait->pid;
+    new_wait->pid = pid;
     new_wait->next = wait_head;
     wait_head = new_wait;
 }
