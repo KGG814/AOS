@@ -34,11 +34,7 @@ void handle_sos_write(seL4_CPtr reply_cap, int pid) {
     */
 
     //this is now deprecated
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, -1);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
-
+    send_seL4_reply(reply_cap, pid, -1);
 }
 
 /* Open file and return file descriptor, -1 if unsuccessful
@@ -327,6 +323,7 @@ void handle_process_wait(seL4_CPtr reply_cap, int pid) {
  */
 //does not block
 void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
+    proc_table[pid]->status &= ~PROC_BLOCKED;
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
 	seL4_SetMR(1, (seL4_Word)(LOWER_32(timestamp)));

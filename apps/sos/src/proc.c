@@ -652,7 +652,6 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         }
     } else if (is_child(pid, to_delete)) {
         remove_child(pid, to_delete);
-        proc_table[pid]->status |= PROC_BLOCKED;
     } else {
         send_seL4_reply(reply_cap, pid, -1);
         return;

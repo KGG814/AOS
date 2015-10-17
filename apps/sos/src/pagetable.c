@@ -386,10 +386,6 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
 
         //kill the process as it has faulted invalid memory
-        int parent_pid = proc_table[pid]->parent_pid;
-        if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, pid);
-        }
         kill_process(pid, pid, 0);
     }
     if (SOS_DEBUG) printf("handle_vm_fault finished\n");
@@ -400,20 +396,11 @@ void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args, int err) {
     if (SOS_DEBUG) printf("handle_vm_fault_cb\n");
     if (err) {
         //this could happen. in this case the process needs to be killed 
-        //9242_TODO move this into a function
-        int parent_pid = proc_table[pid]->parent_pid;
-        if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, pid);
-        }
         kill_process(pid, pid, 0);
-
         return;
     }
 
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, 0);
-    seL4_Send(cap, reply);
-    cspace_free_slot(cur_cspace, cap);
+    send_seL4_reply(cap, pid, 0);
     if (SOS_DEBUG) printf("handle_vm_fault_cb ended\n");
 }
 
