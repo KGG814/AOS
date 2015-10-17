@@ -453,7 +453,7 @@ int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPt
             swap_args->vaddr = vaddr;
             swap_args->pid = pid = pid;
             swap_args->reply_cap = reply_cap;
-            read_from_swap_slot(pid, reply_cap, swap_args, 0);
+            read_from_swap_slot(pid, reply_cap, swap_args);
             return 0;
         } else if (index != 0 && frametable[index].vaddr == vaddr && 
                    frametable[index].frame_status & FRAME_SWAP_MARKED) {
