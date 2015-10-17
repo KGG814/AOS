@@ -184,37 +184,40 @@ void pt_cleanup(int pid) {
     printf("Starting pt_cleanup\n");
     seL4_Word** pd = proc_table[pid]->page_directory;
     seL4_ARM_PageTable **ct = proc_table[pid]->cap_table;
-    for (int i = 0; i < PD_MAX_ENTRIES; i++) {
-        if (pd[i]) {
-            for (int j = 0; j < PT_MAX_ENTRIES; j++) {
-                if (pd[i][j]) {
-                    if (pd[i][j] & SWAPPED) {
-                    } else {
-                        int page_pid = (pd[i][j] & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
-                        int swapped = pd[i][j] & SWAPPED;
-                        if ((page_pid == pid) & !swapped) {
-                            printf("pid %d\n", pid);
-                            frame_free(pd[i][j] & FRAME_INDEX_MASK);
-                        } else if (swapped) {
-                            free_swap_slot(pd[i][j] & SWAP_SLOT_MASK); 
-                        }      
+    if (pd) {
+        for (int i = 0; i < PD_MAX_ENTRIES; i++) {
+            if (pd[i]) {
+                for (int j = 0; j < PT_MAX_ENTRIES; j++) {
+                    if (pd[i][j]) {
+                        if (pd[i][j] & SWAPPED) {
+                        } else {
+                            int page_pid = (pd[i][j] & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
+                            int swapped = pd[i][j] & SWAPPED;
+                            if ((page_pid == pid) & !swapped) {
+                                printf("pid %d\n", pid);
+                                frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                            } else if (swapped) {
+                                free_swap_slot(pd[i][j] & SWAP_SLOT_MASK); 
+                            }      
+                        }
                     }
                 }
+                frame_free(vaddr_to_index((seL4_Word) pd[i]));
             }
-            frame_free(vaddr_to_index((seL4_Word) pd[i]));
         }
+        frame_free(vaddr_to_index((seL4_Word) pd));
     }
 
-    frame_free(vaddr_to_index((seL4_Word) pd));
-    printf("pt cleaned\n");
     //free the cap table 
-    for (int i = 0; i < CAP_TABLE_PAGES; i++) {
-        for (int j = 0; j < CT_MAX_ENTRIES; j++) {
-            if ((seL4_Word) ct[i][j]) {
-                seL4_ARM_Page_Unmap(ct[i][j]);
+    if (ct) {
+        for (int i = 0; i < CAP_TABLE_PAGES; i++) {
+            for (int j = 0; j < CT_MAX_ENTRIES; j++) {
+                if ((seL4_Word) ct[i][j]) {
+                    seL4_ARM_Page_Unmap(ct[i][j]);
+                }
             }
+            frame_free(vaddr_to_index((seL4_Word) ct[i])); 
         }
-        frame_free(vaddr_to_index((seL4_Word) ct[i])); 
     }
     printf("pt cleanup ended\n");
 } 

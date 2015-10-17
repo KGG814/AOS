@@ -107,7 +107,7 @@ void process_status(seL4_CPtr reply_cap
                    ,unsigned max_processes
                    );
 
-void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
+void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err);
 
 int is_child(int parent_pid, int child_pid);
 
@@ -115,6 +115,6 @@ void remove_child(int parent_pid, int child_pid);
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 
-void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data);
+void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err);
 
 #endif /* _PROC_H_ */
