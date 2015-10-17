@@ -38,13 +38,12 @@ void swap_mnt_lookup_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, f
 sattr_t get_new_swap_attributes(void);
 
 // Swap read callbacks and nfs callback
-void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
-void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args);
+void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err);
+void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args, int err);
 void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 
 // Functions for managing swap buffer
 int get_next_swap_slot(void);
-void free_swap_slot(int slot);
 
 // Write a given frame to the next free swap slot
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
