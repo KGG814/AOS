@@ -36,7 +36,6 @@ int next_pid = 1;
 wait_list *wait_head;
 
 int num_processes = 0;
-
 void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args, int err);
 void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *args, int err);
 void start_process_cb2(int pid, seL4_CPtr reply_cap, void *args, int err);
@@ -160,13 +159,18 @@ void cleanup_as(int pid) {
     pt_cleanup(pid);
     //9242_TODO, cleanup vm?
     //9242_TODO, cleanup vroot, ipc, tcb, croot
-    
+    printf("Destroying tcb\n");
     if (as->tcb_addr) {
-        ut_free(as->tcb_addr, seL4_TCBBits); 
+        ut_free(as->tcb_addr, seL4_TCBBits);
+        cspace_revoke_cap(cur_cspace, as->tcb_cap);
+        cspace_delete_cap(cur_cspace, as->tcb_cap);
+        as->tcb_cap = 0;
+        as->tcb_addr = 0;
     }
-
-    //ipc is cleaned up in the pagetable cleanup
-
+    printf("tcb destroyed\n");
+    cspace_revoke_cap(cur_cspace, as->ipc_buffer_cap);
+    as->ipc_buffer_addr = 0;
+    as->ipc_buffer_cap = 0;
     if (as->croot) {
         cspace_destroy(as->croot);
     }
@@ -517,7 +521,7 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
     
-    args->cb(args->parent_pid, reply_cap, args->cb_args, 0);
+    args->cb(args->parent_pid, reply_cap, pid, 0);
     free(args);
 
     if (TMP_DEBUG) printf("start_process_cb_cont end\n");
@@ -581,11 +585,14 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *args, int err) {
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (TMP_DEBUG) printf("handle_process_create_cb\n");
     if (!err) {
-        printf("Process %d created with parent pid %d\n", pid, proc_table[pid]->parent_pid);
+        printf("Process %d\n", pid);
     }
-    //this should be null
-    assert(args == NULL);
-    send_seL4_reply(reply_cap, pid, err);
+    int child_pid = (int) args;
+    if (err) {
+        send_seL4_reply(reply_cap, pid, err);
+    } else {
+        send_seL4_reply(reply_cap, pid, child_pid);
+    }  
     if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
 }
 

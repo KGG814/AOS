@@ -116,7 +116,9 @@ void load_segment_into_vspace(int pid
     // Address space of the process
     addr_space *as = proc_table[pid];
     // Make sure inputs are valid
-    if (file_size <= segment_size) {
+    if (file_size > segment_size) {
+        printf("%lu %lu\n", file_size, segment_size);
+        eprintf("Error caught in load_segment_into_vspace\n");
         args->cb(pid, reply_cap, args->cb_args, -1);
         free(args); 
         return;
@@ -308,6 +310,7 @@ void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err) {
         //conditional_panic(err != 0, "Elf loading failed!\n");
     } else {
         // Do callback
+        printf("Doing callback with pid :%d\n", pid);
         args->cb(pid, reply_cap, args->cb_args, 0);
         free(args);
     }

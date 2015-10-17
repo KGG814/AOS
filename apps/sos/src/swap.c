@@ -48,6 +48,9 @@ int get_next_swap_slot(void);
 // Write a given frame to the next free swap slot
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	if (SOS_DEBUG) printf("write_to_swap_slot\n");
+	int index = args->index;
+	printf("index %p\n", (void*) index);
+	printf("vaddr %p\n", (void *) frametable[index].vaddr);
 	// Check if we have initialised
 	if (swap_handle == NULL) {
 		// Swap file has not been initialised
@@ -88,7 +91,8 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 		// Swap file has been initialised
 		// Get all the arguments we use
 		int index = args->index;
-		printf("index %d\n", index);
+		printf("index %p\n", (void*) index);
+		printf("vaddr %p\n", (void *) frametable[index].vaddr);
 		// Get the next free swap slot
 		int slot = get_next_swap_slot();
 		// Check if we have reached end of swap file

@@ -25,7 +25,7 @@ int o_to_fm[] = {FM_READ, FM_WRITE, FM_READ + FM_WRITE};
 
 void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
 void file_read_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
-void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args);
+void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args, int err);
 
 int file_close(vnode *vn);
 
@@ -34,19 +34,19 @@ void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
 
 void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, int *offset, int pid);
 void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count);
-void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args);
-void file_write_cb(int pid, seL4_CPtr reply_cap, void* args);
+void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args, int err);
+void file_write_cb(int pid, seL4_CPtr reply_cap, void* args, int err);
 
 void vfs_stat_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
-void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args);
+void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args, int err);
 
 void vfs_getdirent_cb(uintptr_t token ,nfs_stat_t status
                      ,int num_files ,char *file_names[], nfscookie_t nfscookie);
-void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args);
+void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args, int err);
 
 sattr_t get_new_file_attr(void);
 
-typedef struct _file_open_args file_open_args;
+typedef struct _vfs_open_args vfs_open_args;
 typedef struct _file_read_args file_read_args;
 typedef struct _file_write_nfs_args file_write_nfs_args;
 
@@ -59,7 +59,7 @@ vnode_ops file_ops =
     ._vfs_close  = &file_close
 };
 
-struct _file_open_args {
+struct _vfs_open_args {
     vnode* vn;
     int pid;
     seL4_CPtr reply_cap;
@@ -140,7 +140,7 @@ int vnode_remove(vnode *vn) {
     return 0;
 }
 
-// Open the given path and returna new vnode
+// Open the given path and return a new vnode
 vnode* vfs_open(const char* path
                ,fmode_t mode
                ,int pid
@@ -173,7 +173,7 @@ vnode* vfs_open(const char* path
             return NULL;
         }
         // Allocate arguments for file_open call
-        file_open_args *args = malloc(sizeof(file_open_args));
+        vfs_open_args *args = malloc(sizeof(vfs_open_args));
         // Check if malloc worked
         if (args == NULL) {
             *err = VFS_ERR;
@@ -209,7 +209,7 @@ vnode* vfs_open(const char* path
 // Sets up vnode and filetable
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     // Get arguments from NFS token
-    file_open_args *args = (file_open_args*) token;
+    vfs_open_args *args = (vfs_open_args*) token;
     if (args == NULL || status != NFS_OK) {
         //9242_TODO Error handling, do a reply? 
         return;
@@ -221,8 +221,9 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
     vnode* vn = args->vn;
     // Check if vnode is valid
     if (vn == NULL) {
-        assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, -1);
+        eprintf("Error caught in file_open_cb\n");
+        send_seL4_reply(reply_cap, pid, -1);
+        free(args);
         return;
     }
     // Check if file was found
@@ -232,7 +233,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {
             // Permissions don't match
             assert(RTN_ON_FAIL);
-            send_seL4_reply(args->reply_cap, -1);
+            send_seL4_reply(reply_cap, pid, -1);
             vnode_remove(vn);
             free(args);
             return; 
@@ -243,7 +244,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         if (vn->fs_data == NULL) {
             vnode_remove(vn);
             assert(RTN_ON_FAIL);
-            send_seL4_reply(reply_cap, -1);
+            send_seL4_reply(reply_cap, pid, -1);
             free(args);
             return; 
         }
@@ -255,7 +256,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
         vn->atime = fattr->atime;
         // Add a file descriptor to the process's file table
         int fd = add_fd(vn, pid);
-        send_seL4_reply(reply_cap, fd);
+        send_seL4_reply(reply_cap, pid, fd);
         free(args);
         return;
     } else if (status == NFSERR_NOENT && vn->fmode != O_RDONLY) {
@@ -274,7 +275,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
             // Check if the NFS call succeeded
             if (status != RPC_OK) {
                 assert(RTN_ON_FAIL);
-                send_seL4_reply(args->reply_cap, -1);
+                send_seL4_reply(reply_cap, pid, -1);
                 vnode_remove(vn);
                 free(args);
                 return;
@@ -285,7 +286,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
             // Check if malloc failed
             if (mnt_attr == NULL) {
                 assert(RTN_ON_FAIL);
-                send_seL4_reply(args->reply_cap, -1);
+                send_seL4_reply(reply_cap, pid, -1);
                 vnode_remove(vn);
                 free(args);
                 return;
@@ -295,14 +296,14 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
             // Check if the NFS call succeeded
             if (status != RPC_OK) {
                 assert(RTN_ON_FAIL);
-                send_seL4_reply(args->reply_cap, -1);
+                send_seL4_reply(args->reply_cap, pid, -1);
                 vnode_remove(vn);
                 free(args);
                 return;
             }
         }
     } else { 
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, pid, -1);
         vnode_remove(vn);
         free(args);
         return;
@@ -314,12 +315,13 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
 // Should only be called once, the first time we create a new file
 void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     // Get arguments from NFS token
-    file_open_args *args = (file_open_args *) token;
+    vfs_open_args *args = (vfs_open_args *) token;
     vnode* vn = args->vn;
+    int pid = args->pid;
     // Check if the NFS call succeeded
     if (status != NFS_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, pid, -1);
         vnode_remove(vn);
         free(args);
         return;
@@ -334,7 +336,7 @@ void mnt_lookup_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *f
     // Check the NFS call worked
     if (ret != RPC_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, pid, -1);
         vnode_remove(vn);
         free(args);
         return;
@@ -363,11 +365,15 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     // Check if we are allowed to read from file
     if (vn->fmode == O_WRONLY) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
     // Set the arguments for the read call
     file_read_args *args = malloc(sizeof(file_read_args));
+    if (args == NULL) {
+        assert(RTN_ON_FAIL);
+        send_seL4_reply(args->reply_cap, pid, -1);
+    }
     args->vn = vn;
     args->reply_cap = reply_cap;
     args->buf = (seL4_Word) buf;
@@ -391,7 +397,7 @@ void file_read(vnode *vn, char *buf, size_t nbyte, seL4_CPtr reply_cap, int *off
     if (status != RPC_OK) {
         free(args);
         assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, -1);
+        send_seL4_reply(reply_cap, pid, -1);
     }
     if(SOS_DEBUG) printf("file_read ended\n");
 }
@@ -405,15 +411,15 @@ void file_read_nfs_cb(uintptr_t token
                      )
 {
     if(SOS_DEBUG) printf("file_read_nfs_cb\n");
+    // Get arguments from NFS token
+    file_read_args* args = (file_read_args*) token;
     // Check if NFS call succeeded
     if (status != NFS_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, args->bytes_read);
+        send_seL4_reply(args->reply_cap, args->pid, args->bytes_read);
         free(args);
         return;
     }
-    // Get arguments from NFS token
-    file_read_args* args = (file_read_args*) token;
     vnode* vn = args->vn;
     // Set number of bytes read
     args->count = count;
@@ -424,12 +430,12 @@ void file_read_nfs_cb(uintptr_t token
     // Copy NFS buffer memory to our buffer 
     memcpy((void *)args->kbuf, data, count);
     // Copy from our buffer to a user provided buffer
-    copy_page(args->buf, count, args->kbuf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap);
+    copy_page(args->buf, count, (seL4_Word) args->kbuf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap);
     if(SOS_DEBUG) printf("file_read_nfs_cb ended\n");
 }
 
 // Continuation for NFS callback for file_read
-void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
+void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args, int err) {
     if(SOS_DEBUG) printf("file_read_nfs_cb_cont\n");
     // Update read state
     file_read_args* read_args = args;
@@ -442,7 +448,7 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
     // If we have read everything we need to, or we read less than expected, return
     if (read_args->bytes_read == read_args->nbyte || read_args->count < read_args->to_read) {
         // Return to user
-        send_seL4_reply(reply_cap, read_args->bytes_read);
+        send_seL4_reply(reply_cap, pid, read_args->bytes_read);
         free(read_args); 
     } else {
         // Need to do more reading, find out how much we have to read and do another callback
@@ -463,7 +469,7 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
         // Check if NFS call worked
         if (status != RPC_OK) {
             assert(RTN_ON_FAIL);
-            send_seL4_reply(read_args->reply_cap, read_args->bytes_read);
+            send_seL4_reply(read_args->reply_cap, pid, read_args->bytes_read);
             free(read_args);  
         }
     }
@@ -476,7 +482,7 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
     // Check permissions
     if (vn->fmode == O_RDONLY) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
     // Set up args for call
@@ -509,14 +515,14 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
         free(nfs_args);
         free(write_args);
         assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, 0);
+        send_seL4_reply(reply_cap, pid, 0);
         return;
     }
     if(SOS_DEBUG) printf("file_write ended\n");
 }
 
 // Callback for the file write
-void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
+void file_write_cb(int pid, seL4_CPtr reply_cap, void* args, int err) {
     if(SOS_DEBUG) printf("file_write_cb\n");
     // Get the args we need
     file_write_args* write_args = (file_write_args*) args;
@@ -536,7 +542,7 @@ void file_write_cb(int pid, seL4_CPtr reply_cap, void* args) {
     free(args);
     if (status != RPC_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(reply_cap, -1);
+        send_seL4_reply(reply_cap, pid, -1);
         free(nfs_args);
     }
     if(SOS_DEBUG) printf("file_write_cb ended\n");
@@ -548,10 +554,12 @@ void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
     // Get the args from the NFS token
     file_write_nfs_args *args = (file_write_nfs_args*) token;
     vnode *vn = args->vn;
+    int pid = args->pid;
+    seL4_CPtr reply_cap = args->reply_cap;
     //printf("write: got status from nfs: %d\n", status);
     if (status != NFS_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, args->bytes_written + count);
+        send_seL4_reply(reply_cap, pid, args->bytes_written + count);
         free(args);
         return;
     }
@@ -563,14 +571,14 @@ void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
     args->buf += count;
     // If we have written the expected number of bytes, return
     if (args->bytes_written == args->nbyte) {
-        send_seL4_reply((seL4_CPtr)args->reply_cap, args->bytes_written);
+        send_seL4_reply(reply_cap, pid, args->bytes_written);
         free(args);
     } else {
         // Check next page is mapped
-        int err = map_if_valid(args->buf & PAGE_MASK, args->pid, file_write_nfs_cb_continue, args, 0);
+        int err = map_if_valid(args->buf & PAGE_MASK, pid, file_write_nfs_cb_continue, args, 0);
         if (err) {
             assert(RTN_ON_FAIL);
-            send_seL4_reply(args->reply_cap, args->bytes_written);
+            send_seL4_reply(reply_cap, pid, args->bytes_written);
             free(args);
             return;
         }
@@ -579,7 +587,7 @@ void file_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 }
 
 // Continuation for NFS callback for the file write
-void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
+void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args, int err) {
     if(SOS_DEBUG) printf("file_write_nfs_cb_continue\n");
     // Get the args from the NFS token
     file_write_nfs_args *nfs_args = (file_write_nfs_args*) args;
@@ -604,7 +612,7 @@ void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args) {
     // Check if NFS call worked
     if (status != RPC_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(nfs_args->reply_cap, nfs_args->bytes_written);
+        send_seL4_reply(reply_cap, pid, nfs_args->bytes_written);
         free(args);
     }
     if(SOS_DEBUG) printf("file_write_nfs_cb_continue ended\n");
@@ -634,12 +642,12 @@ void vfs_stat_cb(uintptr_t token
     // Check if NFS call succeeded
     if (status != NFS_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, args->pid, -1);
         free(args);
         return;
     }
     //9242_TODO Add malloc error check
-    copy_args->src = (seL4_Word) malloc(sizeof(sos_stat_t));
+
     sos_stat_t temp = 
         {.st_type = 0
         ,.st_fmode = fattr->mode
@@ -653,23 +661,25 @@ void vfs_stat_cb(uintptr_t token
         temp.st_type = ST_SPECIAL;
     }
     // Set the return value to the file status
-    memcpy((void *)copy_args->src, &temp, sizeof(sos_stat_t));
+    ;
     // Prepare arguments
     copy_out_args *copy_args = malloc(sizeof(copy_out_args));
+    copy_args->src = (seL4_Word) malloc(sizeof(sos_stat_t));
+    memcpy((void *)copy_args->src, &temp, sizeof(sos_stat_t));
     copy_args->usr_ptr = (seL4_Word) args->buf;
     copy_args->nbyte = sizeof(sos_stat_t);
     copy_args->count = 0;
     copy_args->cb = vfs_stat_reply;
     // Copy return value to user
-    copy_out(args->pid, args->reply_cap, copy_args);
+    copy_out(args->pid, args->reply_cap, copy_args, 0);
     free(args);
     if(SOS_DEBUG) printf("vfs_stat_cb ended\n");
 }
 
 // Reply wrapper for stat
-void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args) {
+void vfs_stat_reply(int pid, seL4_CPtr reply_cap, void *args, int err) {
     if(SOS_DEBUG) printf("vfs_stat_reply\n");
-    send_seL4_reply(reply_cap, 0);
+    send_seL4_reply(reply_cap, pid, 0);
     free(args);
     if(SOS_DEBUG) printf("vfs_stat_reply ended\n");
 }
@@ -707,18 +717,19 @@ void vfs_getdirent_cb(uintptr_t token
     if(SOS_DEBUG) printf("vfs_getdirent_cb\n");
     // Get arguments from NFS token
     getdirent_args *args = (getdirent_args *)token;
+    int pid = args->pid;
     // Check if NFS call succeeded
     if (status != NFS_OK) {
         assert(RTN_ON_FAIL);
-        send_seL4_reply(args->reply_cap, -1);
+        send_seL4_reply(args->reply_cap, args->pid, -1);
         free(args);
     } else if (num_files == 0) {
         // If the entry requested is equal to the next free entry, return 0
         if (args->to_get == args->entries_received) {
-            send_seL4_reply(args->reply_cap, 0);
+            send_seL4_reply(args->reply_cap, pid, 0);
             free(args);
         } else {
-            send_seL4_reply(args->reply_cap, -1);
+            send_seL4_reply(args->reply_cap, pid, -1);
             free(args);
         }
     } else if (args->entries_received + num_files > args->to_get) {
@@ -734,11 +745,11 @@ void vfs_getdirent_cb(uintptr_t token
         copy_args->usr_ptr = (seL4_Word) args->buf;
         // 9242_TODO Add malloc error checks
         
-        strncpy((void *) copy_args->src, file_names[index], N_NAME;)
+        strncpy((void *) copy_args->src, file_names[index], N_NAME);
         copy_args->nbyte = args->nbyte;
         copy_args->cb = vfs_getdirent_reply;
         copy_args->count = 0;
-        copy_out(args->pid, args->reply_cap, copy_args);
+        copy_out(args->pid, args->reply_cap, copy_args, 0);
         free(args);
     } else {
         args->entries_received += num_files;
@@ -748,10 +759,10 @@ void vfs_getdirent_cb(uintptr_t token
 }
 
 // Reply wrapper for getdirent
-void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
+void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args, int err) {
     if(SOS_DEBUG) printf("vfs_getdirent_reply\n");
     copy_out_args *copy_args = (copy_out_args *)args;
-    send_seL4_reply(reply_cap, copy_args->nbyte);;
+    send_seL4_reply(reply_cap, pid, copy_args->nbyte);
     free(args);
     if(SOS_DEBUG) printf("vfs_getdirent_reply ended\n");
 }
@@ -759,11 +770,15 @@ void vfs_getdirent_reply(int pid, seL4_CPtr reply_cap, void *args) {
 // Wrapper for vfs_stat call
 void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args, int err) {
     if(SOS_DEBUG) printf("vfs_stat_wrapper\n");
-    copy_in_args *copy_args = (copy_in_args *)args;
-    vfs_stat_args *stat_args = copy_args->cb_args; 
+    vfs_stat_args *stat_args = (vfs_stat_args *)args; 
+    if (err) {
+        eprintf("Error caught in vfs_stat_wrapper\n");
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
+    
     char *path = (char *) stat_args->kpath;
     seL4_Word buf = stat_args->buf;
-    free(args);
     free(stat_args);
     vfs_stat(path, buf, reply_cap, pid); 
     if(SOS_DEBUG) printf("vfs_stat_wrapper_ended\n");

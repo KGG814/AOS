@@ -146,7 +146,7 @@ void syscall_loop(seL4_CPtr ep) {
                 timer_interrupt();
             }
 
-        } else if (proc_table[badge] && proc_table[badge]->status == PROC_READY) {
+        } else if (proc_table[badge] && proc_table[badge]->status != PROC_DYING) {
             proc_table[badge]->status |= PROC_BLOCKED;
             if (label == seL4_VMFault) {
                 /* Page fault */
@@ -160,7 +160,7 @@ void syscall_loop(seL4_CPtr ep) {
                 handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
             }
         } else {
-            printf("Rootserver got an unknown message\n");
+            printf("Rootserver got an unknown message %p\n", (void *)badge);
         }
     }
 }

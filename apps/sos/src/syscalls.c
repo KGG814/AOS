@@ -217,6 +217,7 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     if (stat_args == NULL) {
         free(kpath);
         send_seL4_reply(reply_cap, pid, -1);
+        return;
     }
     stat_args->buf = (seL4_Word) buf;
     stat_args->kpath = (seL4_Word) kpath;
@@ -226,6 +227,7 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
         free(stat_args);
         free(kpath);
         send_seL4_reply(reply_cap, pid, -1);
+        return;
     }
     args->count = 0;
     args->nbyte = MAXNAMLEN;
@@ -233,7 +235,7 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     args->k_ptr = (seL4_Word) kpath;
     args->cb = vfs_stat_wrapper;
     args->cb_args = stat_args;
-
+    printf("Copy args %p stat args %p\n", args, stat_args);
     copy_in(pid, reply_cap, args, 0);
     if (SOS_DEBUG) printf("handle stat finished\n");
     /* Call stat */

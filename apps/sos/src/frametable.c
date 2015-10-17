@@ -181,7 +181,10 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
 
         // Get frametable index of a frame to be swapped
         write_args->index = get_next_frame_to_swap();
-
+        int index = write_args->index;
+        printf("TEST\n");
+        printf("index %p\n", (void*) index);
+        printf("vaddr %p\n", (void *) frametable[index].vaddr);
         // Put the index in the frame_alloc args so that we can continue after callback
         args->index = write_args->index;
         args->vaddr = index_to_vaddr(args->index);
@@ -232,7 +235,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
         return;
     }
 
-
+    printf("NUM: %d\n", frame_num);
     // Get arguments we need
     int map             = args->map;
     seL4_Word pt_addr   = args->pt_addr;
@@ -355,36 +358,45 @@ int frame_free(int index) {
     frametable[index].mapping_cap = 0;
     frametable[index].vaddr = 0;
     frame_num--;
-    if (frame_num < 0) {
-        frame_num = 0;
-    }
 	return FRAMETABLE_OK;
 }
 
 int get_next_frame_to_swap(void) {
     if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
+    int loop_count = 0;
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
     assert((next_frame & SWAP_BUFFER_MASK) != 0);
     while (1) {
         if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
+        if (next_frame == buffer_tail) {
+            loop_count++;
+        }
+        if (loop_count >= 2) {
+            printf("Out of memory\n");
+            assert(1==0);
+        }
         if (next_frame == 0) {
             //9242_TODO Fix this sporadic bug
             curr_frame = buffer_tail;
             next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
-            break;
+            continue;
         }
         
         int status = frametable[next_frame].frame_status;
         int swap_pid = (status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
         if (!(status & FRAME_IN_USE) 
-        || (proc_table[swap_pid] == NULL) 
-        || (proc_table[swap_pid]->status != PROC_READY)
+            || (proc_table[swap_pid] == NULL) 
+            || (proc_table[swap_pid]->status & PROC_DYING)
         ) {
-            //9242_TODO Remove from buffer
-            break;
+            // Remove from buffer
+            printf("Removing thing with pid %d", swap_pid);
+            frametable[curr_frame].frame_status &= ~SWAP_BUFFER_MASK;
+            next_frame = status & SWAP_BUFFER_MASK;
+            frametable[curr_frame].frame_status |= next_frame;
+            continue;
         }
-        if (status & FRAME_DONT_SWAP) {
+        if (status & FRAME_DONT_SWAP || frametable[next_frame].vaddr == 0) {
         } else {
             if (status & FRAME_SWAP_MARKED) {     
                 frametable[next_frame].frame_status &= ~FRAME_SWAP_MARKED;       
@@ -410,7 +422,7 @@ int get_next_frame_to_swap(void) {
         curr_frame = next_frame;
         next_frame = status & SWAP_BUFFER_MASK;
     }
-    if (SOS_DEBUG) printf("Swapping frame index %p\n", (void *) next_frame);
+    if (SOS_DEBUG) printf("Swapping frame index %p vaddr %p\n", (void *) next_frame, (void*)frametable[next_frame].vaddr);
 
     /*assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);
     buffer_tail = curr_frame;

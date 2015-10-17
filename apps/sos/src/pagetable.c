@@ -589,6 +589,7 @@ void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err) {
                           ,reply_cap
                           );
         if (err) {
+            printf("Error\n");
             copy_args->cb(pid, reply_cap, copy_args->cb_args, err);
             free(args);
         }
