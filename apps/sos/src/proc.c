@@ -31,8 +31,13 @@
 extern char _cpio_archive[];
 
 addr_space* proc_table[MAX_PROCESSES + 1];
-int free_pids[MAX_PROCESSES + 1];
-int next_pid = 1;
+
+//circular buffer of free pids
+int free_pids[MAX_PROCESSES];
+
+int free_pids_start;
+int free_pids_end;
+
 wait_list *wait_head;
 
 int num_processes = 0;
@@ -43,11 +48,11 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *args, int err);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
-    for (int i = 1; i < MAX_PROCESSES; i++) {
+    for (int i = 0; i < MAX_PROCESSES; i++) {
         free_pids[i] = i+1;
     }
-    free_pids[0] = 0;
-    free_pids[MAX_PROCESSES] = 0;
+    free_pids_start = 0;
+    free_pids_end = 0;
     wait_head = NULL;
 }
 
@@ -62,7 +67,8 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
         return;
     }
 
-    int new_pid = next_pid;
+    //get the next free pid from the queue
+    int new_pid = free_pids[free_pids_start];
     if (!new_pid) {
         eprintf("Error caught in new_as\n");
         args->cb(pid, reply_cap, args->cb_args, -1);
@@ -70,25 +76,20 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
         return;
     }
 
-    //pop the stack of pids
-    next_pid = free_pids[next_pid];
-    free_pids[new_pid] = 0;
-    num_processes++;
-
     addr_space *as = malloc(sizeof(addr_space)); 
     if (as == NULL) {
         //nothing to be done here
         eprintf("Error caught in new_as\n");
 
-        //push pid back onto stack
-        free_pids[new_pid] = next_pid; 
-        next_pid = new_pid;
-        num_processes--;
-
         args->cb(pid, reply_cap, args->cb_args, -1);
         free(args);
         return;
     }
+
+    //pop the queue of pids
+    free_pids[free_pids_start] = 0;
+    free_pids_start = (free_pids_start + 1) % MAX_PROCESSES;
+    num_processes++;
 
     //initialise all values to 0
     memset(as, 0, sizeof(addr_space));
@@ -143,6 +144,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
 }
 
 void cleanup_as(int pid) {
+    assert(num_processes);
     if (pid < 1 || pid > MAX_PROCESSES) {
         //invalid pid
         return;
@@ -154,11 +156,9 @@ void cleanup_as(int pid) {
         return;
     }
 
-    //clean shit up here
     fdt_cleanup(pid);
     pt_cleanup(pid);
-    //9242_TODO, cleanup vm?
-    //9242_TODO, cleanup vroot, ipc, tcb, croot
+
     printf("Destroying tcb\n");
     if (as->tcb_addr) {
         ut_free(as->tcb_addr, seL4_TCBBits);
@@ -203,9 +203,9 @@ void cleanup_as(int pid) {
 
     proc_table[pid] = NULL;
     
-    free_pids[pid] = next_pid;
-    next_pid = pid;
-
+    //put the old pid into the stack of free pids
+    free_pids[free_pids_end] = pid;
+    free_pids_end = (free_pids_end + 1) % MAX_PROCESSES;
     num_processes--;
     printf("Cleanup as ended\n");
 } 
@@ -251,7 +251,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         //if the kernel can't create a process, die
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -277,7 +277,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         if (new == NULL) {
             eprintf("Error caught in start_process_cb1\n");
             
-            assert(!args->parent_pid);
+            assert(args->parent_pid);
             args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
             free(args);
             cleanup_as(new_pid);
