@@ -144,6 +144,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
 }
 
 void cleanup_as(int pid) {
+    assert(num_processes);
     if (pid < 1 || pid > MAX_PROCESSES) {
         //invalid pid
         return;
@@ -246,7 +247,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         //if the kernel can't create a process, die
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -272,7 +273,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         if (new == NULL) {
             eprintf("Error caught in start_process_cb1\n");
             
-            assert(!args->parent_pid);
+            assert(args->parent_pid);
             args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
             free(args);
             cleanup_as(new_pid);
@@ -655,7 +656,6 @@ void remove_child(int parent_pid, int child_pid) {
 
 void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //check we have something to delete 
-    assert(num_processes);
     printf("kill_process cap: %p\n", (void *) reply_cap);
     if (proc_table[to_delete] == NULL) {
         send_seL4_reply(reply_cap, pid, -1);
