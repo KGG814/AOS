@@ -111,7 +111,6 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    // DEBUG
 	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p, pid :%d\n", 
 	    	(void *) frametable[index].vaddr, swapped_frame_pid);
-	    //assert(frametable[index].vaddr != 0);
 	    // Set the process's page table entry to swapped and store the swap slot
 	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
 	    
@@ -132,7 +131,8 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 		args->addr = (seL4_Word) addr;
 		args->bytes_written = 0;
 		// DEBUG
-		if (SOS_DEBUG) printf("Writing at slot %p, offset %p, index %p, address %p\n", (void *) slot, (void *) offset, (void *) index, addr);
+		if (SOS_DEBUG) printf("Writing at slot %p, offset %p, index %p, address %p, status %p\n", (void *) slot, 
+			                                   (void *) offset, (void *) index, addr, (void *) frametable[index].frame_status);
 		// Do the write to the slot at the offset
 		int status = nfs_write(swap_handle, offset, PAGE_SIZE, addr, swap_write_nfs_cb, (uintptr_t)args);
 		// Check if RPC succeeded
@@ -166,6 +166,7 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 	
 	if (SOS_DEBUG) printf("swap_write_nfs_cb, wrote %d, written %d, offset %p\n", 
 		                  count, bytes_written, (void *)offset);
+	printf("index %p, status %p\n", index, frametable[index].frame_status);
 	// Check the NFS call worked as expected
 	if (status != NFS_OK) {
 		// NFS call failed
@@ -183,8 +184,9 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 			free(args);
 			return;
 	    }
-    	// Set the swapped out frame to invalid
-    	frametable[index].frame_status = 0;
+    	// Set the swapped out frame to invalid and clear process
+    	frametable[index].frame_status &= ~STATUS_MASK;
+    	frametable[index].frame_status &= ~PROCESS_MASK;
     	// Modify the frame alloc callback, as it doesn't need to kernel map a page being swapped out
 	    frame_alloc_args *alloc_args = (frame_alloc_args *) args->cb_args;
 	    alloc_args->map = NOMAP;
@@ -271,6 +273,7 @@ void read_from_swap_slot(int pid, seL4_CPtr reply_cap, read_swap_args *args) {
 		return;
     }
     alloc_args->map = KMAP;
+    alloc_args->swap = SWAPPABLE;
     alloc_args->cb = (callback_ptr)read_from_swap_slot_cb;
     alloc_args->cb_args = args;
     // Allocate a frame to put the swapped in frame into
@@ -314,18 +317,20 @@ void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args
     	frametable[index].frame_status &= ~PROCESS_MASK;
     	// Set the frame to used and the pid
         frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
+        assert((frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK) != 0);
 
     } else {
     	// Not in swap buffer
         // Set the tail to point to the new frame
         frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
         frametable[buffer_tail].frame_status |= index;
+        assert((frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK) != 0);
         // Set the tail to the new frame
         buffer_tail = index;
         // Set status in new frame
         frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
     }
-    
+    assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
     sos_map_page_swap(read_args->index, vaddr, pid, reply_cap, (callback_ptr)read_from_swap_slot_cb2,
                       read_args);
     if (SOS_DEBUG) printf("read_from_swap_slot_cb ended\n");

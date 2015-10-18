@@ -44,6 +44,7 @@ void vm_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
     }
 
     alloc_args->map     = KMAP;
+    alloc_args->swap    = NOT_SWAPPABLE;
     alloc_args->cb      = (callback_ptr) pd_init_cb;
     alloc_args->cb_args = args;
     // Get a frame for the page directory
@@ -113,6 +114,7 @@ void pd_caps_init(int pid, seL4_CPtr reply_cap, vm_init_args *args) {
         }
 
         alloc_args->map     = KMAP;
+        alloc_args->swap    = NOT_SWAPPABLE;
         alloc_args->cb      = (callback_ptr) pd_caps_init_cb;
         alloc_args->cb_args = args;
         frame_alloc_swap(pid, reply_cap, alloc_args, 0);
@@ -250,6 +252,7 @@ void sos_map_page_swap(int ft_index, seL4_Word vaddr, int pid, seL4_CPtr reply_c
             return;
         } else {
             args->map = KMAP;
+            args->swap = SWAPPABLE;
             args->cb = sos_map_page_dir_cb;
             args->cb_args = (void *) map_args;
             frame_alloc_swap(pid, reply_cap, args, 0);
@@ -517,6 +520,7 @@ int map_new_frame (seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_C
         return -1;
     }
     alloc_args->map = KMAP;
+    alloc_args->swap = SWAPPABLE;
     alloc_args->cb = map_if_valid_cb;
     alloc_args->cb_args = (void *) map_args;
     frame_alloc_swap(pid, reply_cap, alloc_args, 0);

@@ -345,6 +345,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     }
 
     alloc_args->map = NOMAP;
+    alloc_args->swap = NOT_SWAPPABLE;
     alloc_args->cb = start_process_cb2;
     alloc_args->cb_args = args;
 
@@ -602,6 +603,7 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err
     }
     int child_pid = (int) args;
     if (err) {
+        printf("Error, replying on cap %d\n", reply_cap);
         send_seL4_reply(reply_cap, pid, err);
     } else {
         send_seL4_reply(reply_cap, pid, child_pid);

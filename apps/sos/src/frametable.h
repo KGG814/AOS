@@ -35,6 +35,8 @@
 #define NOMAP				0
 #define KMAP				1
 
+#define SWAPPABLE 			1
+#define NOT_SWAPPABLE		0
 
 typedef struct _ft_entry {
     seL4_Word frame_status;
@@ -47,6 +49,7 @@ typedef struct _frame_alloc_args {
 	int map;
 	callback_ptr cb;
 	void *cb_args;
+	int swap;
 	// Not initialised
 	seL4_Word vaddr;
 	seL4_Word pt_addr;

@@ -147,6 +147,7 @@ void load_segment_into_vspace(int pid
             }
 
             alloc_args->map = KMAP;
+            alloc_args->swap = SWAPPABLE;
             alloc_args->cb = (callback_ptr) load_segment_into_vspace_cb;
             alloc_args->cb_args = args;
             frame_alloc_swap(pid, reply_cap, alloc_args, 0);

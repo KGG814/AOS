@@ -26,7 +26,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          120
+#define MAX_FRAMES          100
 #define verbose 5
 #define FT_INITIALISED      1
 int ft_initialised = 0;
@@ -228,13 +228,14 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
 // Memory has been ut_alloced and retyped, do frametable metadata update
 // and map into kernel virtual memory
 void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err) {
+
     if (err) {
         eprintf("Error caught in frame_alloc_cb\n");
         args->index = FRAMETABLE_ERR;
         args->cb(pid, reply_cap, args, err);
         return;
     }
-
+    printf("frame_alloc_cb %p, status %p\n", (void *) args->index, (void *) frametable[args->index].frame_status);
     printf("NUM: %d\n", frame_num);
     // Get arguments we need
     int map             = args->map;
@@ -271,7 +272,7 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
         memset((void *) vaddr, 0, PAGE_SIZE);
     }
     // Check if the frame is in the swap buffer
-    if (!(frametable[index].frame_status & SWAP_BUFFER_MASK)) {
+    if ( !(frametable[index].frame_status & SWAP_BUFFER_MASK) && args->swap) {
         
         // Not in the swap buffer, need to put it in
         // Check if swap buffer has been initialised
@@ -283,10 +284,10 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
             // Clear the buffer bits
             frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
             // Set the buffer bits
-            assert(index != 0);
             frametable[buffer_tail].frame_status |= index;
+            assert((frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK) != 0);
         }
-        if (SOS_DEBUG) printf("Not in swap buffer %d, %d\n", index, buffer_head);
+        if (SOS_DEBUG) printf("Not in swap buffer %p, %p, %d\n", (void *)index, (void *)buffer_head, args->swap);
         // Set the tail to the new buffer
         buffer_tail = index;
         // Make the new frame (which is now the tail), point to the head
@@ -294,7 +295,9 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
         frametable[index].frame_status &= ~SWAP_BUFFER_MASK;
         frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
         if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
+        assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
     } else {
+        printf("Already in buffer: %p\n", (void *) (frametable[index].frame_status & SWAP_BUFFER_MASK));
         // Already in the swap buffer, just set the pid and status bits
         // This saves us having to remove it from the list and put it at the end, 
         // which would require a doubly linked buffer
@@ -304,7 +307,6 @@ void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int er
         frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     }
     if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
-    assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
     // Set the vaddr in the return values
     args->vaddr = paddr_to_vaddr(pt_addr);
     
@@ -363,6 +365,7 @@ int frame_free(int index) {
 
 int get_next_frame_to_swap(void) {
     if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
+    printf("starting at %p\n", (void *) buffer_tail);
     int loop_count = 0;
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
@@ -378,6 +381,7 @@ int get_next_frame_to_swap(void) {
         }
         if (next_frame == 0) {
             //9242_TODO Fix this sporadic bug
+            assert(1==0);
             curr_frame = buffer_tail;
             next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
             continue;
@@ -397,6 +401,7 @@ int get_next_frame_to_swap(void) {
             continue;
         }
         if (status & FRAME_DONT_SWAP || frametable[next_frame].vaddr == 0) {
+            printf("vaddr: %p\n", frametable[next_frame].vaddr);
         } else {
             if (status & FRAME_SWAP_MARKED) {     
                 frametable[next_frame].frame_status &= ~FRAME_SWAP_MARKED;       
