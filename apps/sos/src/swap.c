@@ -114,7 +114,10 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    //assert(frametable[index].vaddr != 0);
 	    // Set the process's page table entry to swapped and store the swap slot
 	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
-	    proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
+	    
+        assert(proc_table[swapped_frame_pid]->page_directory[dir_index][page_index]);
+        proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
+
 	    // Set the frame vaddr to 0, removing association with vmem
 	    frametable[index].vaddr = 0;
 		// Calculate offset into swap file

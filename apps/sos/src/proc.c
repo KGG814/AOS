@@ -168,9 +168,13 @@ void cleanup_as(int pid) {
         as->tcb_addr = 0;
     }
     printf("tcb destroyed\n");
-    cspace_revoke_cap(cur_cspace, as->ipc_buffer_cap);
-    as->ipc_buffer_addr = 0;
-    as->ipc_buffer_cap = 0;
+
+    if (as->ipc_buffer_addr) {
+        cspace_revoke_cap(cur_cspace, as->ipc_buffer_cap);
+        as->ipc_buffer_addr = 0;
+        as->ipc_buffer_cap = 0;
+    }
+
     if (as->croot) {
         cspace_destroy(as->croot);
     }
@@ -284,7 +288,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (!as->vroot_addr) {
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -300,7 +304,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err) {
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -312,7 +316,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (as->croot == NULL) {
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -324,7 +328,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (alloc_args == NULL) {
         eprintf("Error caught in start_process_cb1\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
         free(args);
         cleanup_as(new_pid);
@@ -354,7 +358,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err || index == FRAMETABLE_ERR) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -388,7 +392,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -418,7 +422,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (!as->tcb_addr) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -434,7 +438,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -451,7 +455,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -466,7 +470,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (!args->elf_base) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -479,7 +483,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (load_args == NULL) {
         eprintf("Error caught in start_process_cb2\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -504,7 +508,7 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (err) {
         eprintf("Error caught in start_process_cb_cont\n");
 
-        assert(!args->parent_pid);
+        assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
 
         free(args);
@@ -657,6 +661,7 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
             send_seL4_reply(proc_table[parent_pid]->wait_cap, pid, 0);
             proc_table[parent_pid]->wait_cap = 0;
         }
+        proc_table[to_delete]->status &= ~PROC_BLOCKED;
     } else if (is_child(pid, to_delete)) {
         remove_child(pid, to_delete);
     } else {

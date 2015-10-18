@@ -3,7 +3,7 @@
 
 #define SOS_DEBUG 1
 #define TMP_DEBUG 1
-#define RTN_ON_FAIL 0
+#define RTN_ON_FAIL 1
 
 //a little hacky
 #if RTN_ON_FAIL
