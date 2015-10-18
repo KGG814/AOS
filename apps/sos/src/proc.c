@@ -655,6 +655,7 @@ void remove_child(int parent_pid, int child_pid) {
 
 void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //check we have something to delete 
+    assert(num_processes);
     printf("kill_process cap: %p\n", (void *) reply_cap);
     if (proc_table[to_delete] == NULL) {
         send_seL4_reply(reply_cap, pid, -1);
@@ -695,9 +696,6 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         free(cur);
         cur = cur->next;
     }
-
-    as->delete_reply_cap = reply_cap;
-    as->delete_pid = pid;
 
     //child is ready to be killed 
     if (!(as->status & PROC_BLOCKED)) { 
