@@ -115,6 +115,8 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    // Set the process's page table entry to swapped and store the swap slot
 	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
 	    
+        assert(proc_table[swapped_frame_pid]);
+        assert(proc_table[swapped_frame_pid]->page_directory[dir_index]);
         assert(proc_table[swapped_frame_pid]->page_directory[dir_index][page_index]);
         proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
 

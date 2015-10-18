@@ -181,6 +181,10 @@ void cleanup_as(int pid) {
     
     if (as->vroot_addr) {
         ut_free(as->vroot_addr, seL4_PageDirBits);
+        cspace_revoke_cap(cur_cspace, as->vroot);
+        cspace_delete_cap(cur_cspace, as->vroot);
+        as->vroot = 0;
+        as->vroot_addr = 0;
     }
 
 
@@ -286,7 +290,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     /* Create a VSpace */
     as->vroot_addr = ut_alloc(seL4_PageDirBits);
     if (!as->vroot_addr) {
-        eprintf("Error caught in start_process_cb1\n");
+        eprintf("Error caught in start_process_cb1: couldn't create vspace\n");
 
         assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
@@ -302,7 +306,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
                                    ,&(as->vroot)
                                    );
     if (err) {
-        eprintf("Error caught in start_process_cb1\n");
+        eprintf("Error caught in start_process_cb1: couldn't retype for vspace\n");
 
         assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
@@ -314,7 +318,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     /* Create a simple 1 level CSpace */
     as->croot = cspace_create(1);
     if (as->croot == NULL) {
-        eprintf("Error caught in start_process_cb1\n");
+        eprintf("Error caught in start_process_cb1: couldn't create cspace\n");
 
         assert(args->parent_pid);
         args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
