@@ -97,14 +97,17 @@ static inline void send_seL4_reply(seL4_CPtr reply_cap, int pid, int ret) {
     if (!reply_cap) {
         return;
     }
-    printf("pid %d\n", pid);
-    proc_table[pid]->status &= ~PROC_BLOCKED;
-    proc_table[pid]->wait_cap = 0;
-    if (proc_table[pid]->status & PROC_DYING) {
-        printf("\nDying\n\n");
-        kill_process_cb(proc_table[pid]->parent_pid, reply_cap, (void*) pid, 0);
-        return;
+    if (pid != 0) {
+        printf("pid %d\n", pid);
+        proc_table[pid]->status &= ~PROC_BLOCKED;
+        proc_table[pid]->wait_cap = 0;
+        if (proc_table[pid]->status & PROC_DYING) {
+            printf("\nDying\n\n");
+            kill_process_cb(proc_table[pid]->parent_pid, reply_cap, (void*) pid, 0);
+            return;
+        } 
     }
+    
 
 	printf("\nReplying\n\n");
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);

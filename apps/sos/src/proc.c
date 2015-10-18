@@ -175,7 +175,7 @@ void cleanup_as(int pid) {
         as->ipc_buffer_addr = 0;
         as->ipc_buffer_cap = 0;
     }
-
+    printf("Destroying cspace\n");
     if (as->croot) {
         cspace_destroy(as->croot);
     }
@@ -190,12 +190,15 @@ void cleanup_as(int pid) {
 
 
     child_proc *cur_child = as->children;
+    printf("Freeing children\n");
     while (as->children != NULL) {
-         as->children = cur_child->next;
-         free(cur_child);
-         cur_child = as->children;
+        printf("Freeing child %d\n", cur_child->pid);
+        as->children = cur_child->next;
+        
+        free(cur_child);
+        cur_child = as->children;
     }
-
+    printf("Freeing addr space\n");
     free(as);
 
     proc_table[pid] = NULL;
@@ -204,6 +207,7 @@ void cleanup_as(int pid) {
     next_pid = pid;
 
     num_processes--;
+    printf("Cleanup as ended\n");
 } 
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
@@ -663,14 +667,15 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     }
 
     if (to_delete == pid) {
-        printf("Deleting self\n");
-        int parent_pid = proc_table[to_delete]->parent_pid;
-        if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, 0);
-            proc_table[parent_pid]->wait_cap = 0;
-        }
+        printf("Deleting self %d\n", pid);
+        int parent = proc_table[to_delete]->parent_pid;
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
+        if (parent != 0) {
+            proc_table[to_delete]->wait_cap = proc_table[parent]->wait_cap;
+            remove_child(parent, to_delete);
+        }
     } else if (is_child(pid, to_delete)) {
+        proc_table[to_delete]->wait_cap = reply_cap;
         if (!proc_table[pid]->wait_cap) {
             proc_table[pid]->wait_cap = reply_cap;
         }
@@ -679,11 +684,10 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         send_seL4_reply(reply_cap, pid, -1);
         return;
     }
-
     addr_space *as = proc_table[to_delete];
 
     as->status |= PROC_DYING;
-    as->wait_cap = reply_cap;
+    
     //increment the wait count in the parent 
     int parent = proc_table[to_delete]->parent_pid;
     if (parent != 0) {
@@ -692,19 +696,19 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //kill all its children first 
     child_proc *cur = as->children;
     while (cur != NULL) {
+        printf("Killing child %d\n", cur->pid);
         kill_process(pid, cur->pid, reply_cap);
         free(cur);
         cur = cur->next;
     }
-
-    as->delete_reply_cap = reply_cap;
-    as->delete_pid = pid;
-
     //child is ready to be killed 
+
     if (!(as->status & PROC_BLOCKED)) { 
+
         if (SOS_DEBUG) printf("Calling kill_process_cb\n");
         kill_process_cb(pid, reply_cap, (void *) to_delete, 0);
     }
+    printf("kill_process ended\n");
 }
 
 void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
@@ -728,10 +732,16 @@ void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
         current = parent;
         parent = proc_table[parent]->parent_pid;
     } 
+    printf("Current %d\n", current);
     seL4_CPtr cap = proc_table[current]->wait_cap;
+    printf("cap %p\n", (void *) cap);
+    printf("parent %d\n", parent);
     proc_table[current]->wait_cap = 0;
-    if (cap && parent != 0) {
-        send_seL4_reply(cap, parent, 0);
+    seL4_CPtr parent_cap = proc_table[parent]->wait_cap;
+    if (cap != 0) {
+        send_seL4_reply(cap, 0, 0);
+    } else if (parent_cap != 0) {
+        send_seL4_reply(parent_cap, 0, 0);
     }
     //destroy the address space of the process
     cleanup_as(to_delete);
