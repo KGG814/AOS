@@ -530,7 +530,7 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
     
-    args->cb(args->parent_pid, reply_cap, pid, 0);
+    args->cb(args->parent_pid, reply_cap, (void *)pid, 0);
     free(args);
 
     if (TMP_DEBUG) printf("start_process_cb_cont end\n");
@@ -628,7 +628,7 @@ int is_child(int parent_pid, int child_pid) {
 }
 
 void remove_child(int parent_pid, int child_pid) {
-
+    if (SOS_DEBUG) printf("remove_child\n");
     //we know at this point the parent actually has children
     child_proc *cur = proc_table[parent_pid]->children;
     
@@ -651,19 +651,22 @@ void remove_child(int parent_pid, int child_pid) {
         cur->next = tmp->next;
         free(tmp);
     }
+    if (SOS_DEBUG) printf("remove_child ended\n");
 }
 
 void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //check we have something to delete 
+    printf("kill_process cap: %p\n", (void *) reply_cap);
     if (proc_table[to_delete] == NULL) {
         send_seL4_reply(reply_cap, pid, -1);
         return;
     }
 
     if (to_delete == pid) {
+        printf("Deleting self\n");
         int parent_pid = proc_table[to_delete]->parent_pid;
         if (parent_pid && proc_table[parent_pid]->wait_cap) {
-            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid, 0);
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, parent_pid, 0);
             proc_table[parent_pid]->wait_cap = 0;
         }
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
@@ -677,10 +680,11 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     addr_space *as = proc_table[to_delete];
 
     as->status |= PROC_DYING;
-
+    as->wait_cap = reply_cap;
     //increment the wait count in the parent 
-    if (proc_table[pid]) {
-        proc_table[pid]->delete_wait++;
+    int parent = proc_table[to_delete]->parent_pid;
+    if (parent != 0) {
+        proc_table[parent]->delete_wait++;
     }
     //kill all its children first 
     child_proc *cur = as->children;
@@ -695,27 +699,40 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
 
     //child is ready to be killed 
     if (!(as->status & PROC_BLOCKED)) { 
+        if (SOS_DEBUG) printf("Calling kill_process_cb\n");
         kill_process_cb(pid, reply_cap, (void *) to_delete, 0);
     }
 }
 
-void kill_process_cb(int delete_pid, seL4_CPtr reply_cap, void *data, int err) {
+void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
+    if (SOS_DEBUG) printf("kill_process_cb\n");
     if (err) {
         //i don't think this can happen
-        send_seL4_reply(reply_cap, delete_pid, -1);
+        send_seL4_reply(reply_cap, pid, -1);
         return;
     }
+    int to_delete = (int) data;
+    int parent = proc_table[to_delete]->parent_pid;
+    int current = to_delete;
     
-    //destroy the address space of the process
-    cleanup_as((int) data);
 
     //if we aren't trying to delete ourself and the parent is done waiting on 
     //dying processes, reply to the parent
-    if (delete_pid //make sure parent is not the OS
-    && (delete_pid != (int) data)
-    && (--proc_table[delete_pid]->delete_wait == 0)) {
-        send_seL4_reply(reply_cap, delete_pid, 0);
+    printf("cb cap: %p\n", (void *) reply_cap);
+    while (parent != 0 
+           && (proc_table[parent]->status & PROC_DYING) 
+           && (--proc_table[parent]->delete_wait == 0)) {
+        current = parent;
+        parent = proc_table[parent]->parent_pid;
     } 
+    seL4_CPtr cap = proc_table[current]->wait_cap;
+    proc_table[current]->wait_cap = 0;
+    if (cap && parent != 0) {
+        send_seL4_reply(cap, parent, 0);
+    }
+    //destroy the address space of the process
+    cleanup_as(to_delete);
+    if (SOS_DEBUG) printf("kill_process_cb ended\n");
 }
 
 void add_to_wait_list(int pid) {

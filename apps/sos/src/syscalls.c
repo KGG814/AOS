@@ -286,7 +286,7 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
     int to_delete = (int) seL4_GetMR(1);
-
+    proc_table[pid]->wait_cap = reply_cap;
     kill_process(pid, to_delete, reply_cap); 
 }
 
@@ -366,7 +366,9 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
 
 //timer callback for usleep
 static void wake_process(uint32_t id, void* data) {
+
     int pid = (int) data;
+    printf("pid %d woke\n", pid);
     seL4_CPtr reply_cap = proc_table[pid]->wait_cap;
     send_seL4_reply(reply_cap, pid, 0);
 }
