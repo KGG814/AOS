@@ -663,11 +663,15 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     if (to_delete == pid) {
         int parent_pid = proc_table[to_delete]->parent_pid;
         if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            printf("Trying to wake parent");
             send_seL4_reply(proc_table[parent_pid]->wait_cap, pid, 0);
             proc_table[parent_pid]->wait_cap = 0;
         }
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
     } else if (is_child(pid, to_delete)) {
+        if (!proc_table[pid]->wait_cap) {
+            proc_table[pid]->wait_cap = reply_cap;
+        }
         remove_child(pid, to_delete);
     } else {
         send_seL4_reply(reply_cap, pid, -1);
