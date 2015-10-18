@@ -171,6 +171,7 @@ void cleanup_as(int pid) {
 
     if (as->ipc_buffer_addr) {
         cspace_revoke_cap(cur_cspace, as->ipc_buffer_cap);
+        cspace_delete_cap(cur_cspace, as->ipc_buffer_cap);
         as->ipc_buffer_addr = 0;
         as->ipc_buffer_cap = 0;
     }
