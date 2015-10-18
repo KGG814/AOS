@@ -99,6 +99,7 @@ static inline void send_seL4_reply(seL4_CPtr reply_cap, int pid, int ret) {
     }
     printf("pid %d\n", pid);
     proc_table[pid]->status &= ~PROC_BLOCKED;
+    proc_table[pid]->wait_cap = 0;
     if (proc_table[pid]->status & PROC_DYING) {
         printf("\nDying\n\n");
         kill_process_cb(proc_table[pid]->parent_pid, reply_cap, (void*) pid, 0);

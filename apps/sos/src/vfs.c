@@ -427,6 +427,7 @@ void file_read_nfs_cb(uintptr_t token
     vn->atime = fattr->atime;
     // Create a buffer to store bytes from temporary NFS buffer
     args->kbuf = malloc(sizeof(char)*count);  
+    //9242_TODO check this malloc
     // Copy NFS buffer memory to our buffer 
     memcpy((void *)args->kbuf, data, count);
     // Copy from our buffer to a user provided buffer
@@ -487,6 +488,8 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
     }
     // Set up args for call
     file_write_nfs_args *nfs_args = malloc(sizeof(file_write_nfs_args));
+    //9242_TODO check this malloc
+
     nfs_args->vn = vn;
     nfs_args->reply_cap = reply_cap;
     nfs_args->buf = (seL4_Word) buf;
@@ -499,6 +502,8 @@ void file_write(vnode *vn, const char *buf, size_t nbyte, seL4_CPtr reply_cap, i
     seL4_Word end_addr = start_addr + nfs_args->to_write;
 
     file_write_args *write_args = malloc(sizeof(file_write_args));
+    //9242_TODO check this malloc
+    
     write_args->vn = vn;
     write_args->buf = (seL4_Word) buf;
     write_args->offset = offset;
@@ -622,6 +627,8 @@ void file_write_nfs_cb_continue(int pid, seL4_CPtr reply_cap, void *args, int er
 void vfs_stat(const char *path, seL4_Word buf, seL4_CPtr reply_cap, int pid) {
     if(SOS_DEBUG) printf("vfs_stat\n");
     vfs_stat_args *args = malloc(sizeof(vfs_stat_args));
+    //9242_TODO check this malloc
+
     args->reply_cap = reply_cap;
     args->buf = buf;
     args->pid = pid;
@@ -663,6 +670,8 @@ void vfs_stat_cb(uintptr_t token
     // Set the return value to the file status
     ;
     // Prepare arguments
+    //
+    //9242_TODO check this malloc
     copy_out_args *copy_args = malloc(sizeof(copy_out_args));
     copy_args->src = (seL4_Word) malloc(sizeof(sos_stat_t));
     memcpy((void *)copy_args->src, &temp, sizeof(sos_stat_t));
@@ -695,6 +704,7 @@ void vfs_getdirent(int pos
     if(SOS_DEBUG) printf("vfs_getdirent\n");
     // Set up arguments
     getdirent_args *args = malloc(sizeof(getdirent_args));
+    //9242_TODO check this malloc
     args->reply_cap = reply_cap;
     args->to_get = pos;
     args->entries_received = 0;
@@ -740,6 +750,7 @@ void vfs_getdirent_cb(uintptr_t token
         if (args->nbyte > len) {
             args->nbyte = len;
         }
+        //9242_TODO check this malloc
         copy_out_args *copy_args = malloc(sizeof(copy_out_args));
         copy_args->src = (seL4_Word) malloc(sizeof(char) * N_NAME);
         copy_args->usr_ptr = (seL4_Word) args->buf;

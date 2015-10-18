@@ -671,6 +671,9 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         }
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
     } else if (is_child(pid, to_delete)) {
+        if (!proc_table[pid]->wait_cap) {
+            proc_table[pid]->wait_cap = reply_cap;
+        }
         remove_child(pid, to_delete);
     } else {
         send_seL4_reply(reply_cap, pid, -1);
