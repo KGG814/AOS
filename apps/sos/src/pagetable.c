@@ -190,15 +190,14 @@ void pt_cleanup(int pid) {
                 for (int j = 0; j < PT_MAX_ENTRIES; j++) {
                     if (pd[i][j]) {
                         if (pd[i][j] & SWAPPED) {
+                            printf("freeing a swap slot: %p\n", pd[i][j] & SWAP_SLOT_MASK);
+                            free_swap_slot(pd[i][j] & SWAP_SLOT_MASK); 
                         } else {
                             int page_pid = (pd[i][j] & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
-                            int swapped = pd[i][j] & SWAPPED;
-                            if ((page_pid == pid) & !swapped) {
-                                printf("pid %d\n", pid);
-                                frame_free(pd[i][j] & FRAME_INDEX_MASK);
-                            } else if (swapped) {
-                                free_swap_slot(pd[i][j] & SWAP_SLOT_MASK); 
-                            }      
+                            //if (page_pid == pid) {
+                            printf("pid %d\n", pid);
+                            frame_free(pd[i][j] & FRAME_INDEX_MASK);
+                            //} 
                         }
                     }
                 }
