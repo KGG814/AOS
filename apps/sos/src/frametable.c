@@ -400,8 +400,7 @@ int get_next_frame_to_swap(void) {
             frametable[curr_frame].frame_status |= next_frame;
             continue;
         }
-        if (status & FRAME_DONT_SWAP || frametable[next_frame].vaddr == 0) {
-            printf("vaddr: %p\n", frametable[next_frame].vaddr);
+        if ((status & FRAME_DONT_SWAP) || (frametable[next_frame].vaddr == 0)) {
         } else {
             if (status & FRAME_SWAP_MARKED) {     
                 frametable[next_frame].frame_status &= ~FRAME_SWAP_MARKED;       
