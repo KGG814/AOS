@@ -51,7 +51,7 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
  
-    eprintf("path = %p\n", path);
+    if (SOS_DEBUG) printf("path = %p\n", path);
     if (path == NULL || mode >= O_ACCMODE) {
         send_seL4_reply(reply_cap, pid, -1);
         return;
@@ -268,7 +268,7 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     char *path =  (char*)        seL4_GetMR(1);
  
-    eprintf("path = %p\n", path);
+    if (SOS_DEBUG) printf("path = %p\n", path);
     if (path == NULL) {
         send_seL4_reply(reply_cap, pid, -1);
         return;

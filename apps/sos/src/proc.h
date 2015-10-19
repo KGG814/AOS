@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <clock/clock.h>
 #include <sos/sos.h>
+#include <nfs/nfs.h>
 
 #include "callback.h"
 
@@ -86,6 +87,17 @@ typedef struct _start_process_args {
     int parent_pid;
     // not initialised
     char* elf_base;
+
+    // #JustElfLoadThings
+    seL4_CPtr reply_cap;
+    fattr_t *elf_attr;
+    fhandle_t *elf_fh;
+    int curr_elf_frame;
+    int max_elf_frames;
+    int *elf_load_table;
+    seL4_Word curr_elf_addr;
+    int offset;
+    int child_pid;
 } start_process_args;
 
 typedef struct _new_as_args {
@@ -108,6 +120,8 @@ void cleanup_as(int pid);
 
 void start_process(int pid, seL4_CPtr reply_cap, void *args);
 void start_process_wrapper(int pid, seL4_CPtr reply_cap, void *data, int err);
+
+void start_process_load (int parent_pid, seL4_CPtr reply_cap, void *_args);
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid

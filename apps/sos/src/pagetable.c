@@ -152,21 +152,21 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int e
     memset((void *)vaddr, 0, PAGE_SIZE);
     
     //this always seems to be the case
-    if (0) {//!frametable[index].mapping_cap) {
-        eprintf("Before ccc\n");
-        seL4_CPtr cap =  cspace_copy_cap(cur_cspace
-                                        ,cur_cspace
-                                        ,frametable[index].frame_cap
-                                        ,seL4_AllRights
-                                        );
-        eprintf("after ccc\n");
-        frametable[index].mapping_cap = cap;
-    }
+    //if (0) {//!frametable[index].mapping_cap) {
+        //eprintf("Before ccc\n");
+        //seL4_CPtr cap =  cspace_copy_cap(cur_cspace
+        //                                ,cur_cspace
+        //                                ,frametable[index].frame_cap
+        //                                ,seL4_AllRights
+        //                                );
+        //eprintf("after ccc\n");
+        //frametable[index].mapping_cap = cap;
+    //}
     //assert(frametable[index].mapping_cap);
     //9242_TODO this never happens properly
-    eprintf("Before flush\n");
+    //eprintf("Before flush\n");
     //seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
-    eprintf("After flush\n");
+    //eprintf("After flush\n");
 
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated
@@ -601,7 +601,7 @@ int check_region(int pid, seL4_Word start, seL4_Word size) {
 void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err) {
     
     copy_in_args *copy_args = (copy_in_args *) args;
-    eprintf("copy_in, usr_ptr: %p\n", (void *) copy_args->usr_ptr);
+    if (SOS_DEBUG) printf("copy_in, usr_ptr: %p\n", (void *) copy_args->usr_ptr);
     
     if (err || copy_args->count == args->nbyte) {
         copy_args->cb(pid, reply_cap, copy_args->cb_args, err);
