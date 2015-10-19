@@ -51,15 +51,17 @@ void handle_open(seL4_CPtr reply_cap, int pid) {
     char *path =  (char*)        seL4_GetMR(1);
     fmode_t mode     =  (fmode_t)      seL4_GetMR(2);
  
-    if (check_region((seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
-        send_seL4_reply(reply_cap, pid, EFAULT);
-        return;
-    } 
-
-    if (path == NULL) {
+    eprintf("path = %p\n", path);
+    if (path == NULL || mode >= O_ACCMODE) {
         send_seL4_reply(reply_cap, pid, -1);
         return;
     }
+
+    if (check_region(pid, (seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    } 
+
     char *kpath = malloc(MAXNAMLEN + 1);
     if (kpath == NULL) {
         send_seL4_reply(reply_cap, pid, -1); 
@@ -130,9 +132,8 @@ void handle_read(seL4_CPtr reply_cap, int pid) {
     /* Get the vnode using the process filetable and OFT*/
     int oft_index = proc_table[pid]->file_table[file];
     file_handle* handle = oft[oft_index];
-    /* Check page boundaries and map in pages if necessary */
-    /* Turn the user ptr buff into a kernel ptr */
-    /* Call the read vnode op */
+
+    assert(handle);
 
     vfs_read(handle->vn, buf, nbyte, reply_cap, &(handle->offset), pid);
     if (SOS_DEBUG) printf("handle read finished\n");
@@ -182,8 +183,8 @@ void handle_getdirent(seL4_CPtr reply_cap, int pid) {
     int pos          =  (int)          seL4_GetMR(1);
     char* name       =  (char*)        seL4_GetMR(2);
     size_t nbyte     =  (size_t)       seL4_GetMR(3);
-    if (check_region((seL4_Word)name, (seL4_Word)nbyte)) {
-        send_seL4_reply(reply_cap, pid, EFAULT);
+    if (check_region(pid, (seL4_Word)name, (seL4_Word)nbyte)) {
+        send_seL4_reply(reply_cap, pid, -1);
         return;
     } 
     /* Call the getdirent vnode op */
@@ -199,8 +200,8 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
     /* Get syscall arguments */
     seL4_Word   path =                 seL4_GetMR(1);
     sos_stat_t* buf  =  (sos_stat_t*)  seL4_GetMR(2);
-    if (check_region((seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
-        send_seL4_reply(reply_cap, pid, EFAULT);
+    if (check_region(pid, (seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
+        send_seL4_reply(reply_cap, pid, -1);
         return;
     } 
 
@@ -263,22 +264,61 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  * file).
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
-    seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
+    if (SOS_DEBUG) printf("process_create\n");
+    /* Get syscall arguments */
+    char *path =  (char*)        seL4_GetMR(1);
+ 
+    eprintf("path = %p\n", path);
+    if (path == NULL) {
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
 
-    //9242_TODO change this to a copy in
-    seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
+    if (check_region(pid, (seL4_Word)path, (seL4_Word)MAXNAMLEN)) {
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    } 
 
-    printf("Starting process %s\n", (char *) kernel_path);
+    char *kpath = malloc(MAXNAMLEN + 1);
+    if (kpath == NULL) {
+        send_seL4_reply(reply_cap, pid, -1); 
+        return;
+    }
+
+    memset(kpath, 0, MAXNAMLEN + 1);
+
     start_process_args *process_args = malloc(sizeof(start_process_args));
-    process_args->app_name = (char *)kernel_path;
+    if (process_args == NULL) {
+        free(kpath);
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
+
+    process_args->app_name = kpath;
     process_args->fault_ep = _sos_ipc_ep_cap;
     process_args->priority = TTY_PRIORITY;
-    printf("Setting callback %p\n", handle_process_create_cb);
+
     process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
     process_args->parent_pid = pid;
-    start_process(pid, reply_cap, process_args);
+
+    copy_in_args *args = malloc(sizeof(copy_in_args));
+    if (args == NULL) {
+        free(kpath);
+        free(process_args);
+        send_seL4_reply(reply_cap, pid, -1);
+        return;
+    }
+    
+    args->count = 0;
+    args->nbyte = MAXNAMLEN;
+    args->usr_ptr = (seL4_Word) path;
+    args->k_ptr = (seL4_Word) kpath;
+    args->cb = start_process_wrapper;
+    args->cb_args = process_args;
+    copy_in(pid, reply_cap, args, 0);
 }
+
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
@@ -310,8 +350,11 @@ void handle_my_id(seL4_CPtr reply_cap, int pid) {
 void handle_process_status(seL4_CPtr reply_cap, int pid) {
     sos_process_t* processes = (sos_process_t *) seL4_GetMR(1);
     unsigned max_processes   = (unsigned)        seL4_GetMR(2);
-    if (check_region((seL4_Word) processes
-                    ,(seL4_Word) (max_processes * sizeof(sos_process_t)))) 
+    if (check_region(pid
+                    ,(seL4_Word) processes
+                    ,(seL4_Word) (max_processes * sizeof(sos_process_t))
+                    )
+       ) 
     {
         send_seL4_reply(reply_cap, pid, 0);
         return;
@@ -326,9 +369,17 @@ void handle_process_wait(seL4_CPtr reply_cap, int pid) {
     // 9242_TODO add pid -1 case, with global list
     if (pid == -1) {
         add_to_wait_list(pid);
+        return;
     }
-    proc_table[pid]->wait_cap = reply_cap;
-    
+
+    int wait_pid = seL4_GetMR(1);
+
+    if (is_child(pid, wait_pid)) {
+        proc_table[pid]->wait_cap = reply_cap;
+        proc_table[pid]->wait_pid = wait_pid;
+    } else {
+        send_seL4_reply(reply_cap, pid, -1);
+    }
     /*if (proc_table[pid]->reader_status == CURR_READ) {
         proc_table[pid]->reader_status = CHILD_READ;
         console_status = CONSOLE_READ_CLOSE;
@@ -354,7 +405,13 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
  */
 //this blocks 
 void handle_usleep(seL4_CPtr reply_cap, int pid) {
-    int usec = seL4_GetMR(1) * 1000;
+    int64_t usec = (int) seL4_GetMR(1);
+    if (usec < 0) {
+        if (SOS_DEBUG) printf("negative sleep time\n");
+        send_seL4_reply(reply_cap, pid, -1);
+    }
+
+    usec = usec * 1000;
     int ret = register_timer(usec, &wake_process, (void *)pid);
     proc_table[pid]->wait_cap = reply_cap;
     if (ret == 0) { //handle error

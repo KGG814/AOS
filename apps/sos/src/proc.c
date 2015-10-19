@@ -212,6 +212,17 @@ void cleanup_as(int pid) {
     if (SOS_DEBUG) printf("Cleanup as ended\n");
 } 
 
+void start_process_wrapper(int pid, seL4_CPtr reply_cap, void *data, int err) {
+    start_process_args* process_args = (start_process_args *) data;
+    if (err) {
+        eprintf("Error caught in start_process_wrapper\n");
+        process_args->cb(pid, reply_cap, data, err);
+    }
+
+    eprintf("Starting process %s\n", (char *) process_args->app_name);
+    start_process(pid, reply_cap, process_args);
+}
+
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     if (TMP_DEBUG) printf("start_process\n");
     if (SOS_DEBUG) printf("starting process from pid %d\n", parent_pid);
@@ -378,6 +389,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         return;
     }
 
+    eprintf("blah\n");
 	// Various local state
 	// Address space of the new process
 	addr_space *as = proc_table[new_pid];
@@ -655,6 +667,8 @@ void remove_child(int parent_pid, int child_pid) {
     //cur->next is the child to delete
     child_proc *tmp = cur->next;
 
+    //might have triggered a race condition and so we should check if we 
+    //have the child
     if (tmp != NULL) {
         cur->next = tmp->next;
         free(tmp);
@@ -671,14 +685,25 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     }
 
     if (to_delete == pid) {
+        //deleting ourselves: 
+        //-mark ourself as not blocked (yet)
+        //-if the parent is waiting on us, set our wait cap to the parent's
+        //-remove ourself from our parent
         if (SOS_DEBUG) printf("Deleting self %d\n", pid);
         int parent = proc_table[to_delete]->parent_pid;
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
         if (parent != 0) {
-            proc_table[to_delete]->wait_cap = proc_table[parent]->wait_cap;
+            eprintf("deleting a process spawned by process %d\n", parent);
+            if (proc_table[parent]->wait_pid == to_delete) { 
+                eprintf("our parent was waiting on us.\n");
+                proc_table[to_delete]->wait_cap = proc_table[parent]->wait_cap;
+            }
             remove_child(parent, to_delete);
         }
     } else if (is_child(pid, to_delete)) {
+        //deleting a child:
+        //set our wait cap to the reply_cap
+        //set our child's wait_cap to the reply_cap
         proc_table[to_delete]->wait_cap = reply_cap;
         if (!proc_table[pid]->wait_cap) {
             proc_table[pid]->wait_cap = reply_cap;
@@ -705,8 +730,8 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         free(cur);
         cur = cur->next;
     }
-    //child is ready to be killed 
 
+    //if child is ready to be killed 
     if (!(as->status & PROC_BLOCKED)) { 
 
         if (SOS_DEBUG) printf("Calling kill_process_cb\n");
@@ -737,10 +762,14 @@ void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
         parent = proc_table[parent]->parent_pid;
     } 
     if (SOS_DEBUG) printf("Current %d\n", current);
+
     seL4_CPtr cap = proc_table[current]->wait_cap;
     if (SOS_DEBUG) printf("cap %p\n", (void *) cap);
+
     if (SOS_DEBUG) printf("parent %d\n", parent);
+
     proc_table[current]->wait_cap = 0;
+
     if (cap != 0) {
         send_seL4_reply(cap, 0, to_delete);
     } else if (parent != 0) {

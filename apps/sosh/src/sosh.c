@@ -151,7 +151,7 @@ static int exec(int argc, char **argv) {
         printf("Child pid=%d\n", pid);
         if (bg == 0) {
             //for (volatile int i = 0; i < 100000; i++);
-            printf("waited on pid %d with return value %d\n", -1, sos_process_wait(-1));
+            printf("waited on pid %d with return value %d\n", pid, sos_process_wait(pid));
         }
     } else {
         printf("Failed!\n");

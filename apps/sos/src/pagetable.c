@@ -152,17 +152,21 @@ void pd_caps_init_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int e
     memset((void *)vaddr, 0, PAGE_SIZE);
     
     //this always seems to be the case
-    if (!frametable[index].mapping_cap) {
+    if (0) {//!frametable[index].mapping_cap) {
+        eprintf("Before ccc\n");
         seL4_CPtr cap =  cspace_copy_cap(cur_cspace
                                         ,cur_cspace
                                         ,frametable[index].frame_cap
                                         ,seL4_AllRights
                                         );
+        eprintf("after ccc\n");
         frametable[index].mapping_cap = cap;
     }
     //assert(frametable[index].mapping_cap);
     //9242_TODO this never happens properly
-    seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
+    eprintf("Before flush\n");
+    //seL4_ARM_Page_Unify_Instruction(frametable[index].mapping_cap, 0, PAGESIZE);
+    eprintf("After flush\n");
 
     int curr_page = vm_args->curr_page;
     // Set cap storage to the frame we just allocated
@@ -561,17 +565,35 @@ void map_if_valid_cb_continue (int pid, seL4_CPtr reply_cap, void *args, int err
     if (SOS_DEBUG) printf("map_if_valid_cb_continue ended\n");
 }
 
-int check_region(seL4_Word start, seL4_Word size) {
-    for (seL4_Word curr = start; curr < start + size; curr += PAGE_SIZE) {
-        if ((curr & PAGE_MASK) == GUARD_PAGE) {
-            return EFAULT;
-        } else if ((curr & PAGE_MASK) == 0) {
-            return EFAULT;
-        } else if ((curr >= PROCESS_STACK_TOP) && (curr < PROCESS_IPC_BUFFER)) {
-            return EFAULT;
-        } else if((curr >= PROCESS_IPC_BUFFER_END) && (curr < PROCESS_SCRATCH)) {
-            return EFAULT;
+int check_region(int pid, seL4_Word start, seL4_Word size) {
+    for (seL4_Word vaddr = start; vaddr < start + size; vaddr += PAGE_SIZE) {
+        
+        if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
+            return -1;
+        } else if ((vaddr & PAGE_MASK) == 0) {
+            return -1;
+        } else if ((vaddr >= PROCESS_STACK_TOP) && (vaddr < PROCESS_IPC_BUFFER)) { 
+            return -1;
+        } else if ((vaddr >= PROCESS_IPC_BUFFER_END) && (vaddr < PROCESS_SCRATCH)) { 
+            return -1;
         }
+        /*
+        if ((vaddr & PAGE_MASK) == GUARD_PAGE) {
+            return EFAULT;
+        } else if ((vaddr & PAGE_MASK) == 0) {
+            return EFAULT;
+            // Stack pages
+        } else if ((vaddr >= PROCESS_STACK_BOT) && (vaddr < PROCESS_STACK_TOP)) { 
+            // IPC Pages 
+        } else if ((vaddr >= PROCESS_IPC_BUFFER) && (vaddr < PROCESS_IPC_BUFFER_END)) {;
+            // VMEM 
+        } else if((vaddr >= PROCESS_VMEM_START) && (vaddr < proc_table[pid]->brk)) {
+            // Scratch 
+        } else if ((vaddr >= PROCESS_SCRATCH)) {
+            //} else if ((vaddr)) 
+        } else {
+            return EFAULT;
+        }*/
     }
     return 0;
 }
@@ -579,7 +601,7 @@ int check_region(seL4_Word start, seL4_Word size) {
 void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err) {
     
     copy_in_args *copy_args = (copy_in_args *) args;
-    if (SOS_DEBUG) printf("copy_in, usr_ptr: %p\n", (void *) copy_args->usr_ptr);
+    eprintf("copy_in, usr_ptr: %p\n", (void *) copy_args->usr_ptr);
     
     if (err || copy_args->count == args->nbyte) {
         copy_args->cb(pid, reply_cap, copy_args->cb_args, err);

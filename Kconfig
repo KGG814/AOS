@@ -41,6 +41,9 @@ menu "seL4 Applications"
     source "apps/tty_test/Kconfig"
     source "apps/vm_test/Kconfig"
     source "apps/nfs_benchmarks/Kconfig"
+    source "apps/error_test/Kconfig"
+    source "apps/execstack/Kconfig"
+    source "apps/pagingdemo/Kconfig"
 endmenu
 
 menu "Tools"
