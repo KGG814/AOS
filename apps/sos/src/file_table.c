@@ -88,9 +88,17 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     vnode* vn = vfs_open(path, mode, pid, reply_cap, &err);
     if (vn == NULL || err < 0) {
         assert(RTN_ON_FAIL);
+        printf("couldn't open a vn. dumping valid filehandles: \n");
+        for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+            if (proc_table[pid]->file_table[i] != INVALID_FD) {
+                vnode *vn = oft[proc_table[pid]->file_table[i]]->vn;
+                printf("file %d: %s\n", i, vn->name); 
+            }
+        }
         return FILE_TABLE_ERR;
     } else if (err == VFS_CALLBACK) {
         // Wait for callback
+        if (SOS_DEBUG) printf("waiting for callback in fh_open\n");
         return FILE_TABLE_CALLBACK;
     }
 
@@ -129,6 +137,7 @@ int fd_close(int pid, int file) {
 
     proc_table[pid]->file_table[file] = INVALID_FD;
     oft[oft_index] = NULL;
+    proc_table[pid]->n_files_open--;
     if (SOS_DEBUG) printf("close done\n");
     return err;
 }

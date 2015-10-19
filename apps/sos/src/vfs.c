@@ -210,13 +210,15 @@ vnode* vfs_open(const char* path
 void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
     // Get arguments from NFS token
     vfs_open_args *args = (vfs_open_args*) token;
-    if (args == NULL || status != NFS_OK) {
-        //9242_TODO Error handling, do a reply? 
-        return;
-    }
     // Get arguments we need
     seL4_CPtr reply_cap = args->reply_cap;
     seL4_CPtr pid = args->pid;
+    if (status != NFS_OK && status != NFSERR_NOENT) {
+        eprintf("Error caught in file_open_cb: bad error from nfs\n");
+        send_seL4_reply(reply_cap, pid, -1);
+        free(args);
+        return;
+    }
     // Get vnode
     vnode* vn = args->vn;
     // Check if vnode is valid
@@ -266,6 +268,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
             // Get attributes for a new file
             sattr_t sattr = get_new_file_attr();
             // Do the NFS call to make a new file
+            if (SOS_DEBUG) printf("doing a lookup for file\n");
             int status = nfs_create(&mnt_point
                                    ,vn->name
                                    ,&sattr
@@ -292,6 +295,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
                 return;
             }
             // Do a lookup on current directory to get mnt_attr
+            if (SOS_DEBUG) printf("doing a lookup for mnt attr\n");
             int status = nfs_lookup(&mnt_point, ".", mnt_lookup_cb, (uintptr_t) args);
             // Check if the NFS call succeeded
             if (status != RPC_OK) {
