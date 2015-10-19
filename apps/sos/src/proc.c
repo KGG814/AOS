@@ -57,7 +57,7 @@ void proc_table_init(void) {
 }
 
 void new_as(int pid, seL4_CPtr reply_cap, void *_args) {
-    printf("new as called with parent %d \n", pid);
+    if (SOS_DEBUG) printf("new as called with parent %d \n", pid);
 
     new_as_args *args = (new_as_args *) _args;
     if (num_processes == MAX_PROCESSES) {
@@ -161,7 +161,7 @@ void cleanup_as(int pid) {
     fdt_cleanup(pid);
     pt_cleanup(pid);
 
-    printf("Destroying tcb\n");
+    if (SOS_DEBUG) printf("Destroying tcb\n");
     if (as->tcb_addr) {
         ut_free(as->tcb_addr, seL4_TCBBits);
         cspace_revoke_cap(cur_cspace, as->tcb_cap);
@@ -169,7 +169,7 @@ void cleanup_as(int pid) {
         as->tcb_cap = 0;
         as->tcb_addr = 0;
     }
-    printf("tcb destroyed\n");
+    if (SOS_DEBUG) printf("tcb destroyed\n");
 
     if (as->ipc_buffer_addr) {
         cspace_revoke_cap(cur_cspace, as->ipc_buffer_cap);
@@ -177,7 +177,7 @@ void cleanup_as(int pid) {
         as->ipc_buffer_addr = 0;
         as->ipc_buffer_cap = 0;
     }
-    printf("Destroying cspace\n");
+    if (SOS_DEBUG) printf("Destroying cspace\n");
     if (as->croot) {
         cspace_destroy(as->croot);
     }
@@ -192,15 +192,15 @@ void cleanup_as(int pid) {
 
 
     child_proc *cur_child = as->children;
-    printf("Freeing children\n");
+    if (SOS_DEBUG) printf("Freeing children\n");
     while (as->children != NULL) {
-        printf("Freeing child %d\n", cur_child->pid);
+        if (SOS_DEBUG) printf("Freeing child %d\n", cur_child->pid);
         as->children = cur_child->next;
         
         free(cur_child);
         cur_child = as->children;
     }
-    printf("Freeing addr space\n");
+    if (SOS_DEBUG) printf("Freeing addr space\n");
     free(as);
 
     proc_table[pid] = NULL;
@@ -209,12 +209,12 @@ void cleanup_as(int pid) {
     free_pids[free_pids_end] = pid;
     free_pids_end = (free_pids_end + 1) % MAX_PROCESSES;
     num_processes--;
-    printf("Cleanup as ended\n");
+    if (SOS_DEBUG) printf("Cleanup as ended\n");
 } 
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     if (TMP_DEBUG) printf("start_process\n");
-    printf("starting process from pid %d\n", parent_pid);
+    if (SOS_DEBUG) printf("starting process from pid %d\n", parent_pid);
 	start_process_args *args = (start_process_args *) _args;
 
     //check parent exists 
@@ -398,8 +398,8 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
                    PROCESS_IPC_BUFFER,
                    seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
     
-    printf("cap: %p\n", (void *)as->ipc_buffer_cap);
-    printf("err :%d\n", err);
+    if (SOS_DEBUG) printf("cap: %p\n", (void *)as->ipc_buffer_cap);
+    if (SOS_DEBUG) printf("err :%d\n", err);
 
     if (err) {
         eprintf("Error caught in start_process_cb2\n");
@@ -412,7 +412,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         return;
     }
 
-    printf("Setting index %p to don't swap\n", (void *) index);
+    if (SOS_DEBUG) printf("Setting index %p to don't swap\n", (void *) index);
     frametable[index].frame_status |= FRAME_DONT_SWAP;
 
     /* Copy the fault endpoint to the user app to enable IPC */
@@ -478,7 +478,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     /* parse the cpio image */
     dprintf(1, "\nStarting \"%s\"...\n", as->command);
     args->elf_base = cpio_get_file(_cpio_archive, as->command, &elf_size);
-    printf("tried to do cpio_get_file\n");
+    if (SOS_DEBUG) printf("tried to do cpio_get_file\n");
     if (!args->elf_base) {
         eprintf("Error caught in start_process_cb2\n");
 
@@ -506,7 +506,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     load_args->curr_header = 0;
     load_args->cb = start_process_cb_cont;
     load_args->cb_args = args;
-    printf("reply cap %p\n",(void *) reply_cap);
+    if (SOS_DEBUG) printf("reply cap %p\n",(void *) reply_cap);
     elf_load(new_pid, reply_cap, load_args, 0);
     
     if (TMP_DEBUG) printf("start_process_cb2 end\n");
@@ -514,7 +514,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
 
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     if (TMP_DEBUG) printf("start_process_cb_cont\n");
-    printf("reply cap %p\n",(void *) reply_cap);
+    if (SOS_DEBUG) printf("reply cap %p\n",(void *) reply_cap);
     start_process_args *args = (start_process_args *) _args;
 
     if (err) {
@@ -595,17 +595,17 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *args, int err) {
         count = 0;
     }
     send_seL4_reply(reply_cap, pid, count); 
-    printf("ps done\n");
+    if (SOS_DEBUG) printf("ps done\n");
 }
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err) {
     if (TMP_DEBUG) printf("handle_process_create_cb\n");
     if (!err) {
-        printf("Process %d\n", pid);
+        if (SOS_DEBUG) printf("Process %d\n", pid);
     }
     int child_pid = (int) args;
     if (err) {
-        printf("Error, replying on cap %d\n", reply_cap);
+        if (SOS_DEBUG) printf("Error, replying on cap %d\n", reply_cap);
         send_seL4_reply(reply_cap, pid, err);
     } else {
         send_seL4_reply(reply_cap, pid, child_pid);
@@ -664,14 +664,14 @@ void remove_child(int parent_pid, int child_pid) {
 
 void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //check we have something to delete 
-    printf("kill_process cap: %p\n", (void *) reply_cap);
+    if (SOS_DEBUG) printf("kill_process cap: %p\n", (void *) reply_cap);
     if (proc_table[to_delete] == NULL) {
         send_seL4_reply(reply_cap, pid, -1);
         return;
     }
 
     if (to_delete == pid) {
-        printf("Deleting self %d\n", pid);
+        if (SOS_DEBUG) printf("Deleting self %d\n", pid);
         int parent = proc_table[to_delete]->parent_pid;
         proc_table[to_delete]->status &= ~PROC_BLOCKED;
         if (parent != 0) {
@@ -700,7 +700,7 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
     //kill all its children first 
     child_proc *cur = as->children;
     while (cur != NULL) {
-        printf("Killing child %d\n", cur->pid);
+        if (SOS_DEBUG) printf("Killing child %d\n", cur->pid);
         kill_process(pid, cur->pid, reply_cap);
         free(cur);
         cur = cur->next;
@@ -712,7 +712,7 @@ void kill_process(int pid, int to_delete, seL4_CPtr reply_cap) {
         if (SOS_DEBUG) printf("Calling kill_process_cb\n");
         kill_process_cb(pid, reply_cap, (void *) to_delete, 0);
     }
-    printf("kill_process ended\n");
+    if (SOS_DEBUG) printf("kill_process ended\n");
 }
 
 void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
@@ -729,24 +729,24 @@ void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
 
     //if we aren't trying to delete ourself and the parent is done waiting on 
     //dying processes, reply to the parent
-    printf("cb cap: %p\n", (void *) reply_cap);
+    if (SOS_DEBUG) printf("cb cap: %p\n", (void *) reply_cap);
     while (parent != 0 
            && (proc_table[parent]->status & PROC_DYING) 
            && (--proc_table[parent]->delete_wait == 0)) {
         current = parent;
         parent = proc_table[parent]->parent_pid;
     } 
-    printf("Current %d\n", current);
+    if (SOS_DEBUG) printf("Current %d\n", current);
     seL4_CPtr cap = proc_table[current]->wait_cap;
-    printf("cap %p\n", (void *) cap);
-    printf("parent %d\n", parent);
+    if (SOS_DEBUG) printf("cap %p\n", (void *) cap);
+    if (SOS_DEBUG) printf("parent %d\n", parent);
     proc_table[current]->wait_cap = 0;
     if (cap != 0) {
-        send_seL4_reply(cap, 0, 0);
+        send_seL4_reply(cap, 0, to_delete);
     } else if (parent != 0) {
         seL4_CPtr parent_cap = proc_table[parent]->wait_cap;
         if (parent_cap) {
-            send_seL4_reply(parent_cap, 0, 0);
+            send_seL4_reply(parent_cap, 0, to_delete);
         }
     }
     //destroy the address space of the process
