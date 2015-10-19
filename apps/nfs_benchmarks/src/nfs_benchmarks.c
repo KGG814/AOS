@@ -8,7 +8,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 #define BUF_SIZ (4096 * 20)
 #define N_SIZES (13) 

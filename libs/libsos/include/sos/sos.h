@@ -42,6 +42,7 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+typedef int pid_t;
 
 typedef struct {
   st_type_t st_type;    /* file type */
@@ -50,8 +51,6 @@ typedef struct {
   long      st_ctime;   /* file creation time (ms since booting) */
   long      st_atime;   /* file last access (open) time (ms since booting) */
 } sos_stat_t;
-
-typedef int pid_t;
 
 typedef struct {
   pid_t     pid;
@@ -88,6 +87,17 @@ typedef struct {
 #define GETDIRENT           9
 /* STAT */
 #define STAT 				10
+
+#define MY_ID               11
+
+#define P_STATUS            12
+
+#define P_CREATE            13
+#define P_DELETE            14
+#define P_WAIT              15
+
+#define P_EXIT              16
+
 /* I/O system calls */
 
 /* Print to the proper console.  You will need to finish these implementations */
@@ -179,6 +189,7 @@ void sos_sys_usleep(int msec);
 /* Sleeps for the specified number of milliseconds.
  */
 
+void sos_sys_exit(void);
 
 /*************************************************************************/
 /*                                   */

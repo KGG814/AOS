@@ -13,6 +13,29 @@
 #include "proc.h"
 #include <sel4/sel4.h>
 
-int elf_load(seL4_ARM_PageDirectory dest_pd, char* elf_file, addr_space* as);
+
+
+void elf_load(int pid, seL4_CPtr reply_cap, void *_args);
+
+typedef struct _load_segment_args {
+	char *src;
+	unsigned long dst;
+	unsigned long pos;
+	unsigned long segment_size;
+	unsigned long file_size;
+	unsigned long permissions;
+	callback_ptr cb;
+	void *cb_args;
+	// Not initialised
+	int index;
+	seL4_Word vaddr;
+} load_segment_args;
+
+typedef struct _elf_load_args {
+	char *elf_file;
+	int curr_header;
+	callback_ptr cb;
+	void *cb_args;
+} elf_load_args;
 
 #endif /* _LIBOS_ELF_H_ */

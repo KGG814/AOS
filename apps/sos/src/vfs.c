@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <assert.h>
 
 #include <serial/serial.h>
@@ -161,6 +161,7 @@ vnode* vfs_open(const char* path
     *err = VFS_OK; 
     if (strcmp(path, "console") == 0) {         
         vn = console_open(mode, err);
+        proc_table[pid]->reader_status = CURR_READ;
     } else if (strcmp(path, "null") == 0) {
         vn = nul_open(mode, err);
     } else {
@@ -401,7 +402,7 @@ void file_read_nfs_cb(uintptr_t token
     vn->atime = fattr->atime;
     char *read_buf = malloc(sizeof(char)*count);  
     memcpy(read_buf, data, count);
-    copy_page(args->buf, count, read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
+    copy_page(args->buf, count, (seL4_Word) read_buf, args->pid, file_read_nfs_cb_cont, args, args->reply_cap, TMP_BUF);
     if(SOS_DEBUG) printf("file_read_nfs_cb ended\n");
 }
 
@@ -413,7 +414,6 @@ void file_read_nfs_cb_cont(int pid, seL4_CPtr reply_cap, void *args) {
     read_args->bytes_read += read_args->count;
     read_args->buf += read_args->count;
     if (read_args->bytes_read == read_args->nbyte || read_args->count < read_args->to_read) {
-        assert(RTN_ON_FAIL);
         send_seL4_reply(reply_cap, read_args->bytes_read);
         free(read_args); 
     } else {

@@ -1,16 +1,19 @@
 #include "syscalls.h"
 #include "file_table.h"
 #include "pagetable.h"
-
+#include "devices.h"
 #include <string.h>
 #include <clock/clock.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <sos/vmem_layout.h>
+
+#include "proc.h"
 
 #define verbose 5
 #include <sys/debug.h>
 #include "debug.h"
 
+extern int console_status;
 //callback for waking sleeping processes
 static void wake_process(uint32_t id, void* data); 
 
@@ -137,7 +140,7 @@ void handle_write(seL4_CPtr reply_cap, int pid) {
     //printf("Write syscall handler %d, %p, %d\n", file, buf, nbyte);
     //check filehandle is actually in range
     if (file < 0 || file >= PROCESS_MAX_FILES) {
-        if (SOS_DEBUG) printf(0, "out of range fd: %d\n", file);
+        if (SOS_DEBUG) printf("out of range fd: %d\n", file);
         send_seL4_reply(reply_cap, -1);
         return;
     } 
@@ -212,21 +215,18 @@ void handle_stat(seL4_CPtr reply_cap, int pid) {
 
 void handle_brk(seL4_CPtr reply_cap, int pid) {
 	seL4_Word newbrk = seL4_GetMR(1);
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     uintptr_t ret;
-    if (SOS_DEBUG) printf(0, "newbrk: %p\n", newbrk);
+    if (SOS_DEBUG) printf("newbrk: %p\n", (void *)newbrk);
     if (!newbrk) {
         ret = PROCESS_VMEM_START;
     } else if (newbrk < PROCESS_SCRATCH && newbrk > PROCESS_VMEM_START) {
         ret = newbrk;
         proc_table[pid]->brk = newbrk;
-        if (SOS_DEBUG) printf(0, "proc_table[pid]->brk: %p\n", proc_table[pid]->brk);
+        if (SOS_DEBUG) printf("proc_table[pid]->brk: %p\n", (void *)proc_table[pid]->brk);
     } else {
         ret = 0;
     }
-    seL4_SetMR(0, ret);
-    seL4_Send(reply_cap, reply);
-    cspace_free_slot(cur_cspace, reply_cap);
+    send_seL4_reply(reply_cap, ret);
 }
 
 /* Create a new process running the executable image "path".
@@ -234,17 +234,56 @@ void handle_brk(seL4_CPtr reply_cap, int pid) {
  * file).
  */
 void handle_process_create(seL4_CPtr reply_cap, int pid) {
+    seL4_Word user_path = (seL4_Word) seL4_GetMR(1);
 
+    //9242_TODO change this to a copy in
+    seL4_Word kernel_path = user_to_kernel_ptr(user_path, pid);
+
+    printf("Starting process %s\n", (char *) kernel_path);
+    start_process_args *process_args = malloc(sizeof(start_process_args));
+    process_args->app_name = (char *)kernel_path;
+    process_args->fault_ep = _sos_ipc_ep_cap;
+    process_args->priority = TTY_PRIORITY;
+    printf("Setting callback %p\n", handle_process_create_cb);
+    process_args->cb = handle_process_create_cb;
+    process_args->cb_args = NULL;
+    process_args->parent_pid = pid;
+    start_process(pid, reply_cap, process_args);
 }
 
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
 void handle_process_delete(seL4_CPtr reply_cap, int pid) {
+    // 9242_TODO If current process has parent, reply on wait cap if they are the process being waited for
+    int to_delete = (int) seL4_GetMR(1);
+
+    
+    
+    if (to_delete == pid) {
+        int parent_pid = proc_table[to_delete]->parent_pid;
+        if (parent_pid && proc_table[parent_pid]->wait_cap) {
+            send_seL4_reply(proc_table[parent_pid]->wait_cap, pid);
+        }
+        kill_process(pid, pid, (seL4_CPtr) 0);
+    } else if (remove_child(pid, to_delete)) {
+        proc_table[pid]->status |= PROC_BLOCKED;
+        kill_process(pid, to_delete, reply_cap); 
+    } else {
+        send_seL4_reply(reply_cap, -1);
+    }
 }
 
 /* Returns ID of caller's process. */
 void handle_my_id(seL4_CPtr reply_cap, int pid) {
+    addr_space *as = proc_table[pid];
+    child_proc *cp = as->children;
+    int i = 0;
+    while (cp != NULL) {
+        printf("Child %i: %d\n", i, cp->pid);
+        cp = cp->next;
+        i++;
+    }
     send_seL4_reply(reply_cap, pid);
 }
 
@@ -253,19 +292,33 @@ void handle_my_id(seL4_CPtr reply_cap, int pid) {
  * returns number of process descriptors actually returned.
  */
 void handle_process_status(seL4_CPtr reply_cap, int pid) {
-
+    sos_process_t* processes = (sos_process_t *) seL4_GetMR(1);
+    unsigned max_processes   = (unsigned)        seL4_GetMR(2);
+    if (check_region((seL4_Word) processes
+                    ,(seL4_Word) (max_processes * sizeof(sos_process_t)))) 
+    {
+        send_seL4_reply(reply_cap, 0);
+        return;
+    } 
+    process_status(reply_cap, pid, processes, max_processes);
 }
 
 /* Wait for process "pid" to exit. If "pid" is -1, wait for any process
  * to exit. Returns the pid of the process which exited.
  */
 void handle_process_wait(seL4_CPtr reply_cap, int pid) {
-
+    // 9242_TODO add pid -1 case, with global list
+    proc_table[pid]->wait_cap = reply_cap;
+    /*if (proc_table[pid]->reader_status == CURR_READ) {
+        proc_table[pid]->reader_status = CHILD_READ;
+        console_status = CONSOLE_READ_CLOSE;
+    }*/
 }
 
 
 /* Returns time in microseconds since booting.
  */
+//does not block
 void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 	timestamp_t timestamp = time_stamp();
 	seL4_SetMR(0, (seL4_Word)(UPPER_32(timestamp)));
@@ -278,6 +331,7 @@ void handle_time_stamp(seL4_CPtr reply_cap, int pid) {
 
 /* Sleeps for the specified number of milliseconds.
  */
+//this blocks 
 void handle_usleep(seL4_CPtr reply_cap, int pid) {
     int usec = seL4_GetMR(1) * 1000;
     int ret = register_timer(usec, &wake_process, (void *)reply_cap);
@@ -291,8 +345,9 @@ void handle_usleep(seL4_CPtr reply_cap, int pid) {
 //timer callback for usleep
 static void wake_process(uint32_t id, void* data) {
     //(void *) data;
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send((seL4_CPtr)data, reply);
+    //seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    //seL4_Send((seL4_CPtr)data, reply);
+    send_seL4_reply((seL4_CPtr) data, 0);
 }
 
 

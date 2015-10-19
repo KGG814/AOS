@@ -2,7 +2,7 @@
 #define _FILE_TABLE_H_
 
 
-#include <sos.h>
+#include <sos/sos.h>
 #include "vfs.h"
 #include "proc.h"
 
@@ -24,6 +24,8 @@ struct _file_handle {
 };
 
 int fdt_init(int pid);
+void fdt_cleanup(int pid);
+
 int oft_init(void);
 
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap);

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <sel4/sel4.h>
 #include <time.h>
-#include <sos.h>
+#include <sos/sos.h>
 #define NPAGES 27
 
 
@@ -36,9 +36,9 @@ int main( void ) {
     //assert((void *) buf1 > (void *) 0x20000000);
 
     /* stack test */
-    printf("Doing stack test\n");
-    do_pt_test(buf1);
-    printf("Stack test success\n");
+    //printf("Doing stack test\n");
+    //do_pt_test(buf1);
+    //printf("Stack test success\n");
     /* heap test */
     
     printf("Doing malloc\n");
@@ -46,7 +46,7 @@ int main( void ) {
     assert(buf2);
     printf("Malloc success\n");
     printf("Doing heap test\n");
-    do_pt_test(buf2);
+    //do_pt_test(buf2);
     free(buf2);
     printf("Heap test success\n");
     printf("Starting sleep test\n");

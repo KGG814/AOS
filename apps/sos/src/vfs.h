@@ -17,8 +17,6 @@
 #define VFS_ERR             (-1) //generic error
 #define VFS_ERR_NOT_DIR     (-2) //given thing wasn't a directory
 
-//9242_TODO get rid of this to actually use sos.h's conception of permissions
-//instead of musl's
 #define O_ACCMODE (03)
 #define O_RDONLY  (00)
 #define O_WRONLY  (01)
@@ -26,7 +24,7 @@
 
 #define CALLBACK (-3)
 
-#include <sos.h>
+#include <sos/sos.h>
 #include <clock/clock.h>
 #include <nfs/nfs.h>
 #include "proc.h"

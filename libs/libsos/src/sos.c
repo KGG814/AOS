@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 //needed for string comparisons
 #include <string.h>
@@ -156,3 +156,53 @@ int sos_stat(const char *path, sos_stat_t *buf) {
     
 }
 
+pid_t sos_process_create(const char *path) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_CREATE);
+    seL4_SetMR(1, (seL4_Word)path);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    return seL4_GetMR(0);
+}
+int sos_process_delete(pid_t pid) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_DELETE);
+    seL4_SetMR(1, (seL4_Word)pid);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    return seL4_GetMR(0);
+}
+
+pid_t sos_my_id(void) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, MY_ID);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    return seL4_GetMR(0);
+}
+
+int sos_process_status(sos_process_t *processes, unsigned max) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 3);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_STATUS);
+    seL4_SetMR(1, (seL4_Word) processes);
+    seL4_SetMR(2, (seL4_Word) max);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    return seL4_GetMR(0);
+}
+
+pid_t sos_process_wait(pid_t pid) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_WAIT);
+    seL4_SetMR(1, (seL4_Word)pid);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    return seL4_GetMR(0);
+}
+
+void sos_sys_exit(void) {
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetTag(tag);
+    seL4_SetMR(SYSCALL, P_EXIT);
+    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+}

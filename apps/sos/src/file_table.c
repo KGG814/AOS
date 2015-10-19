@@ -1,4 +1,4 @@
-#include <sos.h>
+#include <sos/sos.h>
 #include "file_table.h"
 #include "vfs.h"
 #include "proc.h"
@@ -7,6 +7,7 @@
 #include <sys/debug.h>
 #include <stdlib.h>
 #include "syscalls.h"
+#include "debug.h"
 
 #define verbose 5
 
@@ -21,14 +22,16 @@ int oft_init(void) {
 } 
 
 int fdt_init(int pid) {
+    if (proc_table[pid] == NULL) {
+        return -1;
+    }
     for (int i = 0; i < PROCESS_MAX_FILES; i++) {
         proc_table[pid]->file_table[i] = INVALID_FD;
     }
     proc_table[pid]->n_files_open = 0;
 
-    //open stdin as null
     if (fh_open(pid, "null", O_RDONLY, (seL4_CPtr) 0) != 0) {
-        return -1;
+    return -1;
     }
 
     if (fh_open(pid, "console", O_WRONLY, (seL4_CPtr) 0) != 1) {
@@ -41,7 +44,18 @@ int fdt_init(int pid) {
         fd_close(pid, 1);
         return -1;
     }
+    
     return 0;
+}
+
+void fdt_cleanup(int pid) {
+    if (proc_table[pid] == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+        fd_close(pid, i);
+    }
 }
 
 void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
@@ -53,7 +67,7 @@ void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
 }
 
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
-    
+    if (SOS_DEBUG) printf("fh_open\n");
     int err;
     if (proc_table[pid]->n_files_open == PROCESS_MAX_FILES) {
         return -1;
@@ -61,6 +75,7 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
 
     vnode* vn = vfs_open(path, mode, pid, reply_cap, &err);
     if (vn == NULL || err < 0) {
+        assert(RTN_ON_FAIL);
         return FILE_TABLE_ERR;
     } else if (err == VFS_CALLBACK) {
         // Wait for callback
@@ -78,6 +93,7 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     if (reply_cap != 0) {
         send_seL4_reply(reply_cap, fd);
     }
+    if (SOS_DEBUG) printf("fh_open end\n");
     return fd;
 } 
 

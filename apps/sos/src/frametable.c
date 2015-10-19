@@ -26,9 +26,9 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          33
+#define MAX_FRAMES          120
 #define verbose 5
-
+#define FT_INITIALISED      1
 int ft_initialised = 0;
 int frame_num = 0;
 //frametable is essentially a list stack of free frames 
@@ -39,24 +39,37 @@ static seL4_Word high;
 extern int buffer_head;
 extern int buffer_tail;
 
-void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args);
+void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
 int get_next_frame_to_swap(void);
 
+// Convert from physical address to kernel virtual address
 static seL4_Word paddr_to_vaddr(seL4_Word paddr) { 
     return paddr + VM_START_ADDR;
 }
 
+// Convert from frametable index to physical address
 seL4_Word index_to_paddr(int index) {
     return index * PAGE_SIZE + low;
 }
 
+int paddr_to_index(seL4_Word paddr) {
+    return (paddr - low) / PAGE_SIZE;
+}
+
+// Convert from frametable index to kernel virtual address
 seL4_Word index_to_vaddr(int index) {
     return (index * PAGE_SIZE + low) + VM_START_ADDR;
 }
 
+// Convert from kernel virtual address to frametable index
+int vaddr_to_index(seL4_Word vaddr) {
+    return (vaddr - VM_START_ADDR - low)/PAGE_SIZE;
+}
+
+// Initialise frame table
 int frame_init(void) {
     frametable = (ft_entry *) FT_START_ADDR;
-    if (ft_initialised == 1) {
+    if (ft_initialised) {
         return FRAMETABLE_INITIALISED;
     }
     seL4_Word num_frames;
@@ -110,193 +123,185 @@ int frame_init(void) {
     for (int i = 0; i < num_frames; i++) {
         frametable[i].frame_status = 0;
         frametable[i].frame_cap = 0;
+        frametable[i].mapping_cap = 0;
+        frametable[i].vaddr = 0;
     }
 
     int index = 0;
     for (int i = 0; i < frame_table_size; i++) {
         index = real_indices[i].frame_status;
+        printf("Setting index %p to don't swap\n", (void *) index);
         frametable[index].frame_status = FRAME_IN_USE | FRAME_DONT_SWAP;
         frametable[index].frame_cap = real_indices[i].frame_cap;
     }
 
     free(real_indices);
 
-    ft_initialised = 1;
+    ft_initialised = FT_INITIALISED;
 
     return FRAMETABLE_OK;
 }
 
-int frame_alloc(seL4_Word *vaddr, int map, int pid) {
-    if (SOS_DEBUG) printf("frame_alloc\n");
-    /* Check frame table has been initialised */
-    
-    if (ft_initialised != 1) {
-        return FRAMETABLE_NOT_INITIALISED; 
-    }
-
-    int err = 0;
-
-    seL4_Word pt_addr = ut_alloc(seL4_PageBits);
-    int index = 0;
-    if (pt_addr < low || frame_num >= MAX_FRAMES) { //no frames available
-        assert(1);     
-    } else {
-        index = (pt_addr - low) / PAGE_SIZE;
-        err |= cspace_ut_retype_addr(pt_addr
-                                ,seL4_ARM_SmallPageObject
-                                ,seL4_PageBits
-                                ,cur_cspace
-                                ,&frametable[index].frame_cap
-                                ); 
-    }
-    //9242_TODO: interpret this error correctly
-    if (err) { 
-        return FRAMETABLE_ERR;
-    }
-
-    if (map) {
-        err |= map_page(frametable[index].frame_cap
-                   ,seL4_CapInitThreadPD
-                   ,paddr_to_vaddr(pt_addr)
-                   ,seL4_AllRights
-                   ,seL4_ARM_Default_VMAttributes
-                   );
-    }
-    
-    //9242_TODO: interpret this error correctly.
-    if (err) { 
-        return FRAMETABLE_ERR;
-    }
-    //set the status bits of the new frame 
-
-    *vaddr = paddr_to_vaddr(pt_addr);
-    if (map) {
-        seL4_Word *tmp = (seL4_Word *) *vaddr;
-        for (int i = 0; i < 1024; i++) {
-            tmp[i] = 0;
-        }
-    }  
-
-    int status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
-    // Not in the swap buffer, need to put it in
-    /* Swap buffer */
-    if (buffer_head == -1) {
-        buffer_head = index;
-    } else {
-        frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
-        frametable[buffer_tail].frame_status |= index;
-    }
-    status |= buffer_head;
-    buffer_tail = index;
-    frametable[index].frame_status = status;
-
-    frame_num++;
-    //printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
-        //frame_num, index, pid, (void *)frametable[index].frame_status, buffer_head, buffer_tail);
-    return index;
-}
-
-
-//frame_alloc: the physical memory is reserved via the ut_alloc, the memory is 
-//retyped into a frame, and the frame is mapped into the SOS window at a fixed 
-//offset of the physical address.
-void frame_alloc_swap(int pid, seL4_CPtr reply_cap, void *args) {
+// Allocate a frame and map it into kernel virtual memory, if the field is set
+void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
     if (SOS_DEBUG) printf("frame_alloc_swap\n");
     /* Check frame table has been initialised */;
-    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
-    if (ft_initialised != 1) {
-        free(args);
-        send_seL4_reply(reply_cap, FRAMETABLE_ERR);
+    if (!ft_initialised) {
+        // Frame table has not been initialised
+        args->index = FRAMETABLE_ERR;
+        args->cb(pid, reply_cap, args);
     }
 
     int err = 0;
-
-    alloc_args->pt_addr = ut_alloc(seL4_PageBits);
-    alloc_args->index = -1;
-    if (alloc_args->pt_addr < low || frame_num >= MAX_FRAMES) { //no frames available
+    // Get some memory from ut_alloc
+    args->pt_addr = ut_alloc(seL4_PageBits);
+    // Check if we need to swap
+    printf("frame_num %d\n", frame_num);
+    if (args->pt_addr < low || frame_num >= MAX_FRAMES) {
+        
+        // No frames available, need to swap
+        // This may not be valid if memory runs out, but is fine for artificially limiting physical memory
+        ut_free(args->pt_addr, PAGE_BITS);
+        // Have to write to swap file
+        // Set up writE_to_swap_slot args
         write_swap_args *write_args = malloc(sizeof(write_swap_args));
-        write_args->cb = frame_alloc_cb;
+        if (write_args == NULL) {
+            args->cb(pid, reply_cap, args);
+        }
+        write_args->cb = (callback_ptr) frame_alloc_cb;
         write_args->cb_args = args;
         write_args->pid = pid;
         write_args->reply_cap = reply_cap;
+        // Get frametable index of a frame to be swapped
         write_args->index = get_next_frame_to_swap();
-        alloc_args->index = write_args->index;
+        // Put the index in the frame_alloc args so that we can continue after callback
+        args->index = write_args->index;
+        args->vaddr = index_to_vaddr(args->index);
+        args->pt_addr = index_to_paddr(args->index);
         // Write frame to current free swap slot
         write_to_swap_slot(pid, reply_cap, write_args);
     } else {
-        alloc_args->index = (alloc_args->pt_addr - low) / PAGE_SIZE;
-        err |= cspace_ut_retype_addr(alloc_args->pt_addr
+        // Don't need to swap can retype memory
+        // Calculate the index
+        args->index = paddr_to_index(args->pt_addr);
+        // Retype the cap so we can use it
+        // Also put the cap in the frameable
+        err |= cspace_ut_retype_addr(args->pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
                                 ,cur_cspace
-                                ,&frametable[alloc_args->index].frame_cap
+                                ,&frametable[args->index].frame_cap
                                 ); 
-        //9242_TODO: interpret this error correctly
+        // Check if the retype succeeded
         if (err) { 
-            free(args);
-            send_seL4_reply(reply_cap, FRAMETABLE_ERR);
+            // Retype failed, free memory and callback
+            //9242_TODO More cleanup needed?
+            assert(RTN_ON_FAIL);
+            ut_free(args->pt_addr, PAGE_BITS);
+            args->index = FRAMETABLE_ERR;
+            args->cb(pid, reply_cap, args);
+            return;
         }
-        
+        frame_num++;
+        // Continue with frame_alloc call
         frame_alloc_cb(pid, reply_cap, args);
     }
     if (SOS_DEBUG) printf("frame_alloc_swap ended\n");
 }
 
-void frame_alloc_cb(int pid, seL4_CPtr reply_cap, void *args) {
-    if (SOS_DEBUG) printf("frame_alloc_cb\n");
-    frame_alloc_args *alloc_args = (frame_alloc_args *) args;
+// Callback for frame_alloc
+// Memory has been ut_alloced and retyped, do frametable metadata update
+// and map into kernel virtual memory
+void frame_alloc_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
+    // Get arguments we need
+    int map             = args->map;
+    seL4_Word pt_addr   = args->pt_addr;
+    int index           = args->index;
+    if (SOS_DEBUG) printf("frame_alloc_cb index %p\n", (void *) index);
+    // Error value
     int err = 0;
-    if (alloc_args->map) {
-        seL4_Word vaddr = paddr_to_vaddr(alloc_args->pt_addr);
-        err = map_page(frametable[alloc_args->index].frame_cap
-                   ,seL4_CapInitThreadPD
-                   ,vaddr
-                   ,seL4_AllRights
-                   ,seL4_ARM_Default_VMAttributes
-                   );
+    // If it needs to be mapped into kernel memory, do so
+    if (map == KMAP) {
+        // Calculate the virtual memory for this physical address
+        printf("Kernel map\n");
+        seL4_Word vaddr = paddr_to_vaddr(pt_addr);
+        // Map it in, using the cap in the frametable
+        err = map_page(frametable[index].frame_cap
+                      ,seL4_CapInitThreadPD
+                      ,vaddr
+                      ,seL4_AllRights
+                      ,seL4_ARM_Default_VMAttributes
+                      );
+        // If we are mapping it into kernel, clear the memory
+        assert(err == 0);
+        if (!err) {
+            memset(vaddr, 0, PAGE_SIZE);
+        }
+        printf("touching page %d\n", *((int *) vaddr));
     }
+    // If there was an error, reply
     if (err) {
-        send_seL4_reply(err, reply_cap);
+        assert(RTN_ON_FAIL);
+        send_seL4_reply(reply_cap, err);
     }
-    int status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
-    if (!(frametable[alloc_args->index].frame_status & SWAP_BUFFER_MASK)) {
+    // Check if the frame is in the swap buffer
+    if (!(frametable[index].frame_status & SWAP_BUFFER_MASK)) {
+        
         // Not in the swap buffer, need to put it in
-        /* Swap buffer */
-        //printf("Not in swap buffer\n");
+        // Check if swap buffer has been initialised
         if (buffer_head == -1) {
-            buffer_head = alloc_args->index;
+            // Not initialised, set head to this frame
+            buffer_head = index;
         } else {
+            // Has been initialised, make the tail point to this frame
+            // Clear the buffer bits
             frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
-            frametable[buffer_tail].frame_status |= alloc_args->index;
+            // Set the buffer bits
+            assert(index != 0);
+            frametable[buffer_tail].frame_status |= index;
         }
-        status |= buffer_head;
-        buffer_tail = alloc_args->index;
-        frametable[alloc_args->index].frame_status = status;
+        if (SOS_DEBUG) printf("Not in swap buffer %d, %d\n", index, buffer_head);
+        // Set the tail to the new buffer
+        buffer_tail = index;
+        // Make the new frame (which is now the tail), point to the head
+        frametable[index].frame_status &= ~PROCESS_MASK;
+        frametable[index].frame_status &= ~SWAP_BUFFER_MASK;
+        frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
+        if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
     } else {
-        frametable[buffer_tail].frame_status &= ~PROCESS_MASK;
-        frametable[buffer_tail].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
+        // Already in the swap buffer, just set the pid and status bits
+        // This saves us having to remove it from the list and put it at the end, 
+        // which would require a doubly linked buffer
+        // Clear the pid
+        frametable[index].frame_status &= ~PROCESS_MASK;
+        // Set the pid and set it to a vlid frame
+        frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
     }
-
-    alloc_args->vaddr = paddr_to_vaddr(alloc_args->pt_addr);
-    if (alloc_args->map) {
-        seL4_Word *tmp = (seL4_Word *) alloc_args->vaddr;
-        for (int i = 0; i < 1024; i++) {
-            tmp[i] = 0;
-        }
-    }  
-    frame_num++;
-    //printf("Swap: Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p\n", 
-            //(void *) frame_num,(void *)  alloc_args->index, pid, 
-            //(void *)frametable[alloc_args->index].frame_status, (void *) buffer_head, (void *) buffer_tail);
-    alloc_args->cb(pid, reply_cap, args);
-    if (SOS_DEBUG) printf("frame_alloc_cb ended\n");
+    if (SOS_DEBUG) printf("%d\n",frametable[index].frame_status & SWAP_BUFFER_MASK);
+    assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
+    // Set the vaddr in the return values
+    args->vaddr = paddr_to_vaddr(pt_addr);
+    
+    // Debug print
+    if (SOS_DEBUG) {
+        printf("Allocated frame %p at index %p with pid %d and status %p with head %p, tail %p, vaddr %p\n", 
+            (void *) frame_num,(void *)  args->index, pid, 
+            (void *)frametable[args->index].frame_status, (void *) buffer_head, (void *) buffer_tail,
+            (void *) args->vaddr);
+    } 
+    // Do callback
+    // Increment number of allocated frames
+    
+    // Increment counter for process
+    proc_table[pid]->size++;
+    args->cb(pid, reply_cap, args);
+    if (SOS_DEBUG) printf("frame_alloc_cb ended, index %p\n", (void *) args->index);
 }
 
 //frame_free: the physical memory is no longer mapped in the window, the frame 
 //object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index) {
     if (ft_initialised != 1) {
-        //this is not the correct behaviour; we should instead steal_mem or something 
         return FRAMETABLE_NOT_INITIALISED; 
     }
 
@@ -324,7 +329,12 @@ int frame_free(int index) {
     //set status bits here.
     frametable[index].frame_status &= ~STATUS_MASK;
     frametable[index].frame_cap = 0;
+    frametable[index].mapping_cap = 0;
+    frametable[index].vaddr = 0;
     frame_num--;
+    if (frame_num < 0) {
+        frame_num = 0;
+    }
 	return FRAMETABLE_OK;
 }
 
@@ -332,28 +342,40 @@ int get_next_frame_to_swap(void) {
     if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
+    assert((next_frame & SWAP_BUFFER_MASK) != 0);
     while (1) {
-        //printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
+        if (SOS_DEBUG) printf("curr_frame %p next_frame: %p\n", (void *) curr_frame, (void *) next_frame);
         if (next_frame == 0) {
-          assert(1==0);  
+            //9242_TODO Fix this sporadic bug
+            curr_frame = buffer_tail;
+            next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
+            break;
         }
         
         int status = frametable[next_frame].frame_status;
+        int swap_pid = (status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
+        if (!(status & FRAME_IN_USE) || (proc_table[swap_pid] == NULL) ||(proc_table[swap_pid]->status != PROC_READY)) {
+            //9242_TODO Remove from buffer
+            break;
+        }
         if (status & FRAME_DONT_SWAP) {
         } else {
-            if (status & FRAME_SWAP_MARKED) {            
+            if (status & FRAME_SWAP_MARKED) {     
+                frametable[next_frame].frame_status &= ~FRAME_SWAP_MARKED;       
                 break;
             } else if (status & FRAME_IN_USE) {
                 frametable[next_frame].frame_status |= FRAME_SWAP_MARKED;
                 /* Unmap and map back into kernel only */
-                cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
+                seL4_ARM_Page_Unify_Instruction(frametable[next_frame].mapping_cap, 0, PAGESIZE);
                 seL4_ARM_Page_Unmap(frametable[next_frame].frame_cap);
+                cspace_revoke_cap(cur_cspace, frametable[next_frame].frame_cap);
                 int err = map_page(frametable[next_frame].frame_cap
                    ,seL4_CapInitThreadPD
                    ,index_to_vaddr(next_frame)
                    ,seL4_AllRights
                    ,seL4_ARM_Default_VMAttributes
                    );
+                frametable[next_frame].mapping_cap = 0;
                 assert(err == 0);
             }
         }
@@ -363,12 +385,17 @@ int get_next_frame_to_swap(void) {
     }
     if (SOS_DEBUG) printf("Swapping frame index %p\n", (void *) next_frame);
 
+    /*assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);
     buffer_tail = curr_frame;
     buffer_head = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
     frametable[curr_frame].frame_status &= ~SWAP_BUFFER_MASK;
-    frametable[curr_frame].frame_status |= frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
+    frametable[curr_frame].frame_status |= buffer_head;
+    assert(buffer_head & SWAP_BUFFER_MASK != 0);
     frametable[next_frame].frame_status &= ~FRAME_STATUS_MASK;
     frametable[next_frame].frame_status |= FRAME_DONT_SWAP;
+    assert(frametable[next_frame].frame_status & SWAP_BUFFER_MASK != 0);*/
+    buffer_tail = frametable[next_frame].frame_status & SWAP_BUFFER_MASK;
+    buffer_head = frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK;
     if (SOS_DEBUG) printf("get_next_frame_to_swap ended\n");
     return next_frame;
 }

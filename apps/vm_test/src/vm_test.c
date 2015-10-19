@@ -8,10 +8,12 @@
 /* called from pt_test */
 static void do_pt_test( char *buf ) {
     int i;
-
+    printf("doing test\n");
     /* set */
-    for(i = 0; i < NPAGES; i ++)
-	buf[i * 4096] = i;
+    for(i = 0; i < NPAGES; i ++) {
+        buf[i * 4096] = i;
+    }
+	
 
     /* check */
     for(i = 0; i < NPAGES; i ++)
@@ -20,8 +22,12 @@ static void do_pt_test( char *buf ) {
 
 int main( void ) {
     printf("Starting vm test\n");
+    int *x = malloc(sizeof(int));
+    *x = 9;
+    printf("TEST1 %d\n", *x);
     // heap test 
     char * buf1 = malloc(NPAGES * 4096);
+    printf("Buffer 1 allocated\n");
     assert(buf1);
     do_pt_test(buf1);
     char * buf2 = malloc(NPAGES * 4096);

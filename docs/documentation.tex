@@ -1,0 +1,34 @@
+\documentclass[a4paper, 11pt]{report}
+
+%layout
+\usepackage[margin=0.6in]{geometry}
+\usepackage[parfill]{parskip}
+
+%for other files
+\usepackage{pdfpages}
+
+%for extra print functionality
+\usepackage{amsmath, amsthm, amscd, amssymb}
+\usepackage{siunitx}
+\usepackage{enumerate}
+
+%suppress newline + "Chapter" in chapter headings
+\usepackage[T1]{fontenc}
+\usepackage{titlesec, blindtext, color}
+\definecolor{gray75}{gray}{0.75}
+\newcommand{\hsp}{\hspace{20pt}}
+\titleformat{\chapter}
+            [hang]
+            {\Huge\bfseries}
+            {\thechapter\hsp\textcolor{gray75}{|}\hsp}
+            {0pt}
+            {\Huge\bfseries}
+
+\title{COMP9242 project documentation}
+
+\begin{document}
+\input{./title.tex}
+\chapter{Abstract}
+\tableofcontents
+\chapter{Introduction}
+\end{document}

@@ -34,7 +34,7 @@
 #include <cspace/cspace.h>
 
 #include "dma.h"
-#include "mapping.h"
+#include "device_mapping.h"
 #include "ut_manager/ut.h"
 
 #define verbose 0

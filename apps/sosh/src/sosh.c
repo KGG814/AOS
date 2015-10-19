@@ -22,7 +22,7 @@
 #include <utils/time.h>
 
 /* Your OS header file */
-#include <sos.h>
+#include <sos/sos.h>
 
 #define BUF_SIZ   (4 * 4096)
 #define MAX_ARGS   32
@@ -238,6 +238,32 @@ static int micro_time(int argc, char *argv[]) {
     return 0;
 }
 
+static int id(int argc, char *argv[]) {
+    pid_t pid = sos_my_id();
+    printf("My PID is %d.\n", pid);
+    return 0;
+}
+
+//courtesy of karl krauth
+static int kill(int argc, char **argv) {
+    int err;
+
+    if (argc != 2) {
+        printf("Usage: kill pid\n");
+        return 1;
+    }
+
+    pid_t pid = atoi(argv[1]);
+    err = sos_process_delete(pid);
+    if (err != 0) {
+        printf("Failed!\n");
+    } else {
+        printf("Killed pid=%d\n", pid);
+    }
+
+    return 0;
+}
+
 struct command {
     char *name;
     int (*command)(int argc, char **argv);
@@ -245,13 +271,15 @@ struct command {
 
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
         "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time} };
+        {"time", second_time}, {"mtime", micro_time}, {"id", id}, {"kill", kill}};
 
 int main(void) {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
     char *bp, *p;
+
+    //*((int *) NULL) = 1;
 
     in = open("console", O_RDONLY);
     assert(in >= 0);
@@ -260,7 +288,7 @@ int main(void) {
     done = 0;
     new = 1;
 
-    printf("\n[SOS Starting]\n");
+    printf("\n[Spaghetti OS Starting]\n");
 
     while (!done) {
         if (new) {
@@ -370,5 +398,5 @@ int main(void) {
             }
         }
     }
-    printf("[SOS Exiting]\n");
+    printf("[Spaghetti OS Exiting]\n");
 }

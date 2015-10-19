@@ -26,7 +26,7 @@
 
 #include "ut_manager/ut.h"
 #include <sos/vmem_layout.h>
-#include <sos.h>
+#include <sos/sos.h>
 #include <autoconf.h>
 
 #define verbose 5
@@ -37,6 +37,8 @@
 #include "mapping.h"
 #include "file_table.h"
 #include "vfs.h"
+#include "proc.h"
+#include "debug.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -53,8 +55,7 @@ sync endpoint. The badge that we receive will
 #define IRQ_BADGE_TIMER   (1 << 1)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
-#define TTY_PRIORITY         (0)
-#define TTY_EP_BADGE         (101)
+#define TTY_EP_BADGE         (1)
 #define seL4_MsgMaxLength    120
 
 /* The linker will link this symbol to the start address  *
@@ -76,6 +77,11 @@ syscall_handler syscall_handlers[] =
 ,&handle_write
 ,&handle_getdirent
 ,&handle_stat
+,&handle_my_id
+,&handle_process_status
+,&handle_process_create
+,&handle_process_delete
+,&handle_process_wait
 };
 
 struct {
@@ -93,7 +99,6 @@ struct {
 
 } tty_test_process;
 
-seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
 
 /**
@@ -106,18 +111,16 @@ void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
 
-
     syscall_number = seL4_GetMR(0);
     //dprintf(0, "Syscall %d\n", syscall_number); 
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
-
+    if (SOS_DEBUG) printf("Doing syscall %d\n", syscall_number);
     if (syscall_number < NUM_SYSCALLS) {
-        syscall_handlers[syscall_number](reply_cap, 1);
-        
+        syscall_handlers[syscall_number](reply_cap, badge);
     } else {
-        printf("Unkwown syscall %d.\n", syscall_number);
+        if (SOS_DEBUG) printf("Unkwown syscall %d.\n", syscall_number);
         send_seL4_reply(reply_cap, -1);
     }
 }
@@ -128,12 +131,11 @@ void syscall_loop(seL4_CPtr ep) {
         seL4_Word badge;
         seL4_Word label;
         seL4_MessageInfo_t message;
-
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);  
-        //dprintf(0, "Badge: %p\n", badge);
+        //dprintf(0, "Badge: %d\n", badge);
         //dprintf(0, "Label: %p\n", label);
-        if(badge & IRQ_EP_BADGE){
+        if (badge & IRQ_EP_BADGE) {
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
                 network_irq();
@@ -144,19 +146,19 @@ void syscall_loop(seL4_CPtr ep) {
                 timer_interrupt();
             }
 
-        }else if(label == seL4_VMFault){
-            /* Page fault */
-            assert(seL4_GetMR(1) != 0);
-            //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
-            //seL4_GetMR(0),
-            //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(badge, 1);
-            //assert(!"Unable to handle vm faults");
-        }else if(label == seL4_NoFault) {
-            /* System call */
-            handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
-        }else{
+        } else if (proc_table[badge] && proc_table[badge]->status == PROC_READY) {
+            if (label == seL4_VMFault) {
+                /* Page fault */
+                //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
+                //seL4_GetMR(0),
+                //seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+                handle_vm_fault(badge, badge);
+            } else if (label == seL4_NoFault) {
+                if (SOS_DEBUG) printf("Syscall from process with badge: %d\n", badge);
+                /* System call */
+                handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+            }
+        } else {
             printf("Rootserver got an unknown message\n");
         }
     }
@@ -226,86 +228,15 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 }
 
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
-    int err;
-    seL4_CPtr user_ep_cap;
-    seL4_Word temp;
-    int index;
-    addr_space* as = proc_table[1];
-    /* These required for setting up the TCB */
-    seL4_UserContext context;
-
-    /* These required for loading program sections */
-    char* elf_base;
-    unsigned long elf_size;
-
-    /* Create a VSpace */
-    as->vroot_addr = ut_alloc(seL4_PageDirBits);
-    conditional_panic(!as->vroot_addr, 
-                      "No memory for new Page Directory");
-    err = cspace_ut_retype_addr(as->vroot_addr,
-                                seL4_ARM_PageDirectoryObject,
-                                seL4_PageDirBits,
-                                cur_cspace,
-                                &(as->vroot));
-    conditional_panic(err, "Failed to allocate page directory cap for client");
-
-    /* Create a simple 1 level CSpace */
-    as->croot = cspace_create(1);
-    assert(as->croot != NULL);   
-    /* Create an IPC buffer */
-    printf("start_first_process frame_alloc\n");
-    index = frame_alloc(&temp, NOMAP, 1);
-    as->ipc_buffer_addr = index_to_paddr(index);
-    as->ipc_buffer_cap = frametable[index].frame_cap;
-    /* Map IPC buffer*/
-    err = map_page_user(as->ipc_buffer_cap, as->vroot,
-                   PROCESS_IPC_BUFFER,
-                   seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
-    frametable[index].frame_status |= FRAME_DONT_SWAP;
-    conditional_panic(err, "Unable to map IPC buffer for user app");
-    /* Copy the fault endpoint to the user app to enable IPC */
-    user_ep_cap = cspace_mint_cap(as->croot,
-                                  cur_cspace,
-                                  fault_ep,
-                                  seL4_AllRights, 
-                                  seL4_CapData_Badge_new(TTY_EP_BADGE));
-    /* should be the first slot in the space, hack I know */
-    assert(user_ep_cap == 1);
-    assert(user_ep_cap == USER_EP_CAP);
-    /* Create a new TCB object */
-    as->tcb_addr = ut_alloc(seL4_TCBBits);
-    conditional_panic(!as->tcb_addr, "No memory for new TCB");
-    err =  cspace_ut_retype_addr(as->tcb_addr,
-                                 seL4_TCBObject,
-                                 seL4_TCBBits,
-                                 cur_cspace,
-                                 &(as->tcb_cap));
-    conditional_panic(err, "Failed to create TCB");
-
-    /* Configure the TCB */
-    err = seL4_TCB_Configure(as->tcb_cap, user_ep_cap, TTY_PRIORITY,
-                             as->croot->root_cnode, seL4_NilData,
-                             as->vroot, seL4_NilData, PROCESS_IPC_BUFFER,
-                             as->ipc_buffer_cap);
-    conditional_panic(err, "Unable to configure new TCB");
-
-
-    /* parse the cpio image */
-    dprintf(1, "\nStarting \"%s\"...\n", app_name);
-    elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size);
-    conditional_panic(!elf_base, "Unable to locate cpio header");
-    /* load the elf image */
-    err = elf_load(as->vroot, elf_base, as);
-    conditional_panic(err, "Failed to load elf image");
-
-    
-
-
-    /* Start the new process */
-    memset(&context, 0, sizeof(context));
-    context.pc = elf_getEntryPoint(elf_base);
-    context.sp = PROCESS_STACK_TOP;
-    seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
+    // Set up start_process cb args
+    start_process_args *process_args = malloc(sizeof(start_process_args));
+    process_args->app_name = app_name;
+    process_args->fault_ep = fault_ep;
+    process_args->priority = TTY_PRIORITY;
+    process_args->cb = NULL;
+    process_args->cb_args = NULL;
+    process_args->parent_pid = 0;
+    start_process(0, 0, process_args);
 }
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
@@ -391,32 +322,10 @@ void check(uint32_t id, void* data) {
     dprintf(0, "\nhello %d at time_stamp: %llu\n", id, time_stamp());
 }
 
-/*
-uint64_t tick_check_tss[10] = {};
-int num_ts = 0;
-*/
 int count = 0;
 
 void tick_check(uint32_t id, void *data) {
-    //(void *) data;
-    uint64_t cur_time = time_stamp();
-    /*
-    tick_check_tss[num_ts++] = time_stamp();
-    
-    if (num_ts == 10) {
-        num_ts = 0;
-        count++;
-        dprintf(0
-               ,"\ntimestamps %d:\
-\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\
-\n%010llu\t%010llu\t%010llu\t%010llu\t%010llu\n"
-               ,count
-               ,tick_check_tss[0], tick_check_tss[1], tick_check_tss[2], tick_check_tss[3]
-               ,tick_check_tss[4], tick_check_tss[5], tick_check_tss[6], tick_check_tss[7]
-               ,tick_check_tss[8], tick_check_tss[9]
-               );
-    }
-    */
+    timestamp_t cur_time = time_stamp();
     dprintf(0, "tick: %12llu (us)\t", id, cur_time);
     count++;
     if (count % 3 == 0) {
@@ -425,18 +334,9 @@ void tick_check(uint32_t id, void *data) {
     }
 }
 
-/*void stop_cb(uint32_t id, void *data) {
-    dprintf(0, "\n%d: stopping timer at time %llu\n", id, time_stamp());
-    int err = stop_timer();
-    dprintf(0, "\ntimer stopped with err:%d\n", err);
-}*/
-
 void clock_test(seL4_CPtr interrupt_ep) {
-    //start_timer(interrupt_ep);
     
     dprintf(0, "registered a timer with id %d\n", register_timer(2000000, &check, NULL));
-    //stop_timer();
-    //start_timer(interrupt_ep);
     
     int id = register_timer(200000000, &check, NULL);
     dprintf(0, "registered a timer with id %d\n", id);
@@ -460,26 +360,8 @@ void clock_test(seL4_CPtr interrupt_ep) {
     dprintf(0, "tried to remove timer %d. err: %d\n", 5, remove_timer(5));
     dprintf(0, "registered a ticker with id %d\n", register_tic(100000, &tick_check, NULL));
 
-    //dprintf(0, "registered a stop_timer timer with id: %d\n", register_timer(15500000, &stop_cb, NULL));
-    dprintf(0, "registering a timer that shouldn't trigger with id %d\n", register_timer(16000000, &check, NULL));
-
     dprintf(0, "Current us since boot = %d\n", time_stamp());
     
-    /* 
-    uint64_t timestamps[4] = {};
-    for (int i = 0; i < 128; i++) {
-        for (int j = 0; j < 4; j++) {
-            timestamps[j] = time_stamp();
-        }
-        dprintf(0
-               ,"%016llx %016llx %016llx %016llx\n"
-               ,timestamps[0]
-               ,timestamps[1]
-               ,timestamps[2]
-               ,timestamps[3]
-               );
-    }
-    */
 }
 
 /*
@@ -496,12 +378,9 @@ int main(void) {
 
     vfs_init();
     oft_init();
-    //clock_test(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_TIMER));
+    proc_table_init();
+    
     /* Start the user application */
-    proc_table[0] = malloc(sizeof(addr_space));
-    proc_table[1] = malloc(sizeof(addr_space));
-    page_init(1);
-    fdt_init(1);
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
