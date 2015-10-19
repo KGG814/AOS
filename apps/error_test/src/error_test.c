@@ -23,7 +23,7 @@
 #include <utils/time.h>
 
 #include <sel4/sel4.h>
-#include <sos.h>
+#include <sos/sos.h>
 
 #include "test_constants.h"
 
