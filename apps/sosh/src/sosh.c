@@ -150,6 +150,7 @@ static int exec(int argc, char **argv) {
     if (pid >= 0) {
         printf("Child pid=%d\n", pid);
         if (bg == 0) {
+            for (volatile int i = 0; i < 10000; i++);
             sos_process_wait(pid);
         }
     } else {

@@ -24,6 +24,9 @@ static void do_pt_test( char *buf ) {
 }
 
 int main( void ) {
+    //printf("tty_test!\n");
+
+    return 0;
     printf("%ld\n", (long)sos_sys_time_stamp());
     printf("%ld\n", (long)sos_sys_time_stamp());
     printf("%ld\n", (long)sos_sys_time_stamp());
@@ -49,9 +52,9 @@ int main( void ) {
     //do_pt_test(buf2);
     free(buf2);
     printf("Heap test success\n");
-    printf("Starting sleep test\n");
-    sos_sys_usleep(10000);
-    printf("Sleep test success\n");
+    //printf("Starting sleep test\n");
+    //sos_sys_usleep(10000);
+    //printf("Sleep test success\n");
 
     return 0;
 }

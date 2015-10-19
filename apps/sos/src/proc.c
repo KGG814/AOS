@@ -152,10 +152,12 @@ void cleanup_as(int pid) {
 
     addr_space *as = proc_table[pid];
     if (as == NULL) {
+        if (SOS_DEBUG) printf("Tried to cleanup non-existent pid %d\n", pid);
         //nonexistent as 
         return;
     }
 
+    if (SOS_DEBUG) printf("Cleaning up pid %d\n", pid);
     fdt_cleanup(pid);
     pt_cleanup(pid);
 
@@ -723,7 +725,7 @@ void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
     int to_delete = (int) data;
     int parent = proc_table[to_delete]->parent_pid;
     int current = to_delete;
-    
+    if (SOS_DEBUG) printf("killing: %d, notifying %d\n", to_delete, parent);
 
     //if we aren't trying to delete ourself and the parent is done waiting on 
     //dying processes, reply to the parent
@@ -739,11 +741,13 @@ void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err) {
     printf("cap %p\n", (void *) cap);
     printf("parent %d\n", parent);
     proc_table[current]->wait_cap = 0;
-    seL4_CPtr parent_cap = proc_table[parent]->wait_cap;
     if (cap != 0) {
         send_seL4_reply(cap, 0, 0);
-    } else if (parent_cap != 0) {
-        send_seL4_reply(parent_cap, 0, 0);
+    } else if (parent != 0) {
+        seL4_CPtr parent_cap = proc_table[parent]->wait_cap;
+        if (parent_cap) {
+            send_seL4_reply(parent_cap, 0, 0);
+        }
     }
     //destroy the address space of the process
     cleanup_as(to_delete);

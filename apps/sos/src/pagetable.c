@@ -389,7 +389,7 @@ void handle_vm_fault(seL4_Word badge, int pid) {
     if (err == GUARD_PAGE_FAULT || err == UNKNOWN_REGION || err == NULL_DEREF) {
 
         //kill the process as it has faulted invalid memory
-        kill_process(pid, pid, 0);
+        kill_process(pid, pid, reply_cap);
     }
     if (SOS_DEBUG) printf("handle_vm_fault finished\n");
 }
@@ -399,7 +399,7 @@ void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args, int err) {
     if (SOS_DEBUG) printf("handle_vm_fault_cb\n");
     if (err) {
         //this could happen. in this case the process needs to be killed 
-        kill_process(pid, pid, 0);
+        kill_process(pid, pid, cap);
         return;
     }
 
