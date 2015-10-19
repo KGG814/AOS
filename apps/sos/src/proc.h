@@ -67,7 +67,9 @@ typedef struct _addr_space {
     timestamp_t create_time;
     child_proc *children;
     int reader_status;
+
     seL4_CPtr wait_cap;
+    int wait_pid; //pid this process is waiting on
 
     //number of processes this process is waiting for to die
     int delete_wait;
@@ -105,6 +107,7 @@ void new_as(int pid, seL4_CPtr reply_cap, void *args);
 void cleanup_as(int pid);
 
 void start_process(int pid, seL4_CPtr reply_cap, void *args);
+void start_process_wrapper(int pid, seL4_CPtr reply_cap, void *data, int err);
 
 void process_status(seL4_CPtr reply_cap
                    ,int pid

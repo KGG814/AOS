@@ -92,7 +92,7 @@ void sos_map_page_swap(int ft_index
 void handle_vm_fault(seL4_Word badge, int pid);
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
-int check_region(seL4_Word start, seL4_Word end);
+int check_region(int pid, seL4_Word start, seL4_Word end);
 void vm_init(int pid, seL4_CPtr reply_cap, vm_init_args *args);
 
 void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err);

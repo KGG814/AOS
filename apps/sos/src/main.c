@@ -102,7 +102,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
     //if (SOS_DEBUG) 
-        printf("Doing syscall %d\n", syscall_number);
+        eprintf("PID %d doing syscall %d\n", badge, syscall_number);
     if (syscall_number < NUM_SYSCALLS) {
         syscall_handlers[syscall_number](reply_cap, badge);
     } else {

@@ -231,6 +231,7 @@ void file_open_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fa
     // Check if file was found
     if (status == NFS_OK) {
         // File was found
+        eprintf("Found file %s\n", vn->name);
         // Check if permissions match
         if (o_to_fm[vn->fmode] != (o_to_fm[vn->fmode] & fattr->mode)) {
             // Permissions don't match

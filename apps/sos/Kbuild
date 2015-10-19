@@ -14,6 +14,9 @@ sos-components-$(CONFIG_APP_SOSH) += sosh
 sos-components-$(CONFIG_APP_TTY_TEST) += tty_test
 sos-components-$(CONFIG_APP_VM_TEST) += vm_test
 sos-components-$(CONFIG_APP_NFS_BENCHMARKS) += nfs_benchmarks
+sos-components-$(CONFIG_APP_ERROR_TEST) += error_test
+sos-components-$(CONFIG_APP_EXEC_STACK) += execstack
+sos-components-$(CONFIG_APP_PAGINGDEMO) += pagingdemo
 sos-components=$(addprefix $(STAGE_BASE)/bin/, $(sos-components-y))
 
 sos: export COMPONENTS=${sos-components}
