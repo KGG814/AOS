@@ -15,7 +15,7 @@
 
 
 
-void elf_load(int pid, seL4_CPtr reply_cap, void *_args);
+void elf_load(int pid, seL4_CPtr reply_cap, void *_args, int err);
 
 typedef struct _load_segment_args {
 	char *src;

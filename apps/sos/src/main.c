@@ -84,21 +84,6 @@ syscall_handler syscall_handlers[] =
 ,&handle_process_wait
 };
 
-struct {
-
-    seL4_Word tcb_addr;
-    seL4_TCB tcb_cap;
-
-    seL4_Word vroot_addr;
-    seL4_ARM_PageDirectory vroot;
-
-    seL4_Word ipc_buffer_addr;
-    seL4_CPtr ipc_buffer_cap;
-
-    cspace_t *croot;
-
-} tty_test_process;
-
 seL4_CPtr _sos_interrupt_ep_cap;
 
 /**
@@ -116,12 +101,13 @@ void handle_syscall(seL4_Word badge, int num_args) {
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
-    if (SOS_DEBUG) printf("Doing syscall %d\n", syscall_number);
+    //if (SOS_DEBUG) 
+        printf("Doing syscall %d\n", syscall_number);
     if (syscall_number < NUM_SYSCALLS) {
         syscall_handlers[syscall_number](reply_cap, badge);
     } else {
         if (SOS_DEBUG) printf("Unkwown syscall %d.\n", syscall_number);
-        send_seL4_reply(reply_cap, -1);
+        send_seL4_reply(reply_cap, badge, -1);
     }
 }
 
@@ -146,7 +132,8 @@ void syscall_loop(seL4_CPtr ep) {
                 timer_interrupt();
             }
 
-        } else if (proc_table[badge] && proc_table[badge]->status == PROC_READY) {
+        } else if (proc_table[badge] && proc_table[badge]->status != PROC_DYING) {
+            proc_table[badge]->status |= PROC_BLOCKED;
             if (label == seL4_VMFault) {
                 /* Page fault */
                 //dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
@@ -159,7 +146,7 @@ void syscall_loop(seL4_CPtr ep) {
                 handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
             }
         } else {
-            printf("Rootserver got an unknown message\n");
+            printf("Rootserver got an unknown message %p\n", (void *)badge);
         }
     }
 }
@@ -230,10 +217,11 @@ static void print_bootinfo(const seL4_BootInfo* info) {
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     // Set up start_process cb args
     start_process_args *process_args = malloc(sizeof(start_process_args));
+    assert(process_args);
     process_args->app_name = app_name;
     process_args->fault_ep = fault_ep;
     process_args->priority = TTY_PRIORITY;
-    process_args->cb = NULL;
+    process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
     process_args->parent_pid = 0;
     start_process(0, 0, process_args);

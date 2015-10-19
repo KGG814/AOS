@@ -1,9 +1,11 @@
 #ifndef _PAGETABLE_H_
 #define _PAGETABLE_H_
 
+#include <sel4/sel4.h>
+
+#include "callback.h"
 #include "frametable.h"
 #include "proc.h"
-#include <sel4/sel4.h>
 
 #define PAGE_MASK   		0xFFFFF000
 #define SWAPPED     		0x80000000
@@ -30,8 +32,6 @@ typedef struct _pt_entry {
   seL4_CPtr mapped_cap;
 } pt_entry;
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
-
 typedef struct _vm_init_args {
   callback_ptr cb;
   void *cb_args;
@@ -45,8 +45,7 @@ typedef struct _copy_in_args {
   seL4_Word count;
   int nbyte;
   callback_ptr cb;
-  seL4_Word cb_arg_1;
-  seL4_Word cb_arg_2;
+  void *cb_args;
 } copy_in_args;
 
 typedef struct _copy_out_args {
@@ -77,7 +76,6 @@ typedef struct _copy_page_args {
   int count;
   callback_ptr cb;
   void *cb_args;
-  int src_type;
 }copy_page_args;
 
 int page_init(int pid);
@@ -95,27 +93,20 @@ void handle_vm_fault(seL4_Word badge, int pid);
 seL4_Word user_to_kernel_ptr(seL4_Word user_ptr, int pid);
 int map_if_valid(seL4_Word vaddr, int pid, callback_ptr cb, void* args, seL4_CPtr reply_cap);
 int check_region(seL4_Word start, seL4_Word end);
-void vm_init(int pid, seL4_CPtr reply_cap, void *args);
-void copy_in(int pid
-           ,seL4_CPtr reply_cap
-           ,copy_in_args *args
-           );
+void vm_init(int pid, seL4_CPtr reply_cap, vm_init_args *args);
 
-void copy_out(int pid
-           ,seL4_CPtr reply_cap
-           ,copy_out_args *args
-           );
+void copy_in(int pid, seL4_CPtr reply_cap, copy_in_args *args, int err);
+void copy_out(int pid, seL4_CPtr reply_cap, copy_out_args *args, int err);
 
-int copy_page (seL4_Word dst
-              ,int count
-              ,seL4_Word src
-              ,int pid
-              ,callback_ptr cb
-              ,void *cb_args
-              ,seL4_CPtr reply_cap
-              ,int src_type
-              );
+int copy_page(seL4_Word dst
+             ,int count
+             ,seL4_Word src
+             ,int pid
+             ,callback_ptr cb
+             ,void *cb_args
+             ,seL4_CPtr reply_cap
+             );
 
-void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args);
+void handle_vm_fault_cb(int pid, seL4_CPtr cap, void* args, int err);
 
 #endif /* _PAGETABLE_H_ */

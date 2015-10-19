@@ -4,6 +4,9 @@
 #include <sel4/types.h>
 #include <limits.h>
 #include <sos/vmem_layout.h>
+
+#include "callback.h"
+
 //"warnings"
 #define FRAMETABLE_INITIALISED      1
 #define FRAMETABLE_OK               0
@@ -32,7 +35,8 @@
 #define NOMAP				0
 #define KMAP				1
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+#define SWAPPABLE 			1
+#define NOT_SWAPPABLE		0
 
 typedef struct _ft_entry {
     seL4_Word frame_status;
@@ -45,6 +49,7 @@ typedef struct _frame_alloc_args {
 	int map;
 	callback_ptr cb;
 	void *cb_args;
+	int swap;
 	// Not initialised
 	seL4_Word vaddr;
 	seL4_Word pt_addr;
@@ -59,7 +64,7 @@ int frame_init(void);
 
 //frame_alloc: the physical memory is reserved via the ut_alloc, the memory is retyped into a frame, 
 //and the frame is mapped into the SOS window at a fixed offset of the physical address.
-void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
+void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err);
 
 //frame_free: the physical memory is no longer mapped in the window, the frame object is destroyed, and the physical memory range is returned via ut_free.
 int frame_free(int index);

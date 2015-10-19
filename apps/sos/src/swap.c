@@ -38,17 +38,19 @@ void swap_mnt_lookup_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, f
 sattr_t get_new_swap_attributes(void);
 
 // Swap read callbacks and nfs callback
-void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, frame_alloc_args *args);
-void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args);
+void read_from_swap_slot_cb (int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err);
+void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args, int err);
 void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
 
 // Functions for managing swap buffer
 int get_next_swap_slot(void);
-void free_swap_slot(int slot);
 
 // Write a given frame to the next free swap slot
 void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	if (SOS_DEBUG) printf("write_to_swap_slot\n");
+	int index = args->index;
+	printf("index %p\n", (void*) index);
+	printf("vaddr %p\n", (void *) frametable[index].vaddr);
 	// Check if we have initialised
 	if (swap_handle == NULL) {
 		// Swap file has not been initialised
@@ -61,21 +63,27 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
             int status = nfs_create(&mnt_point, "swap", &swap_attr, swap_init_nfs_cb, (uintptr_t) args);
             // Check if the call succeeded
 			if (status != RPC_OK) {
-				assert(RTN_ON_FAIL);
-				send_seL4_reply(reply_cap, -1);
+				eprintf("Swap file can't be created in write_to_swap_slot\n");
+				args->cb(pid, reply_cap, args->cb_args, -1);
+				free(args);
+				return;
 			}
         } else {
         	// Haven't got the mount attributes for NFS yet, meaning this is the first NFS call
         	mnt_attr = malloc(sizeof(fattr_t));
         	// Malloc failed
         	if (mnt_attr == NULL) {
-        		assert(RTN_ON_FAIL);
-        		send_seL4_reply(reply_cap, -1);
+        		eprintf("Error caught in write_to_swap_slot\n");
+        		args->cb(pid, reply_cap, args->cb_args, -1);
+        		free(args);
+        		return;
         	} else {
         		// Read the current directory to get mnt_attr
         		int status = nfs_lookup(&mnt_point, ".", swap_mnt_lookup_nfs_cb, (uintptr_t) args);
 	            if (status != RPC_OK) {
-	            	send_seL4_reply(reply_cap, -1);
+	            	eprintf("Error caught in write_to_swap_slot\n");
+	        		args->cb(pid, reply_cap, args->cb_args, -1);
+	        		free(args);
 	            } 
         	}
         }
@@ -83,9 +91,18 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 		// Swap file has been initialised
 		// Get all the arguments we use
 		int index = args->index;
-		printf("index %d\n", index);
+		printf("index %p\n", (void*) index);
+		printf("vaddr %p\n", (void *) frametable[index].vaddr);
 		// Get the next free swap slot
 		int slot = get_next_swap_slot();
+		// Check if we have reached end of swap file
+		if (slot == SWAP_SLOTS) {
+			// We have reached the end of the swap table
+			eprintf("Error caught in write_to_swap_slot\n");
+    		args->cb(pid, reply_cap, args->cb_args, -1);
+    		free(args);
+    		return;
+		}
 		// Get the pid of the process owning the frame to be swapped
 	    int swapped_frame_pid = (frametable[index].frame_status & PROCESS_MASK) >> PROCESS_BIT_SHIFT;
 	    // Get the indices for the page table
@@ -94,36 +111,37 @@ void write_to_swap_slot (int pid, seL4_CPtr reply_cap, write_swap_args *args) {
 	    // DEBUG
 	    if (SOS_DEBUG) printf("vaddr for frame that will be swapped %p, pid :%d\n", 
 	    	(void *) frametable[index].vaddr, swapped_frame_pid);
-	    assert(frametable[index].vaddr != 0);
 	    // Set the process's page table entry to swapped and store the swap slot
 	    if (SOS_DEBUG) printf("Set vaddr %p to swapped\n", (void *) frametable[index].vaddr);
-	    proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
+	    
+        assert(proc_table[swapped_frame_pid]);
+        assert(proc_table[swapped_frame_pid]->page_directory[dir_index]);
+        assert(proc_table[swapped_frame_pid]->page_directory[dir_index][page_index]);
+        proc_table[swapped_frame_pid]->page_directory[dir_index][page_index] = slot | SWAPPED;
+
 	    // Set the frame vaddr to 0, removing association with vmem
 	    frametable[index].vaddr = 0;
-		// Check if we have reached end of swap file
-		if (slot == SWAP_SLOTS) {
-			// We have reached the end of the swap table
-			send_seL4_reply(reply_cap, -1);
-		} else {	
-			// Calculate offset into swap file
-			int offset = slot * PAGE_SIZE;
-			// Get kernel vaddr for frame
-			char *addr = (void *) index_to_vaddr(index);
-			// Initialise callback args
-			args->slot = slot;
-			args->offset = offset;
-			args->addr = (seL4_Word) addr;
-			args->bytes_written = 0;
-			// DEBUG
-			if (SOS_DEBUG) printf("Writing at slot %p, offset %p, index %p, address %p\n", (void *) slot, (void *) offset, (void *) index, addr);
-			// Do the write to the slot at the offset
-			int status = nfs_write(swap_handle, offset, PAGE_SIZE, addr, swap_write_nfs_cb, (uintptr_t)args);
-			// Check if RPC succeeded
-    		if (status != RPC_OK) {
-    			assert(RTN_ON_FAIL);
-    			send_seL4_reply(reply_cap, -1);
-   			}
+		// Calculate offset into swap file
+		int offset = slot * PAGE_SIZE;
+		// Get kernel vaddr for frame
+		char *addr = (void *) index_to_vaddr(index);
+		// Initialise callback args
+		args->slot = slot;
+		args->offset = offset;
+		args->addr = (seL4_Word) addr;
+		args->bytes_written = 0;
+		// DEBUG
+		if (SOS_DEBUG) printf("Writing at slot %p, offset %p, index %p, address %p, status %p\n", (void *) slot, 
+			                                   (void *) offset, (void *) index, addr, (void *) frametable[index].frame_status);
+		// Do the write to the slot at the offset
+		int status = nfs_write(swap_handle, offset, PAGE_SIZE, addr, swap_write_nfs_cb, (uintptr_t)args);
+		// Check if RPC succeeded
+		if (status != RPC_OK) {
+			eprintf("Error caught in write_to_swap_slot\n");
+    		args->cb(pid, reply_cap, args->cb_args, -1);
+    		free(args);
 		}
+
 	}
     if (SOS_DEBUG) printf("write_to_swap_slot ended\n");
 }
@@ -148,41 +166,44 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 	
 	if (SOS_DEBUG) printf("swap_write_nfs_cb, wrote %d, written %d, offset %p\n", 
 		                  count, bytes_written, (void *)offset);
+	printf("index %p, status %p\n", index, frametable[index].frame_status);
 	// Check the NFS call worked as expected
 	if (status != NFS_OK) {
 		// NFS call failed
-		assert(RTN_ON_FAIL);
-		send_seL4_reply(reply_cap, -1);
+		eprintf("Error caught in swap_write_nfs_cb\n");
+		args->cb(pid, reply_cap, args->cb_args, -1);
 		free(args);
-	} else {
-		if (args->bytes_written == PAGE_SIZE) {
-			// Completed the write
-			// Check for invalid args
-		    if (index <= 0 || slot < 0 || slot >= SWAP_SLOTS) {
-		    	assert(RTN_ON_FAIL);
-		    	send_seL4_reply(reply_cap, -1);
-		    	free(args);
-		    } else {
-		    	// Set the swapped out frame to invalid
-		    	frametable[index].frame_status = 0;
-		    	// Modify the frame alloc callback, as it doesn't need to kernel map a page being swapped out
-			    frame_alloc_args *alloc_args = (frame_alloc_args *) args->cb_args;
-			    alloc_args->map = NOMAP;
-			    // Do the callback
-			    args->cb(pid, reply_cap, args->cb_args);
-			    free(args);
-	    	}
-		} else {
-			// Haven't completed write, do another NFS call
-			int rpc_status = nfs_write(swap_handle, offset, PAGE_SIZE - bytes_written, (void *) addr, swap_write_nfs_cb, (uintptr_t)args);
-			// Check if call succeeded
-			if (rpc_status != RPC_OK) {
-				assert(RTN_ON_FAIL);
-    			send_seL4_reply(reply_cap, -1);
-    			free(args);
-   			}
-		}   
+		return;
 	}
+	if (args->bytes_written == PAGE_SIZE) {
+		// Completed the write
+		// Check for invalid args
+	    if (index <= 0 || slot < 0 || slot >= SWAP_SLOTS) {
+	    	eprintf("Error caught in swap_write_nfs_cb\n");
+			args->cb(pid, reply_cap, args->cb_args, -1);
+			free(args);
+			return;
+	    }
+    	// Set the swapped out frame to invalid and clear process
+    	frametable[index].frame_status &= ~STATUS_MASK;
+    	frametable[index].frame_status &= ~PROCESS_MASK;
+    	// Modify the frame alloc callback, as it doesn't need to kernel map a page being swapped out
+	    frame_alloc_args *alloc_args = (frame_alloc_args *) args->cb_args;
+	    alloc_args->map = NOMAP;
+	    // Do the callback
+	    args->cb(pid, reply_cap, args->cb_args, 0);
+	    free(args);
+	} else {
+		// Haven't completed write, do another NFS call
+		int rpc_status = nfs_write(swap_handle, offset, PAGE_SIZE - bytes_written, (void *) addr, swap_write_nfs_cb, (uintptr_t)args);
+		// Check if call succeeded
+		if (rpc_status != RPC_OK) {
+			eprintf("Error caught in swap_write_nfs_cb\n");
+			args->cb(pid, reply_cap, args->cb_args, -1);
+			free(args);
+			return;
+		}
+	}   
 	if (SOS_DEBUG) printf("swap_write_nfs_cb ended\n");
 }
 
@@ -190,17 +211,20 @@ void swap_write_nfs_cb(uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 void swap_mnt_lookup_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
 	if (SOS_DEBUG) printf("swap_mnt_lookup_nfs_cb\n");
 	// Get all the arguments we use
-    write_swap_args *write_args = (write_swap_args *) token;
-    int pid = write_args->pid;
-    seL4_CPtr reply_cap = write_args->reply_cap;
+    write_swap_args *args = (write_swap_args *) token;
+    int pid = args->pid;
+    seL4_CPtr reply_cap = args->reply_cap;
     // Check the NFS call worked as expected
 	if (status != NFS_OK) {
-        assert(RTN_ON_FAIL);
+        eprintf("Error caught in swap_mnt_lookup_nfs_cb\n");
+		args->cb(pid, reply_cap, args->cb_args, -1);
+		free(args);
+		return;
     }
 	// Copy from the temp NFS buffer to mnt_attr
     memcpy(mnt_attr, fattr, sizeof(fattr_t));
     // Continue writing to the requested swap slot
-    write_to_swap_slot(pid, reply_cap, write_args);
+    write_to_swap_slot(pid, reply_cap, args);
     if (SOS_DEBUG) printf("swap_mnt_lookup_nfs_cb ended\n");
 }
 
@@ -223,9 +247,9 @@ void swap_init_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t
 		swap_handle = malloc(sizeof(fhandle_t));
 		// Check malloc
 		if (swap_handle == NULL) {
-			// Malloc failed
-			assert(RTN_ON_FAIL);
-			send_seL4_reply(reply_cap, -1);
+			eprintf("Error caught in swap_init_nfs_cb\n");
+			write_args->cb(pid, reply_cap, write_args->cb_args, -1);
+			free(write_args);
 			return;
 		} else {
 			// Copy from temp NFS buffer to swap_handle
@@ -242,19 +266,33 @@ void read_from_swap_slot(int pid, seL4_CPtr reply_cap, read_swap_args *args) {
 	if (SOS_DEBUG) printf("read_from_swap_slot\n");
 	// Initialise arguments to frame alloc
     frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    if (alloc_args == NULL) {
+    	eprintf("Error caught in read_from_swap_slot\n");
+		args->cb(pid, reply_cap, args->cb_args, -1);
+		free(args);
+		return;
+    }
     alloc_args->map = KMAP;
+    alloc_args->swap = SWAPPABLE;
     alloc_args->cb = (callback_ptr)read_from_swap_slot_cb;
     alloc_args->cb_args = args;
     // Allocate a frame to put the swapped in frame into
-    frame_alloc_swap(pid, reply_cap, alloc_args);
+    frame_alloc_swap(pid, reply_cap, alloc_args, 0);
 	if (SOS_DEBUG) printf("read_from_swap_slot ended\n");
 }
 
 // First callback for reading from the swap file
 // frame haw now been allocated so swap buffer must be manipulated
-void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args) {
+void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int err) {
 	if (SOS_DEBUG) printf("read_from_swap_slot_cb\n");
     read_swap_args *read_args = (read_swap_args *)args->cb_args;
+    if (err) {
+    	eprintf("Error caught in read_from_swap_slot_cb\n");
+		read_args->cb(pid, reply_cap, read_args->cb_args, -1);
+		free(args);
+		free(read_args);
+		return;
+    }
     // Copy the index from the frame_alloc return vars to the read args
     read_args->index = args->index;
     // Get the arguments we're using
@@ -279,18 +317,20 @@ void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args
     	frametable[index].frame_status &= ~PROCESS_MASK;
     	// Set the frame to used and the pid
         frametable[index].frame_status |= FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT);
+        assert((frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK) != 0);
 
     } else {
     	// Not in swap buffer
         // Set the tail to point to the new frame
         frametable[buffer_tail].frame_status &= ~SWAP_BUFFER_MASK;
         frametable[buffer_tail].frame_status |= index;
+        assert((frametable[buffer_tail].frame_status & SWAP_BUFFER_MASK) != 0);
         // Set the tail to the new frame
         buffer_tail = index;
         // Set status in new frame
         frametable[index].frame_status = FRAME_IN_USE | (pid << PROCESS_BIT_SHIFT) | buffer_head;
     }
-    
+    assert((frametable[index].frame_status & SWAP_BUFFER_MASK) != 0);
     sos_map_page_swap(read_args->index, vaddr, pid, reply_cap, (callback_ptr)read_from_swap_slot_cb2,
                       read_args);
     if (SOS_DEBUG) printf("read_from_swap_slot_cb ended\n");
@@ -299,8 +339,14 @@ void read_from_swap_slot_cb(int pid, seL4_CPtr reply_cap, frame_alloc_args *args
 
 // Second callback for reading from swap file
 // Page has been mapped in, so we can read from the file
-void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args) {
+void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args, int err) {
 	if (SOS_DEBUG) printf("read_from_swap_slot_cb2\n");
+	if (err) {
+		eprintf("Error caught in read_from_swap_slot_cb2\n");
+		args->cb(pid, reply_cap, args->cb_args, -1);
+		free(args);
+		return;
+	}
 	// Get the arguments we're using
 	int offset = args->slot * PAGE_SIZE;
 	// Set args for callback
@@ -310,7 +356,10 @@ void read_from_swap_slot_cb2 (int pid, seL4_CPtr reply_cap, read_swap_args *args
 	int status = nfs_read(swap_handle, offset, PAGE_SIZE, swap_read_nfs_cb, (uintptr_t)args);
 	// Check if RPC succeeded
 	if (status != RPC_OK) {
-		send_seL4_reply(reply_cap, -1);
+		eprintf("Error caught in read_from_swap_slot_cb2\n");
+		args->cb(pid, reply_cap, args->cb_args, -1);
+		free(args);
+		return;
 	}
 	if (SOS_DEBUG) printf("read_from_swap_slot_cb2 ended\n");
 }
@@ -335,8 +384,10 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 	// Check if NFS call failed
 	if (status != NFS_OK) {
 		// NFS failed, return
-		assert(1==0);
-		send_seL4_reply(reply_cap, -1);
+		eprintf("Error caught in swap_read_nfs_cb\n");
+		read_args->cb(pid, reply_cap, read_args->cb_args, -1);
+		free(read_args);
+		return;
 	} else {
 		// NFS call succeeded
 		// Copy from the temporary NFS buffer to memory
@@ -350,7 +401,7 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 			// Free swap slot
 			free_swap_slot(slot);
 			// Do callback
-			read_args->cb(pid, reply_cap, read_args->cb_args);
+			read_args->cb(pid, reply_cap, read_args->cb_args, 0);
 			free(read_args);
 		} else {
 			// Still reading from swap file
@@ -358,8 +409,10 @@ void swap_read_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int c
 			int rpc_status = nfs_read(swap_handle, offset, PAGE_SIZE - bytes_read, swap_read_nfs_cb, (uintptr_t)read_args);
 			// Check if RPC succeeded
 			if (rpc_status != RPC_OK) {
-				send_seL4_reply(reply_cap, -1);
+				eprintf("Error caught in swap_read_nfs_cb\n");
+				read_args->cb(pid, reply_cap, read_args->cb_args, -1);
 				free(read_args);
+				return;
 			}
 		}
 	}

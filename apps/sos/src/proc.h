@@ -7,6 +7,8 @@
 #include <clock/clock.h>
 #include <sos/sos.h>
 
+#include "callback.h"
+
 #define CAP_TABLE_PAGES 8
 #define PROCESS_MAX_FILES 16
 #define MAX_PROCESSES     0xFF
@@ -23,13 +25,19 @@
 #define CURR_READ 1
 #define CHILD_READ 2
 
-typedef void (*callback_ptr)(int, seL4_CPtr, void*);
+
 
 typedef struct _child_proc child_proc;
+typedef struct _wait_list wait_list;
 
 struct _child_proc {
     int pid;
     child_proc *next;
+};
+
+struct _wait_list {
+    int pid;
+    wait_list *next;
 };
 
 typedef struct _addr_space {
@@ -63,9 +71,6 @@ typedef struct _addr_space {
 
     //number of processes this process is waiting for to die
     int delete_wait;
-    //the reply cap and pid of a process waiting for this process to die
-    seL4_CPtr delete_reply_cap;
-    int delete_pid;
 
     char command[N_NAME];
 } addr_space; 
@@ -107,14 +112,17 @@ void process_status(seL4_CPtr reply_cap
                    ,unsigned max_processes
                    );
 
-void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args);
+void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err);
 
 int is_child(int parent_pid, int child_pid);
 
-int remove_child(int parent_pid, int child_pid);
+void remove_child(int parent_pid, int child_pid);
 
 void kill_process(int delete_pid, int child_pid, seL4_CPtr reply_cap);
 
-void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data);
+void kill_process_cb(int pid, seL4_CPtr reply_cap, void *data, int err);
 
+void add_to_wait_list(int pid);
+
+void wake_wait_list(int pid);
 #endif /* _PROC_H_ */

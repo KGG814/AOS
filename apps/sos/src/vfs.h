@@ -32,6 +32,22 @@
 typedef struct _vnode vnode;
 typedef struct _vnode_ops vnode_ops;
 
+typedef struct _vfs_stat_args {
+    seL4_CPtr reply_cap;
+    seL4_Word buf;
+    seL4_Word kpath;
+    int pid;
+} vfs_stat_args;
+
+typedef struct _getdirent_args {
+    seL4_CPtr reply_cap;
+    seL4_Word to_get;
+    seL4_Word entries_received;
+    seL4_Word buf;
+    int pid;
+    size_t nbyte;
+} getdirent_args;
+
 //store vnodes as a linked list for now
 struct _vnode {
     fmode_t         fmode;   /* access mode */
@@ -94,6 +110,6 @@ void    vfs_stat(const char *path
                 ,int pid
                 ); 
 
-void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args);
+void vfs_stat_wrapper (int pid, seL4_CPtr reply_cap, void* args, int err);
 
 #endif /* _VFS_H_ */

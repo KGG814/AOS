@@ -58,12 +58,24 @@ void fdt_cleanup(int pid) {
     }
 }
 
-void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* args) {
-    copy_in_args *copy_args = (copy_in_args *)args;
-    char* path = (char *) copy_args->cb_arg_1;
-    fmode_t mode = (fmode_t) copy_args->cb_arg_2;
+void fh_open_wrapper (int pid, seL4_CPtr reply_cap, void* _args, int err) {
+    file_open_args * args = (file_open_args *) _args;
+    char* path = args->path;
+    fmode_t mode = args->mode;
     free(args);
-    fh_open(pid, path, mode, reply_cap);
+    
+    if (err) {
+        send_seL4_reply(reply_cap, pid, FILE_TABLE_ERR);
+        free(path);
+        return;
+    }
+
+    int fd = fh_open(pid, path, mode, reply_cap);
+    free(path);
+    
+    if (fd >= FILE_TABLE_ERR) {
+        send_seL4_reply(reply_cap, pid, fd);
+    }
 }
 
 int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
@@ -76,9 +88,17 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     vnode* vn = vfs_open(path, mode, pid, reply_cap, &err);
     if (vn == NULL || err < 0) {
         assert(RTN_ON_FAIL);
+        printf("couldn't open a vn. dumping valid filehandles: \n");
+        for (int i = 0; i < PROCESS_MAX_FILES; i++) {
+            if (proc_table[pid]->file_table[i] != INVALID_FD) {
+                vnode *vn = oft[proc_table[pid]->file_table[i]]->vn;
+                printf("file %d: %s\n", i, vn->name); 
+            }
+        }
         return FILE_TABLE_ERR;
     } else if (err == VFS_CALLBACK) {
         // Wait for callback
+        if (SOS_DEBUG) printf("waiting for callback in fh_open\n");
         return FILE_TABLE_CALLBACK;
     }
 
@@ -90,16 +110,13 @@ int fh_open(int pid, char *path, fmode_t mode, seL4_CPtr reply_cap) {
     }
 
     proc_table[pid]->n_files_open++;
-    if (reply_cap != 0) {
-        send_seL4_reply(reply_cap, fd);
-    }
     if (SOS_DEBUG) printf("fh_open end\n");
     return fd;
 } 
 
 int fd_close(int pid, int file) {
     //assert(0);
-    printf("starting close\n");
+    if (SOS_DEBUG) printf("starting fd_close\n");
     if (file < 0 || file >= PROCESS_MAX_FILES) {
         return -1;
     }
@@ -107,6 +124,8 @@ int fd_close(int pid, int file) {
     if (oft_index == INVALID_FD) {
         return FILE_TABLE_ERR;
     }
+
+    printf("doing close on pid %d, fd %d\n", pid, file);
 
     file_handle* handle = oft[oft_index];
     if (handle == NULL) {
@@ -118,7 +137,8 @@ int fd_close(int pid, int file) {
 
     proc_table[pid]->file_table[file] = INVALID_FD;
     oft[oft_index] = NULL;
-    printf("close done\n");
+    proc_table[pid]->n_files_open--;
+    if (SOS_DEBUG) printf("close done\n");
     return err;
 }
 
@@ -137,11 +157,13 @@ int add_fd(vnode* vn, int pid) {
         ++fd;
     }  
     if (fd == PROCESS_MAX_FILES) {
+        if (SOS_DEBUG) printf("Couldn't get a valid fd\n");
         return INVALID_FD;
     }
     
     file_handle* fh = malloc(sizeof(file_handle));
     if (fh == NULL) {
+        if (SOS_DEBUG) printf("Ran out of memory for fh\n");
         return INVALID_FD;
     }
     oft[i] = fh;
