@@ -24,7 +24,7 @@
 #include <utils/time.h>
 
 /* Your OS header file */
-#include <sos.h>
+#include <sos/sos.h>
 
 #define PAGE_SIZE 4096
 #define BUF_SIZ   (4 * PAGE_SIZE)
