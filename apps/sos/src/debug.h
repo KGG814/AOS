@@ -1,9 +1,9 @@
 #ifndef _APPS_SOS_SRC_DEBUG_H_
 #define _APPS_SOS_SRC_DEBUG_H_
 
-#define SOS_DEBUG 0
+#define SOS_DEBUG 1
 #define TMP_DEBUG 1
-#define RTN_ON_FAIL 1
+#define RTN_ON_FAIL 0
 
 //a little hacky
 #if RTN_ON_FAIL

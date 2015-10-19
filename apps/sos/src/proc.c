@@ -9,7 +9,6 @@
 #include "ut_manager/ut.h"
 #include <sos/vmem_layout.h>
 #include <sos/sos.h>
-
 #include <clock/clock.h>
 
 #define verbose 5
@@ -45,6 +44,15 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *_args, int err);
 void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *args, int err);
 void start_process_cb2(int pid, seL4_CPtr reply_cap, void *args, int err);
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *args, int err);
+
+void check_elf_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr);
+void elf_get_frames (int pid, seL4_CPtr reply_cap, start_process_args *args, int err);
+void elf_frame_alloc (int pid, seL4_CPtr reply_cap, frame_alloc_args *alloc_args, int err);
+void process_init(int new_pid, seL4_CPtr reply_cap, void *_args, int err) ;
+void process_init_cb(int new_pid, seL4_CPtr reply_cap, void *_args, int err);
+void process_init_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err);
+void elf_load_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data);
+void cleanup_elf_table(start_process_args *args);
 
 void proc_table_init(void) {
     memset(proc_table, 0, (MAX_PROCESSES + 1) * sizeof(addr_space*));
@@ -213,7 +221,7 @@ void cleanup_as(int pid) {
 } 
 
 void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
-    if (TMP_DEBUG) printf("start_process\n");
+    if (SOS_DEBUG) printf("start_process\n");
     printf("starting process from pid %d\n", parent_pid);
 	start_process_args *args = (start_process_args *) _args;
 
@@ -239,11 +247,11 @@ void start_process(int parent_pid, seL4_CPtr reply_cap, void *_args) {
     as_args->cb_args = args;
     new_as(parent_pid, reply_cap, as_args);
 
-    if (TMP_DEBUG) printf("start_process end\n");
+    if (SOS_DEBUG) printf("start_process end\n");
 }
 
 void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
-    if (TMP_DEBUG) printf("start_process_cb1\n");
+    if (SOS_DEBUG) printf("start_process_cb1\n");
 
     start_process_args *args = (start_process_args *) _args;
     // Get args that we use
@@ -260,7 +268,7 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
         return;
     }
 
-    if (TMP_DEBUG) printf("pid: %d\n", new_pid);
+    if (SOS_DEBUG) printf("pid: %d\n", new_pid);
     // Address space of process
     addr_space* as = proc_table[new_pid];
     // Address space of parent 
@@ -353,11 +361,11 @@ void start_process_cb1(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
 
     /* Get IPC buffer */
     frame_alloc_swap(new_pid, reply_cap, alloc_args, 0);
-    if (TMP_DEBUG) printf("start_process_cb1 end\n");
+    if (SOS_DEBUG) printf("start_process_cb1 end\n");
 }
 
 void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
-    if (TMP_DEBUG) printf("start_process_cb2\n");
+    if (SOS_DEBUG) printf("start_process_cb2\n");
 	frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
 	start_process_args *args = (start_process_args *) alloc_args->cb_args;
 
@@ -416,7 +424,7 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     frametable[index].frame_status |= FRAME_DONT_SWAP;
 
     /* Copy the fault endpoint to the user app to enable IPC */
-    if (TMP_DEBUG) printf("PID is %d\n", new_pid);
+    if (SOS_DEBUG) printf("PID is %d\n", new_pid);
     user_ep_cap = cspace_mint_cap(as->croot
                                  ,cur_cspace
                                  ,args->fault_ep
@@ -509,11 +517,11 @@ void start_process_cb2(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
     printf("reply cap %p\n",(void *) reply_cap);
     elf_load(new_pid, reply_cap, load_args, 0);
     
-    if (TMP_DEBUG) printf("start_process_cb2 end\n");
+    if (SOS_DEBUG) printf("start_process_cb2 end\n");
 }
 
 void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
-    if (TMP_DEBUG) printf("start_process_cb_cont\n");
+    if (SOS_DEBUG) printf("start_process_cb_cont\n");
     printf("reply cap %p\n",(void *) reply_cap);
     start_process_args *args = (start_process_args *) _args;
 
@@ -540,7 +548,7 @@ void start_process_cb_cont(int pid, seL4_CPtr reply_cap, void *_args, int err) {
     args->cb(args->parent_pid, reply_cap, (void *)pid, 0);
     free(args);
 
-    if (TMP_DEBUG) printf("start_process_cb_cont end\n");
+    if (SOS_DEBUG) printf("start_process_cb_cont end\n");
 }
 
 void process_status(seL4_CPtr reply_cap
@@ -599,7 +607,7 @@ void process_status_cb(int pid, seL4_CPtr reply_cap, void *args, int err) {
 }
 
 void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err) {
-    if (TMP_DEBUG) printf("handle_process_create_cb\n");
+    if (SOS_DEBUG) printf("handle_process_create_cb\n");
     if (!err) {
         printf("Process %d\n", pid);
     }
@@ -610,7 +618,7 @@ void handle_process_create_cb (int pid, seL4_CPtr reply_cap, void *args, int err
     } else {
         send_seL4_reply(reply_cap, pid, child_pid);
     }  
-    if (TMP_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
+    if (SOS_DEBUG) printf("handle_process_create_cb ended\n\n\n\n");
 }
 
 int is_child(int parent_pid, int child_pid) {
@@ -775,4 +783,516 @@ void wake_wait_list(int pid) {
         curr_wait = next_wait;
     }
     wait_head = NULL;
+}
+
+/*
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+*/
+
+void start_process_load (int parent_pid, seL4_CPtr reply_cap, void *_args) {
+    if (SOS_DEBUG) printf("start_process_load\n");
+    printf("starting process from pid %d\n", parent_pid);
+    start_process_args *args = (start_process_args *) _args;
+    char *app_name = args->app_name;
+    
+    addr_space *parent_as = proc_table[parent_pid];
+    //check parent exists 
+    if (parent_pid > 0 && parent_as == NULL) {
+        //this shouldn't happen
+        assert(0);
+    }
+    args->reply_cap = reply_cap;
+    // Check file exists
+    int status = nfs_lookup(&mnt_point, app_name, check_elf_nfs_cb, (uintptr_t)args);
+        // check if the NFS call succeeded
+    if (status != RPC_OK) {
+        eprintf("NFS call failed");
+        send_seL4_reply(reply_cap, parent_pid, -1);
+        return;
+    }
+
+
+
+    if (SOS_DEBUG) printf("start_process_load ended\n");
+}
+
+void check_elf_nfs_cb(uintptr_t token, nfs_stat_t status, fhandle_t *fh, fattr_t *fattr) {
+    if (SOS_DEBUG) printf("check_elf_nfs_cb\n");
+    start_process_args *args = (start_process_args *) token;
+    if (args == NULL) {
+        return;
+    }
+     // Get arguments we need
+    seL4_CPtr reply_cap = args->reply_cap;
+    int parent_pid = args->parent_pid;
+    char *app_name = args->app_name;
+    // Check if file was found or anything else went wrong
+    if (status != NFS_OK) {
+        eprintf("File %s does not exist", app_name);
+        send_seL4_reply(reply_cap, parent_pid, -1);
+        return;
+    }
+    // Copy the file handle and attributes to the arguments
+    args->elf_fh = malloc(sizeof(fhandle_t));
+    args->elf_attr = malloc(sizeof(fattr_t));
+    memcpy(args->elf_fh, fh, sizeof(fhandle_t));
+    memcpy(args->elf_attr, fattr, sizeof(fattr_t));
+    // Set up callback args
+    new_as_args *as_args = malloc(sizeof(new_as_args));
+    as_args->cb = (callback_ptr) elf_get_frames;
+    as_args->cb_args = args;
+    new_as(parent_pid, reply_cap, as_args);
+    if (SOS_DEBUG) printf("check_elf_nfs_cb ended\n");
+}
+
+void elf_get_frames (int pid, seL4_CPtr reply_cap, start_process_args *args, int err) {
+    printf("elf_get_frames\n");
+    // Set up cb args
+    args->curr_elf_frame = 0;
+    args->curr_elf_addr  = ELF_LOAD;
+    args->max_elf_frames = args->elf_attr->size / PAGE_SIZE;
+    int size = args->elf_attr->size;
+    // Check for off by one
+    if (args->elf_attr->size & ~PAGE_MASK) {
+        args->max_elf_frames++;
+    }
+    int frames = args->max_elf_frames;
+    printf("Pid %d Size: %p, Pages: %p\n", pid, (void *) size, (void *) frames);
+    send_seL4_reply(reply_cap, pid, 0);
+    // Set up table to store elf mapping frames
+    args->elf_load_table = malloc(sizeof(int) * args->max_elf_frames);
+    // Set up alloc args
+    frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    alloc_args->map     = NOMAP;
+    alloc_args->swap    = NOT_SWAPPABLE;
+    alloc_args->cb      = (callback_ptr) elf_frame_alloc;
+    alloc_args->cb_args = args;
+    // Alloc the next frame for elf
+    frame_alloc_swap(pid, reply_cap, alloc_args, 0);
+    printf("elf_get_frames ended\n");
+}
+
+
+void elf_frame_alloc (int pid, seL4_CPtr reply_cap, frame_alloc_args *alloc_args, int err) {
+    if (SOS_DEBUG) printf("elf_frame_alloc\n");
+    start_process_args *args = alloc_args->cb_args;
+    // Update allocate state
+    int *elf_load_table =  args->elf_load_table;
+    // Store the frame index for later
+    elf_load_table[args->curr_elf_frame] = alloc_args->index;
+    
+    // Get args
+    int curr_frame = args->curr_elf_frame;
+    int max_frames = args->max_elf_frames;
+    seL4_Word curr_addr = args->curr_elf_addr;
+    // Other variables
+    int num_frames = curr_frame + 1;
+    int index = elf_load_table[curr_frame];
+    // Map into kernel contiguously
+    int map_err = map_page(frametable[index].frame_cap
+                          ,seL4_CapInitThreadPD
+                          ,curr_addr
+                          ,seL4_AllRights
+                          ,seL4_ARM_Default_VMAttributes
+                          );
+    assert(map_err == 0);
+    printf("Allocated frame %d of %d at %p\n", num_frames, max_frames, (void *) curr_addr);
+    if (num_frames < max_frames) {
+        // Setup frame_alloc args
+        memset(alloc_args, 0, sizeof(frame_alloc_args));
+        alloc_args->map     = NOMAP;
+        alloc_args->swap    = NOT_SWAPPABLE;
+        alloc_args->cb      = (callback_ptr) elf_frame_alloc;
+        alloc_args->cb_args = args;
+        // Go to next frame
+        args->curr_elf_frame++;
+        args->curr_elf_addr += PAGE_SIZE;
+        // Alloc the next frame for elf
+        frame_alloc_swap(pid, reply_cap, alloc_args, 0);
+    } else {
+
+        free(alloc_args);
+        // now we need to copy the elf from NFS
+        args->curr_elf_addr = ELF_LOAD;
+        args->offset = 0;
+        args->child_pid = pid;
+        printf("Doing NFS\n");
+        printf("args %p\n", args);
+        printf("size: %d\n", args->elf_attr->size);
+        int status = nfs_read(args->elf_fh, 0, PAGE_SIZE/2, elf_load_nfs_cb, (uintptr_t)args);
+        if (status != NFS_OK) {
+            // NFS failed, return
+            eprintf("Error caught in elf_frame_alloc\n");
+            args->cb(pid, reply_cap, args->cb_args, -1);
+            cleanup_elf_table(args);
+            free(args);
+        }
+        printf("NFS call succeeded\n");
+    }
+    if (SOS_DEBUG) printf("elf_frame_alloc end\n");
+}
+
+void elf_load_nfs_cb (uintptr_t token, nfs_stat_t status, fattr_t *fattr, int count, void *data) {
+    if (SOS_DEBUG) printf("elf_load_nfs_cb\n");
+    // Get the args struct form the token
+    start_process_args *args = (start_process_args *) token;
+    // Increment the read state so we're reading from the correct place in the elf file
+    args->offset += count;
+    
+    // Get the arguments we're using
+    int offset = args->offset;
+    int size =  args->elf_attr->size;
+    seL4_Word addr = args->curr_elf_addr;
+    fhandle_t *fh = args->elf_fh;
+    int pid = args->child_pid;
+    seL4_CPtr reply_cap = args->reply_cap;
+
+    assert(count != 0);
+    // Check if NFS call failed
+    if (status != NFS_OK) {
+        // NFS failed, return
+        eprintf("Error caught in elf_load_nfs_cb\n");
+        args->cb(pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        return;
+    }
+    printf("addr: %p\n", (void *) addr);
+    // Copy from the temporary NFS buffer to memory
+    memcpy((void *) addr, data, count);
+    // Check if we are done
+    if (offset == size) {
+        printf("Finished, pid %d\n", pid);
+        // Finished reading from elf
+        process_init(pid, reply_cap, args, 0);
+
+    } else {
+        printf("Still reading\n");
+        // Still reading from elf file
+        args->curr_elf_addr += count;
+        int to_load = size - offset;
+        if (to_load > PAGE_SIZE/2) {
+            to_load = PAGE_SIZE/2;
+        }
+        int rpc_status = nfs_read(fh, offset, to_load, elf_load_nfs_cb, (uintptr_t)args);
+        // Check if RPC succeeded
+        if (rpc_status != RPC_OK) {
+            eprintf("Error caught in elf_load_nfs_cb\n");
+            args->cb(pid, reply_cap, args->cb_args, -1);
+            free(args);
+            return;
+        }
+    }
+    if (SOS_DEBUG) printf("elf_load_nfs_cb ended\n");
+}
+
+void process_init(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
+    if (SOS_DEBUG) printf("process_init\n");
+    start_process_args *args = (start_process_args *) _args;
+    // Get args that we use
+    char *app_name = args->app_name;
+    if (err) {
+        //if the kernel can't create a process, die
+        eprintf("Error caught in process_init\n");
+        return;
+    }
+    if (SOS_DEBUG) printf("pid: %d\n", new_pid);
+    // Address space of process
+    addr_space* as = proc_table[new_pid];
+    // Address space of parent 
+    addr_space* parent_as = proc_table[args->parent_pid];
+
+    //do some preliminary initialisation
+    as->status = 0;
+    as->priority = args->priority;
+    as->pid = new_pid; 
+    as->size = 0;
+    as->create_time = time_stamp();
+    as->children = NULL;
+    as->status = PROC_READY;
+    if (as->parent_pid != 0) {
+        child_proc *new = malloc(sizeof(child_proc));
+        if (new == NULL) {
+            eprintf("Error caught in start_process_cb1\n");
+            
+            assert(args->parent_pid);
+            args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+            cleanup_elf_table(args);
+            free(args);
+            cleanup_as(new_pid);
+            return;
+        }
+
+        new->pid = new_pid;
+        new->next = parent_as->children;
+        parent_as->children = new;
+    }
+
+    memset(as->command, 0, N_NAME);
+    strncpy(as->command, app_name, N_NAME - 1);
+
+    /* Create a VSpace */
+    as->vroot_addr = ut_alloc(seL4_PageDirBits);
+    if (!as->vroot_addr) {
+        eprintf("Error caught in start_process_cb1: couldn't create vspace\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }   
+
+    err = cspace_ut_retype_addr(as->vroot_addr
+                                   ,seL4_ARM_PageDirectoryObject
+                                   ,seL4_PageDirBits
+                                   ,cur_cspace
+                                   ,&(as->vroot)
+                                   );
+    if (err) {
+        eprintf("Error caught in start_process_cb1: couldn't retype for vspace\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
+    /* Create a simple 1 level CSpace */
+    as->croot = cspace_create(1);
+    if (as->croot == NULL) {
+        eprintf("Error caught in start_process_cb1: couldn't create cspace\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
+    // Set up frame_alloc_swap args
+    frame_alloc_args *alloc_args = malloc(sizeof(frame_alloc_args));
+    if (alloc_args == NULL) {
+        eprintf("Error caught in start_process_cb1\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+
+    alloc_args->map = NOMAP;
+    alloc_args->swap = NOT_SWAPPABLE;
+    alloc_args->cb = process_init_cb;
+    alloc_args->cb_args = args;
+
+    /* Get IPC buffer */
+    frame_alloc_swap(new_pid, reply_cap, alloc_args, 0);
+    if (SOS_DEBUG) printf("start_process_cb1 end\n");
+}
+
+void process_init_cb(int new_pid, seL4_CPtr reply_cap, void *_args, int err) {
+    if (SOS_DEBUG) printf("process_init_cb\n");
+    frame_alloc_args *alloc_args = (frame_alloc_args *) _args;
+    start_process_args *args = (start_process_args *) alloc_args->cb_args;
+    // Free frame_alloc args
+    int index = alloc_args->index;
+    free(alloc_args);
+    alloc_args = NULL;   
+    if (err || index == FRAMETABLE_ERR) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    // Various local state
+    // Address space of the new process
+    addr_space *as = proc_table[new_pid];
+    seL4_CPtr user_ep_cap;
+    
+    as->ipc_buffer_addr = index_to_paddr(index);
+    /* Map IPC buffer*/
+    as->ipc_buffer_cap = cspace_copy_cap(cur_cspace
+                                   ,cur_cspace
+                                   ,frametable[index].frame_cap
+                                   ,seL4_AllRights
+                                   );
+
+    err = map_page_user(as->ipc_buffer_cap, as->vroot,
+                   PROCESS_IPC_BUFFER,
+                   seL4_AllRights, seL4_ARM_Default_VMAttributes, as);
+    
+    printf("cap: %p\n", (void *)as->ipc_buffer_cap);
+    printf("err :%d\n", err);
+    if (err) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    printf("Setting index %p to don't swap\n", (void *) index);
+    frametable[index].frame_status |= FRAME_DONT_SWAP;
+
+    /* Copy the fault endpoint to the user app to enable IPC */
+    if (SOS_DEBUG) printf("PID is %d\n", new_pid);
+    user_ep_cap = cspace_mint_cap(as->croot
+                                 ,cur_cspace
+                                 ,args->fault_ep
+                                 ,seL4_AllRights 
+                                 ,seL4_CapData_Badge_new(new_pid)
+                                 );   
+    /* Create a new TCB object */
+    as->tcb_addr = ut_alloc(seL4_TCBBits);
+    if (!as->tcb_addr) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    err =  cspace_ut_retype_addr(as->tcb_addr,
+                                 seL4_TCBObject,
+                                 seL4_TCBBits,
+                                 cur_cspace,
+                                 &(as->tcb_cap));
+    if (err) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    /* Configure the TCB */
+    err = seL4_TCB_Configure(as->tcb_cap, user_ep_cap, as->priority,
+                             as->croot->root_cnode, seL4_NilData,
+                             as->vroot, seL4_NilData, PROCESS_IPC_BUFFER,
+                             as->ipc_buffer_cap);
+
+    if (err) {
+        eprintf("Error caught in process_init_cbn");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    /* parse the cpio image */
+    dprintf(1, "\nStarting \"%s\"...\n", as->command);
+    args->elf_base = (void *) ELF_LOAD;
+    printf("tried to do elf load\n");
+    if (!args->elf_base) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    /* load the elf image */
+    elf_load_args *load_args = malloc(sizeof(elf_load_args));
+    if (load_args == NULL) {
+        eprintf("Error caught in process_init_cb\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(new_pid);
+        return;
+    }
+    load_args->elf_file = args->elf_base;
+    load_args->curr_header = 0;
+    load_args->cb = process_init_cb2;
+    load_args->cb_args = args;
+    elf_load(new_pid, reply_cap, load_args, 0);
+    
+    if (SOS_DEBUG) printf("process_init_cb end\n");
+}
+
+void process_init_cb2(int pid, seL4_CPtr reply_cap, void *_args, int err) {
+    if (SOS_DEBUG) printf("process_init_cb2\n");
+    start_process_args *args = (start_process_args *) _args;
+
+    if (err) {
+        eprintf("Error caught in process_init_cb2\n");
+
+        assert(args->parent_pid);
+        args->cb(args->parent_pid, reply_cap, args->cb_args, -1);
+        cleanup_elf_table(args);
+        free(args);
+        cleanup_as(pid);
+        return;
+    }   
+
+    /* These required for setting up the TCB */
+    seL4_UserContext context;
+    /* Start the new process */
+    addr_space *as = proc_table[pid];
+    memset(&context, 0, sizeof(context));
+    context.pc = elf_getEntryPoint(args->elf_base);
+    context.sp = PROCESS_STACK_TOP;
+    seL4_TCB_WriteRegisters(as->tcb_cap, 1, 0, 2, &context);
+    
+    args->cb(args->parent_pid, reply_cap, (void *)pid, 0);
+
+    free(args->elf_fh);
+    free(args->elf_attr);
+    cleanup_elf_table(args);
+    free(args);
+
+    if (SOS_DEBUG) printf("process_init_cb2 end\n");
+}
+
+void cleanup_elf_table(start_process_args *args) {
+    int *elf_table = args->elf_load_table;
+    int max_frames = args->max_elf_frames;
+    int index;
+    for (int i = 0; i < max_frames; i++) {
+        index = elf_table[i];
+        if (index != 0) {
+            printf("Cleaning up cptr: %d\n", frametable[index].frame_cap);
+            frame_free(index);
+        }
+    }
+    free(elf_table);
 }

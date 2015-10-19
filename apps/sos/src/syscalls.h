@@ -94,6 +94,7 @@ void handle_usleep(seL4_CPtr reply_cap, int pid);
 
 //convenience functino for sending replies
 static inline void send_seL4_reply(seL4_CPtr reply_cap, int pid, int ret) {
+    printf("Replying\n");
     if (!reply_cap) {
         return;
     }

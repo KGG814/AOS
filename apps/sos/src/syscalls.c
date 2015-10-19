@@ -277,7 +277,7 @@ void handle_process_create(seL4_CPtr reply_cap, int pid) {
     process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
     process_args->parent_pid = pid;
-    start_process(pid, reply_cap, process_args);
+    start_process_load(pid, reply_cap, process_args);
 }
 
 /* Delete process (and close all its file descriptors).

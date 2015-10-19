@@ -26,7 +26,7 @@
 
 #define FRAME_STATUS_MASK   (0xF0000000)
 #define PAGE_BITS           12
-#define MAX_FRAMES          100
+#define MAX_FRAMES          300
 #define verbose 5
 #define FT_INITIALISED      1
 int ft_initialised = 0;
@@ -182,6 +182,11 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         // Get frametable index of a frame to be swapped
         write_args->index = get_next_frame_to_swap();
         int index = write_args->index;
+        if (index == -1) {
+            printf("Out of memory\n");
+            //9242 TODO
+            assert(0 == 1);
+        }
         printf("TEST\n");
         printf("index %p\n", (void*) index);
         printf("vaddr %p\n", (void *) frametable[index].vaddr);
@@ -198,7 +203,7 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         args->index = paddr_to_index(args->pt_addr);
         // Retype the cap so we can use it
         // Also put the cap in the frameable
-        err |= cspace_ut_retype_addr(args->pt_addr
+        err = cspace_ut_retype_addr(args->pt_addr
                                 ,seL4_ARM_SmallPageObject
                                 ,seL4_PageBits
                                 ,cur_cspace
@@ -208,6 +213,8 @@ void frame_alloc_swap(int pid, seL4_CPtr reply_cap, frame_alloc_args *args, int 
         if (err) { 
             // Retype failed, free memory and callback
             //9242_TODO More cleanup needed?
+            printf("CPtr %d\n", frametable[args->index].frame_cap);
+            printf("Error :%d, paddr %p, vaddr %p\n", err, (void *) args->pt_addr, index_to_vaddr(args->index));
             eprintf("Error caught in frame_alloc_swap\n");
 
             //9242_TODO confirm this is the right thing to do
@@ -366,6 +373,9 @@ int frame_free(int index) {
 int get_next_frame_to_swap(void) {
     if (SOS_DEBUG) printf("get_next_frame_to_swap\n");
     printf("starting at %p\n", (void *) buffer_tail);
+    if (buffer_tail == -1) {
+        return -1;
+    }
     int loop_count = 0;
     int curr_frame = buffer_tail;
     int next_frame = frametable[curr_frame].frame_status & SWAP_BUFFER_MASK;
@@ -376,8 +386,7 @@ int get_next_frame_to_swap(void) {
             loop_count++;
         }
         if (loop_count >= 2) {
-            printf("Out of memory\n");
-            assert(1==0);
+            return -1;
         }
         if (next_frame == 0) {
             //9242_TODO Fix this sporadic bug

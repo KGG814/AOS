@@ -123,7 +123,9 @@ void syscall_loop(seL4_CPtr ep) {
         if (badge & IRQ_EP_BADGE) {
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK) {  
+                printf("Handling NFS\n");
                 network_irq();
+                printf("NFS handled\n");
             }
 
             if(badge & IRQ_BADGE_TIMER) {
@@ -223,7 +225,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     process_args->cb = handle_process_create_cb;
     process_args->cb_args = NULL;
     process_args->parent_pid = 0;
-    start_process(0, 0, process_args);
+    start_process_load(0, 0, process_args);
 }
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
