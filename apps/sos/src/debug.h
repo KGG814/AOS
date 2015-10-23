@@ -11,7 +11,7 @@
 #if RTN_ON_FAIL
     #define eprintf(...) if (CB_DEBUG) printf(__VA_ARGS__)
 #else 
-    #define eprintf(...) if (CB_DEBUG) printf(__VA_ARGS__); if (CB_DEBUG) assert(0)
+    #define eprintf(...) if (CB_DEBUG) printf(__VA_ARGS__), assert(0)
 #endif
 
 
